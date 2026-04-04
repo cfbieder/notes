@@ -41,3 +41,10 @@ coverage/
 .cache/
 tmp/
 temp/
+
+# Project-specific
+backend/uploads/
+backend/logs/
+attachments/
+certs/
+Backups/

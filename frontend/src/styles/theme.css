@@ -1,0 +1,22 @@
+:root {
+  /* Backgrounds — three-tier depth hierarchy */
+  --bg-main:    #1a3a6d;
+  --bg-sidebar: #102a50;
+  --bg-card:    #244a85;
+
+  /* Text */
+  --text-primary:   #ffffff;
+  --text-secondary: #c4d9ff;
+  --text-muted:     #6b8dbb;
+
+  /* Accents & Interaction */
+  --accent-primary: #3a86ff;
+  --accent-warn:    #ff9f1c;
+  --accent-success: #4cc9f0;
+
+  /* Borders & Dividers */
+  --border-subtle: rgba(255, 255, 255, 0.1);
+
+  /* Shadows */
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.15);
+}

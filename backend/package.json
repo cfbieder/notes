@@ -1,0 +1,31 @@
+{
+  "name": "noted-backend",
+  "version": "0.1.0",
+  "description": "Noted — Personal Knowledge & Task Management API",
+  "main": "src/app.js",
+  "scripts": {
+    "dev": "nodemon src/app.js",
+    "start": "node src/app.js",
+    "migrate:dev": "node src/utils/migrate.js dev",
+    "migrate:prod": "node src/utils/migrate.js prod",
+    "migrate:create": "node src/utils/migrate.js create"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
+  },
+  "dependencies": {
+    "fastify": "^5.3.3",
+    "@fastify/cors": "^11.0.0",
+    "@fastify/cookie": "^11.0.0",
+    "@fastify/multipart": "^9.0.0",
+    "@fastify/rate-limit": "^10.2.0",
+    "pg": "^8.13.0",
+    "dotenv": "^16.4.0",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

@@ -1,0 +1,90 @@
+require('dotenv').config({
+  path: process.env.NODE_ENV === 'production' ? '.env' : '.env.dev'
+});
+
+const fastify = require('fastify')({
+  logger: {
+    level: process.env.LOG_LEVEL || 'info',
+    ...(process.env.NODE_ENV === 'production' && {
+      file: process.env.LOG_DIR
+        ? `${process.env.LOG_DIR}/combined.log`
+        : './logs/combined.log'
+    })
+  }
+});
+
+// Register plugins
+const registerPlugins = async () => {
+  await fastify.register(require('@fastify/cors'), {
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    credentials: true
+  });
+
+  await fastify.register(require('@fastify/cookie'));
+
+  await fastify.register(require('@fastify/rate-limit'), {
+    global: false
+  });
+
+  // App plugins
+  await fastify.register(require('./plugins/db'));
+  await fastify.register(require('./plugins/auth'));
+};
+
+// Register routes
+const registerRoutes = async () => {
+  // Auth routes (with rate limiting)
+  await fastify.register(require('./routes/auth'), {
+    prefix: '/api/v1/auth',
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '15 minutes'
+      }
+    }
+  });
+
+  // Protected resource routes
+  await fastify.register(require('./routes/notebooks'), { prefix: '/api/v1/notebooks' });
+  await fastify.register(require('./routes/stacks'), { prefix: '/api/v1/stacks' });
+  await fastify.register(require('./routes/notes'), { prefix: '/api/v1/notes' });
+};
+
+// Health check
+fastify.get('/health', async () => {
+  return { status: 'ok', timestamp: new Date().toISOString() };
+});
+
+// Global error handler
+fastify.setErrorHandler((error, request, reply) => {
+  const statusCode = error.statusCode || 500;
+
+  if (statusCode === 500) {
+    fastify.log.error(error);
+  }
+
+  reply.code(statusCode).send({
+    error: error.name || 'Error',
+    message: statusCode === 500 ? 'Internal server error' : error.message,
+    statusCode
+  });
+});
+
+// Start server
+const start = async () => {
+  try {
+    await registerPlugins();
+    await registerRoutes();
+
+    const port = parseInt(process.env.PORT, 10) || 3001;
+    const host = process.env.HOST || '0.0.0.0';
+
+    await fastify.listen({ port, host });
+    fastify.log.info(`Noted API running on ${host}:${port}`);
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+};
+
+start();

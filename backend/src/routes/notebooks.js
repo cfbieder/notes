@@ -1,0 +1,101 @@
+async function notebookRoutes(fastify) {
+  // All routes require authentication
+  fastify.addHook('onRequest', fastify.authenticate);
+
+  // GET /api/v1/notebooks
+  fastify.get('/', async (request) => {
+    const result = await fastify.db.query(
+      `SELECT n.*, COUNT(notes.id)::int AS note_count
+       FROM notebooks n
+       LEFT JOIN notes ON notes.notebook_id = n.id
+       WHERE n.user_id = $1
+       GROUP BY n.id
+       ORDER BY n.is_default DESC, n.name`,
+      [request.user.id]
+    );
+    return { data: result.rows };
+  });
+
+  // POST /api/v1/notebooks
+  fastify.post('/', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string', minLength: 1, maxLength: 255 },
+          stack_id: { type: 'string', format: 'uuid' }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const { name, stack_id } = request.body;
+    const result = await fastify.db.query(
+      `INSERT INTO notebooks (user_id, name, stack_id)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [request.user.id, name, stack_id || null]
+    );
+    return reply.code(201).send({ data: result.rows[0] });
+  });
+
+  // PUT /api/v1/notebooks/:id
+  fastify.put('/:id', {
+    schema: {
+      params: {
+        type: 'object',
+        properties: { id: { type: 'string', format: 'uuid' } }
+      },
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', minLength: 1, maxLength: 255 },
+          stack_id: { type: 'string', format: 'uuid' }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { name, stack_id } = request.body;
+
+    const result = await fastify.db.query(
+      `UPDATE notebooks
+       SET name = COALESCE($1, name),
+           stack_id = COALESCE($2, stack_id)
+       WHERE id = $3 AND user_id = $4
+       RETURNING *`,
+      [name, stack_id, id, request.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Notebook not found', statusCode: 404 });
+    }
+    return { data: result.rows[0] };
+  });
+
+  // DELETE /api/v1/notebooks/:id
+  fastify.delete('/:id', async (request, reply) => {
+    const { id } = request.params;
+
+    // Prevent deleting the default notebook
+    const check = await fastify.db.query(
+      'SELECT is_default FROM notebooks WHERE id = $1 AND user_id = $2',
+      [id, request.user.id]
+    );
+
+    if (check.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Notebook not found', statusCode: 404 });
+    }
+    if (check.rows[0].is_default) {
+      return reply.code(400).send({ error: 'Bad Request', message: 'Cannot delete the default notebook', statusCode: 400 });
+    }
+
+    await fastify.db.query(
+      'DELETE FROM notebooks WHERE id = $1 AND user_id = $2',
+      [id, request.user.id]
+    );
+    return reply.code(204).send();
+  });
+}
+
+module.exports = notebookRoutes;
