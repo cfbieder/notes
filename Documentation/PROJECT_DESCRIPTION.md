@@ -894,10 +894,10 @@ Keep illustrations small and purposeful — one per empty state, no decorative u
 │  Notebooks  │  tag · 2h ago    │                                │
 │  Tags       │  ─────────────   │  Start writing in Markdown...  │
 │  ─────────  │  [Note title]    │                                │
-│  Inbox  (3) │  tag · yesterday │  [[Link to another note]]      │
-│  Tasks      │                  │  #concept-tag                  │
-│             │                  │  - [ ] Task item               │
-│  [+ New]    │                  │                                │
+│  Inbox  (3) │  tag · yesterday │                                │
+│  Tasks      │                  │  [[Link to another note]]      │
+│             │                  │  #concept-tag                  │
+│  [+ New]    │                  │  - [ ] Task item               │
 └─────────────┴──────────────────┴────────────────────────────────┘
   260px           280px                  flex: 1
 ```
