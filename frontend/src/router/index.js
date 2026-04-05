@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { useAuthStore } from '../stores/auth.js';
 
 const routes = [
   {
@@ -8,7 +9,8 @@ const routes = [
   {
     path: '/login',
     name: 'Login',
-    component: () => import('../views/LoginView.vue')
+    component: () => import('../views/LoginView.vue'),
+    meta: { public: true }
   },
   {
     path: '/notes',
@@ -23,7 +25,7 @@ const routes = [
   {
     path: '/inbox',
     name: 'Inbox',
-    component: () => import('../views/InboxView.vue')
+    component: () => import('../views/NotesView.vue')
   },
   {
     path: '/tasks',
@@ -55,6 +57,20 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes
+});
+
+// Auth guard — useAuthStore must be called after pinia is installed,
+// so we call it lazily inside the guard.
+router.beforeEach((to) => {
+  if (to.meta.public) return true;
+
+  const authStore = useAuthStore();
+
+  if (!authStore.isAuthenticated) {
+    return { name: 'Login' };
+  }
+
+  return true;
 });
 
 export default router;

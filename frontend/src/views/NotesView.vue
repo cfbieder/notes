@@ -1,83 +1,154 @@
 <script setup>
+import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useNotesStore } from '../stores/notes.js';
+import { useUIStore } from '../stores/ui.js';
+import AppSidebar from '../components/sidebar/AppSidebar.vue';
+import NoteListPanel from '../components/ui/NoteListPanel.vue';
+import EditorToolbar from '../components/editor/EditorToolbar.vue';
+import CodeMirrorEditor from '../components/editor/CodeMirrorEditor.vue';
+import { FileText } from 'lucide-vue-next';
+
+const route = useRoute();
+const router = useRouter();
+const notesStore = useNotesStore();
+const uiStore = useUIStore();
+
+const editorContent = ref('');
+const noteTitle = ref('');
+let saveTimer = null;
+
+const isSourceMode = computed(() => uiStore.editorMode === 'source');
+
+onMounted(async () => {
+  // Load notes if not already loaded
+  if (notesStore.notes.length === 0) {
+    // Check if we're on a notebook route
+    if (route.params.id && route.name === 'NotebookNotes') {
+      notesStore.setFilter('notebook_id', route.params.id);
+    }
+    await notesStore.fetchNotes();
+  }
+
+  // Load specific note if routed to one
+  if (route.params.id && route.name === 'NoteDetail') {
+    await loadNote(route.params.id);
+  }
+});
+
+onBeforeUnmount(() => {
+  if (saveTimer) clearTimeout(saveTimer);
+});
+
+// Watch route changes to load notes
+watch(() => route.params.id, async (newId) => {
+  if (newId && route.name === 'NoteDetail') {
+    // Save any pending changes before switching
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      await saveNote();
+    }
+    await loadNote(newId);
+  }
+});
+
+async function loadNote(id) {
+  const note = await notesStore.fetchNote(id);
+  if (note) {
+    noteTitle.value = note.title;
+    editorContent.value = note.content;
+    uiStore.setSaveStatus('saved');
+  }
+}
+
+function onContentChange(newContent) {
+  editorContent.value = newContent;
+  scheduleSave();
+}
+
+function onTitleChange(newTitle) {
+  noteTitle.value = newTitle;
+  scheduleSave();
+}
+
+function scheduleSave() {
+  uiStore.setSaveStatus('unsaved');
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNote, 500);
+}
+
+async function saveNote() {
+  if (!notesStore.currentNote) return;
+
+  uiStore.setSaveStatus('saving');
+  try {
+    await notesStore.updateNote(notesStore.currentNote.id, {
+      title: noteTitle.value,
+      content: editorContent.value
+    });
+    uiStore.setSaveStatus('saved');
+  } catch {
+    uiStore.setSaveStatus('unsaved');
+  }
+}
 </script>
 
 <template>
   <div class="notes-layout">
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <h2>Noted</h2>
-        <span class="version">v{{ version }}</span>
+    <AppSidebar />
+    <NoteListPanel />
+    <main class="editor-pane">
+      <template v-if="notesStore.currentNote">
+        <EditorToolbar
+          :noteTitle="noteTitle"
+          @update:noteTitle="onTitleChange"
+        />
+        <div class="editor-body">
+          <CodeMirrorEditor
+            :modelValue="editorContent"
+            :sourceMode="isSourceMode"
+            @update:modelValue="onContentChange"
+          />
+        </div>
+      </template>
+      <div v-else class="no-note">
+        <FileText :size="48" />
+        <p>Select a note or create a new one</p>
       </div>
-      <p class="placeholder">Sidebar — notebooks, tags</p>
-    </aside>
-    <section class="note-list">
-      <p class="placeholder">Note list</p>
-    </section>
-    <main class="editor">
-      <p class="placeholder">Editor</p>
     </main>
   </div>
 </template>
-
-<script>
-export default {
-  computed: {
-    version() {
-      return import.meta.env.VITE_APP_VERSION || 'dev';
-    }
-  }
-};
-</script>
 
 <style scoped>
 .notes-layout {
   display: flex;
   height: 100vh;
+  overflow: hidden;
 }
 
-.sidebar {
-  width: 260px;
-  min-width: 260px;
-  background-color: var(--bg-sidebar);
-  padding: 24px 16px;
-  border-right: 1px solid var(--border-subtle);
+.editor-pane {
+  flex: 1;
   display: flex;
   flex-direction: column;
-}
-
-.sidebar-header {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 24px;
-}
-
-.sidebar-header h2 {
-  margin: 0;
-  font-size: 20px;
-}
-
-.version {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.note-list {
-  width: 280px;
-  min-width: 280px;
   background-color: var(--bg-main);
-  border-right: 1px solid var(--border-subtle);
-  padding: 16px;
+  overflow: hidden;
 }
 
-.editor {
+.editor-body {
   flex: 1;
-  background-color: var(--bg-main);
-  padding: 24px;
+  padding: 0 24px;
+  overflow: hidden;
+  display: flex;
 }
 
-.placeholder {
+.no-note {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   color: var(--text-muted);
-  font-size: 14px;
+  gap: 12px;
+  font-size: 15px;
 }
 </style>

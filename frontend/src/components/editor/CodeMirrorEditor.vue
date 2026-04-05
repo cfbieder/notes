@@ -1,0 +1,113 @@
+<script setup>
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
+import { EditorState } from '@codemirror/state';
+import { EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection } from '@codemirror/view';
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { languages } from '@codemirror/language-data';
+import { sapphireTheme, sapphireHighlight } from '../../lib/codemirror/sapphireTheme.js';
+
+const props = defineProps({
+  modelValue: { type: String, default: '' },
+  sourceMode: { type: Boolean, default: false }
+});
+
+const emit = defineEmits(['update:modelValue']);
+
+const editorContainer = ref(null);
+let view = null;
+
+function createState(doc) {
+  const extensions = [
+    keymap.of([...defaultKeymap, ...historyKeymap]),
+    history(),
+    drawSelection(),
+    highlightActiveLine(),
+    markdown({ base: markdownLanguage, codeLanguages: languages }),
+    sapphireTheme,
+    sapphireHighlight,
+    EditorView.lineWrapping,
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) {
+        emit('update:modelValue', update.state.doc.toString());
+      }
+    })
+  ];
+
+  // Source mode gets line numbers
+  if (props.sourceMode) {
+    extensions.push(lineNumbers());
+  }
+
+  return EditorState.create({ doc, extensions });
+}
+
+function initEditor() {
+  if (view) {
+    view.destroy();
+  }
+
+  view = new EditorView({
+    state: createState(props.modelValue),
+    parent: editorContainer.value
+  });
+}
+
+onMounted(() => {
+  initEditor();
+});
+
+onBeforeUnmount(() => {
+  if (view) {
+    view.destroy();
+    view = null;
+  }
+});
+
+// Re-create editor when source mode toggles
+watch(() => props.sourceMode, () => {
+  if (view) {
+    const content = view.state.doc.toString();
+    initEditor();
+    // Restore content if it changed
+    if (view.state.doc.toString() !== content) {
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: content }
+      });
+    }
+  }
+});
+
+// Update content when modelValue changes externally
+watch(() => props.modelValue, (newVal) => {
+  if (view && newVal !== view.state.doc.toString()) {
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: newVal }
+    });
+  }
+});
+</script>
+
+<template>
+  <div
+    ref="editorContainer"
+    class="codemirror-wrapper"
+    :class="{ 'source-mode': sourceMode }"
+  />
+</template>
+
+<style scoped>
+.codemirror-wrapper {
+  flex: 1;
+  overflow: hidden;
+}
+
+.codemirror-wrapper :deep(.cm-editor) {
+  height: 100%;
+}
+
+.source-mode :deep(.cm-content) {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+}
+</style>

@@ -24,8 +24,8 @@ export async function apiFetch(path, options = {}) {
 
   const res = await fetch(url, { ...options, headers, credentials: 'include' });
 
-  // Attempt token refresh on 401
-  if (res.status === 401 && !options._retried) {
+  // Attempt token refresh on 401 (skip for auth routes to avoid loops)
+  if (res.status === 401 && !options._retried && !path.startsWith('/auth/')) {
     const refreshed = await refreshToken();
     if (refreshed) {
       return apiFetch(path, { ...options, _retried: true });

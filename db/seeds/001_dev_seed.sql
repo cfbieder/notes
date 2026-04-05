@@ -9,7 +9,7 @@ VALUES (
   'a0000000-0000-0000-0000-000000000001',
   'dev',
   'dev@noted.local',
-  '$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36Lz.Fq2W3oRFCiSDNAKfGK'
+  '$2b$10$GF5Bxy7B4PSnyOY6eD/rVO1Db0tF7DPtQlLWhBSmyFrYOdS4EgzS2'
 ) ON CONFLICT (username) DO NOTHING;
 
 -- Stacks
