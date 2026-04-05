@@ -38,6 +38,18 @@ export const sapphireTheme = EditorView.theme({
   },
   '.cm-focused': {
     outline: 'none'
+  },
+  /* Normal mode rendering styles */
+  '.cm-hr-line': {
+    borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
+    paddingBottom: '8px',
+    marginBottom: '8px'
+  },
+  '.cm-blockquote-line': {
+    borderLeft: '3px solid #3a86ff',
+    paddingLeft: '12px',
+    fontStyle: 'italic',
+    color: '#c4d9ff'
   }
 });
 

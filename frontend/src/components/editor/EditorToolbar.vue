@@ -1,6 +1,7 @@
 <script setup>
 import { useUIStore } from '../../stores/ui.js';
 import { Code, Eye, Save } from 'lucide-vue-next';
+import NoteTags from './NoteTags.vue';
 
 const uiStore = useUIStore();
 
@@ -23,6 +24,8 @@ function onTitleInput(e) {
       @input="onTitleInput"
       placeholder="Untitled"
     />
+
+    <NoteTags />
 
     <div class="toolbar-actions">
       <div class="save-indicator" :class="uiStore.saveStatus">

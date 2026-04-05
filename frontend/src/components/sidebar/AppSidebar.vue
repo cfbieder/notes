@@ -1,33 +1,35 @@
 <script setup>
-import { onMounted, computed } from 'vue';
+import { onMounted, computed, reactive } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useNotebooksStore } from '../../stores/notebooks.js';
 import { useNotesStore } from '../../stores/notes.js';
+import { useTagsStore } from '../../stores/tags.js';
 import { useAuthStore } from '../../stores/auth.js';
 import {
   FileText, Inbox, CheckSquare, Search, Network,
-  ChevronRight, ChevronDown, Plus, LogOut, FolderOpen
+  ChevronRight, ChevronDown, Plus, LogOut, FolderOpen, Tag
 } from 'lucide-vue-next';
 
 const router = useRouter();
 const route = useRoute();
 const notebooksStore = useNotebooksStore();
 const notesStore = useNotesStore();
+const tagsStore = useTagsStore();
 const authStore = useAuthStore();
 
 const version = import.meta.env.VITE_APP_VERSION || 'dev';
 const envLabel = import.meta.env.VITE_ENV_LABEL;
 
-const expandedStacks = new Set();
+const expanded = reactive({ stacks: new Set(), tags: false });
 
 onMounted(async () => {
   await Promise.all([
     notebooksStore.fetchNotebooks(),
-    notebooksStore.fetchStacks()
+    notebooksStore.fetchStacks(),
+    tagsStore.fetchTags()
   ]);
 });
 
-// Notebooks not in any stack
 const unstackedNotebooks = computed(() =>
   notebooksStore.notebooks.filter(n => !n.stack_id)
 );
@@ -37,6 +39,13 @@ function selectNotebook(id) {
   notesStore.setFilter('notebook_id', id);
   notesStore.fetchNotes();
   router.push(`/notebooks/${id}`);
+}
+
+function selectTag(tag) {
+  notesStore.clearFilters();
+  notesStore.setFilter('tag_id', tag.id);
+  notesStore.fetchNotes();
+  router.push(`/tags/${tag.name}`);
 }
 
 function goToInbox() {
@@ -78,10 +87,10 @@ async function handleNewNote() {
 }
 
 function toggleStack(id) {
-  if (expandedStacks.has(id)) {
-    expandedStacks.delete(id);
+  if (expanded.stacks.has(id)) {
+    expanded.stacks.delete(id);
   } else {
-    expandedStacks.add(id);
+    expanded.stacks.add(id);
   }
 }
 </script>
@@ -124,14 +133,13 @@ function toggleStack(id) {
     <div class="sidebar-section">
       <div class="section-label">Notebooks</div>
 
-      <!-- Stacks with nested notebooks -->
       <div v-for="stack in notebooksStore.stacks" :key="stack.id" class="stack-group">
         <button class="stack-header" @click="toggleStack(stack.id)">
-          <ChevronDown v-if="expandedStacks.has(stack.id)" :size="14" />
+          <ChevronDown v-if="expanded.stacks.has(stack.id)" :size="14" />
           <ChevronRight v-else :size="14" />
           <span>{{ stack.name }}</span>
         </button>
-        <div v-if="expandedStacks.has(stack.id) && stack.notebooks" class="stack-notebooks">
+        <div v-if="expanded.stacks.has(stack.id) && stack.notebooks" class="stack-notebooks">
           <button
             v-for="nb in stack.notebooks"
             :key="nb.id"
@@ -145,7 +153,6 @@ function toggleStack(id) {
         </div>
       </div>
 
-      <!-- Unstacked notebooks -->
       <button
         v-for="nb in unstackedNotebooks"
         :key="nb.id"
@@ -157,6 +164,28 @@ function toggleStack(id) {
         <span>{{ nb.name }}</span>
         <span class="note-count">{{ nb.note_count }}</span>
       </button>
+    </div>
+
+    <!-- Tags section -->
+    <div class="sidebar-section tags-section">
+      <button class="section-label clickable" @click="expanded.tags = !expanded.tags">
+        <ChevronDown v-if="expanded.tags" :size="12" />
+        <ChevronRight v-else :size="12" />
+        Tags
+      </button>
+      <div v-if="expanded.tags" class="tag-list">
+        <button
+          v-for="tag in tagsStore.tags"
+          :key="tag.id"
+          class="nav-item tag-item"
+          :class="{ active: route.params.name === tag.name }"
+          @click="selectTag(tag)"
+        >
+          <Tag :size="14" :style="{ color: tag.color || 'var(--text-muted)' }" />
+          <span>{{ tag.name }}</span>
+          <span class="note-count">{{ tag.note_count }}</span>
+        </button>
+      </div>
     </div>
 
     <div class="sidebar-footer">
@@ -252,8 +281,16 @@ function toggleStack(id) {
 }
 
 .sidebar-section {
-  flex: 1;
   overflow-y: auto;
+}
+
+.sidebar-section:first-of-type {
+  flex: 1;
+}
+
+.tags-section {
+  max-height: 200px;
+  margin-bottom: 8px;
 }
 
 .section-label {
@@ -265,6 +302,19 @@ function toggleStack(id) {
   padding: 0 12px;
   margin-bottom: 8px;
 }
+
+.section-label.clickable {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  width: 100%;
+  text-align: left;
+}
+.section-label.clickable:hover { color: var(--text-secondary); }
 
 .stack-group {
   margin-bottom: 2px;
@@ -291,7 +341,7 @@ function toggleStack(id) {
   padding-left: 12px;
 }
 
-.notebook-item {
+.notebook-item, .tag-item {
   font-size: 12px;
   padding: 5px 12px;
 }

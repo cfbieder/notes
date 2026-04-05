@@ -1,9 +1,47 @@
 <script setup>
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { RouterView } from 'vue-router';
+import SearchPalette from './components/ui/SearchPalette.vue';
+import QuickCapture from './components/ui/QuickCapture.vue';
+import { useAuthStore } from './stores/auth.js';
+
+const authStore = useAuthStore();
+const showSearch = ref(false);
+const showCapture = ref(false);
+
+function onKeydown(e) {
+  // Ctrl+K — Search palette
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    if (authStore.isAuthenticated) {
+      showSearch.value = !showSearch.value;
+      showCapture.value = false;
+    }
+  }
+
+  // Ctrl+Shift+N — Quick capture
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'N') {
+    e.preventDefault();
+    if (authStore.isAuthenticated) {
+      showCapture.value = !showCapture.value;
+      showSearch.value = false;
+    }
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown);
+});
 </script>
 
 <template>
   <RouterView />
+  <SearchPalette v-if="showSearch" @close="showSearch = false" />
+  <QuickCapture v-if="showCapture" @close="showCapture = false" />
 </template>
 
 <style>

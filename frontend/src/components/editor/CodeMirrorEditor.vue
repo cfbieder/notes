@@ -1,11 +1,12 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { sapphireTheme, sapphireHighlight } from '../../lib/codemirror/sapphireTheme.js';
+import { markdownRenderPlugin } from '../../lib/codemirror/markdownRendering.js';
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -34,9 +35,12 @@ function createState(doc) {
     })
   ];
 
-  // Source mode gets line numbers
   if (props.sourceMode) {
+    // Source mode: line numbers, monospace, raw markdown
     extensions.push(lineNumbers());
+  } else {
+    // Normal mode: hide syntax, render inline
+    extensions.push(markdownRenderPlugin);
   }
 
   return EditorState.create({ doc, extensions });
@@ -69,7 +73,6 @@ watch(() => props.sourceMode, () => {
   if (view) {
     const content = view.state.doc.toString();
     initEditor();
-    // Restore content if it changed
     if (view.state.doc.toString() !== content) {
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: content }
