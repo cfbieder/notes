@@ -36,7 +36,7 @@ export const useRemindersStore = defineStore('reminders', () => {
 
   function startPolling(intervalMs = 60000) {
     stopPolling();
-    checkDue();
+    // Don't fire immediately — wait for first interval to avoid 401 during init
     pollTimer = setInterval(checkDue, intervalMs);
   }
 

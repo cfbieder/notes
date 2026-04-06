@@ -135,7 +135,8 @@ async function trashCurrentNote() {
 }
 
 function onMobileCapture() {
-  showMobileCapture.value = true;
+  // Trigger the global Alt+N handler in App.vue
+  window.dispatchEvent(new KeyboardEvent('keydown', { altKey: true, key: 'n' }));
 }
 </script>
 

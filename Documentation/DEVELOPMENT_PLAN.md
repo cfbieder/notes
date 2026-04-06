@@ -395,6 +395,28 @@ All Phase 0–3 features + edge cases + stack/notebook management tested and pas
 - [x] Notebook counts update on all operations
 - [x] Error state — app degrades gracefully when backend down
 
+### E2E Test Status (as of 2026-04-06, Phase 4)
+
+All Phase 4 features tested and passing:
+- [x] Attachment upload (text, image, PDF), list, download, delete
+- [x] MIME type validation + extension-based fallback for octet-stream
+- [x] Inline image rendering in Normal Mode (regex-based, cursor-aware)
+- [x] Attachment reference cleanup on delete
+- [x] Token-based attachment access for `<img>` tags (`?token=` query param)
+- [x] Reminders panel — overdue (red), upcoming, empty state, badge count
+- [x] Reminders 60s background polling (deferred start)
+- [x] Drag-and-drop notes between notebooks with visual highlight
+- [x] Idea capture differentiation (💡 prefix + blockquote)
+- [x] Mobile home screen (< 768px) — hero card, action grid, collapsible recent
+- [x] Mobile hamburger sidebar overlay
+- [x] Mobile full-screen editor with back + Source/Normal toggle
+- [x] Mobile FAB button on all sub-views
+- [x] Mobile-optimized Tasks, Inbox, Search, Trash views (MobileLayout)
+- [x] Quick Note hero card triggers capture modal
+- [x] PWA manifest + service worker generated in production build
+- [x] Desktop regression — three-pane layout, autosave, search, tags all working
+- [x] Console clean — no errors on load
+
 **Next up:** Phase 5 (Production Deployment).
 
 ### Phase 4 — Attachments, Reminders & PWA ✅
