@@ -4,7 +4,11 @@ import { useRouter } from 'vue-router';
 import { useTasksStore } from '../stores/tasks.js';
 import { useNotesStore } from '../stores/notes.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
+import MobileLayout from '../components/mobile/MobileLayout.vue';
 import { CheckSquare, Square, Calendar, FileText, Trash2, Plus } from 'lucide-vue-next';
+
+import { useMobile } from '../composables/useMobile.js';
+const { isMobile } = useMobile();
 
 const router = useRouter();
 const tasksStore = useTasksStore();
@@ -76,7 +80,56 @@ function isOverdue(dateStr) {
 </script>
 
 <template>
-  <div class="tasks-layout">
+  <!-- Mobile layout -->
+  <MobileLayout v-if="isMobile" title="Tasks">
+    <div class="tasks-main mobile-tasks">
+      <div class="tasks-header">
+        <div class="filter-tabs">
+          <button type="button" :class="{ active: filter === 'all' }" @click="filter = 'all'">All</button>
+          <button type="button" :class="{ active: filter === 'open' }" @click="filter = 'open'">Open</button>
+          <button type="button" :class="{ active: filter === 'done' }" @click="filter = 'done'">Done</button>
+        </div>
+      </div>
+
+      <div class="add-task-form">
+        <Plus :size="16" class="add-icon" />
+        <input v-model="newTaskContent" class="add-task-input" placeholder="Add a task..." @keydown.enter="addTask" />
+        <input v-model="newTaskDue" type="date" class="add-task-date" />
+        <button type="button" class="add-task-btn" @click="addTask" :disabled="!newTaskContent">Add</button>
+      </div>
+
+      <div v-if="tasksStore.loading" class="loading">Loading...</div>
+      <div v-else-if="filteredTasks.length === 0" class="empty">
+        <CheckSquare :size="32" />
+        <p>{{ filter === 'done' ? 'No completed tasks' : filter === 'open' ? 'All done!' : 'No tasks yet' }}</p>
+      </div>
+      <div v-else class="task-list">
+        <div v-for="task in filteredTasks" :key="task.id" class="task-item" :class="{ done: task.is_done }">
+          <button class="task-check" @click="toggle(task)">
+            <CheckSquare v-if="task.is_done" :size="18" />
+            <Square v-else :size="18" />
+          </button>
+          <div class="task-content">
+            <span class="task-text">{{ task.content }}</span>
+            <div class="task-meta">
+              <span v-if="task.due_date" class="task-due" :class="{ overdue: isOverdue(task.due_date) && !task.is_done }">
+                <Calendar :size="11" /> {{ formatDate(task.due_date) }}
+              </span>
+              <button v-if="task.note_title" class="task-note-link" @click="goToNote(task.note_id)">
+                <FileText :size="11" /> {{ task.note_title }}
+              </button>
+            </div>
+          </div>
+          <button class="task-delete" @click="removeTask(task.id)" title="Delete">
+            <Trash2 :size="14" />
+          </button>
+        </div>
+      </div>
+    </div>
+  </MobileLayout>
+
+  <!-- Desktop layout -->
+  <div v-else class="tasks-layout">
     <AppSidebar />
     <main class="tasks-main">
       <div class="tasks-header">
@@ -158,6 +211,12 @@ function isOverdue(dateStr) {
     </main>
   </div>
 </template>
+
+<style scoped>
+.mobile-tasks {
+  padding: 16px;
+}
+</style>
 
 <style scoped>
 .tasks-layout {

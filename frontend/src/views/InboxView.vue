@@ -4,7 +4,11 @@ import { useRouter } from 'vue-router';
 import { useNotesStore } from '../stores/notes.js';
 import { useNotebooksStore } from '../stores/notebooks.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
+import MobileLayout from '../components/mobile/MobileLayout.vue';
+import { useMobile } from '../composables/useMobile.js';
 import { Inbox, ArrowRight, Trash2, FileText } from 'lucide-vue-next';
+
+const { isMobile } = useMobile();
 
 const router = useRouter();
 const notesStore = useNotesStore();
@@ -52,7 +56,29 @@ function openNote(noteId) {
 </script>
 
 <template>
-  <div class="inbox-layout">
+  <MobileLayout v-if="isMobile" title="Inbox">
+    <main class="inbox-main" style="padding: 16px;">
+      <div v-if="notesStore.loading" class="loading">Loading...</div>
+      <div v-else-if="notesStore.notes.length === 0" class="empty">
+        <Inbox :size="48" /><p>Inbox is clear</p>
+      </div>
+      <div v-else class="inbox-list">
+        <div v-for="note in notesStore.notes" :key="note.id" class="inbox-item">
+          <div class="inbox-content" @click="openNote(note.id)">
+            <div class="inbox-title">{{ note.title }}</div>
+            <div class="inbox-preview">{{ note.content?.slice(0, 120) }}</div>
+            <div class="inbox-time">{{ new Date(note.created_at).toLocaleString() }}</div>
+          </div>
+          <div class="inbox-actions">
+            <button class="action-btn" @click="convertToNote(note.id)" title="Convert to note"><FileText :size="14" /></button>
+            <button class="action-btn delete-btn" @click="discardNote(note.id)" title="Discard"><Trash2 :size="14" /></button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </MobileLayout>
+
+  <div v-else class="inbox-layout">
     <AppSidebar />
     <main class="inbox-main">
       <div class="inbox-header">

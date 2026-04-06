@@ -2,8 +2,12 @@
 import { ref, onMounted } from 'vue';
 import { useNotesStore } from '../stores/notes.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
+import MobileLayout from '../components/mobile/MobileLayout.vue';
 import ConfirmModal from '../components/ui/ConfirmModal.vue';
+import { useMobile } from '../composables/useMobile.js';
 import { Trash2, RotateCcw, AlertTriangle } from 'lucide-vue-next';
+
+const { isMobile } = useMobile();
 
 const notesStore = useNotesStore();
 const showEmptyConfirm = ref(false);
@@ -39,7 +43,35 @@ function formatDate(dateStr) {
 </script>
 
 <template>
-  <div class="trash-layout">
+  <MobileLayout v-if="isMobile" title="Trash">
+    <main class="trash-main" style="padding: 16px;">
+      <div v-if="notesStore.trashedNotes.length === 0" class="empty">
+        <Trash2 :size="48" /><p>Trash is empty</p>
+      </div>
+      <div v-else>
+        <button v-if="notesStore.trashedNotes.length > 0" class="empty-btn" style="margin-bottom: 12px;" @click="showEmptyConfirm = true">
+          <AlertTriangle :size="14" /> Empty Trash
+        </button>
+        <div class="trash-list">
+          <div v-for="note in notesStore.trashedNotes" :key="note.id" class="trash-item">
+            <div class="trash-content">
+              <div class="trash-title">{{ note.title }}</div>
+              <div class="trash-meta">Deleted {{ formatDate(note.deleted_at) }}</div>
+            </div>
+            <div class="trash-actions">
+              <button class="action-btn restore-btn" @click="restore(note.id)"><RotateCcw :size="14" /></button>
+              <button class="action-btn delete-btn" @click="confirmPermanentDelete(note)"><Trash2 :size="14" /></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <ConfirmModal v-if="showEmptyConfirm" title="Empty Trash" message="Permanently delete all trashed notes? This cannot be undone." confirm-text="Empty Trash" :danger="true" @confirm="emptyAll" @cancel="showEmptyConfirm = false" />
+    <ConfirmModal v-if="deleteConfirm.show" title="Delete Permanently" :message="`Permanently delete &quot;${deleteConfirm.title}&quot;? This cannot be undone.`" confirm-text="Delete" :danger="true" @confirm="permanentDelete" @cancel="deleteConfirm.show = false" />
+  </MobileLayout>
+
+  <div v-else class="trash-layout">
     <AppSidebar />
     <main class="trash-main">
       <div class="trash-header">

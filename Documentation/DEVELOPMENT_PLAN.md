@@ -1,7 +1,7 @@
 # Development Plan — Noted
 
 > Personal Knowledge & Task Management App
-> Status: Pre-development | Last updated: 2026-04-04
+> Status: Phases 0–4 complete | Last updated: 2026-04-06
 
 ---
 
@@ -182,12 +182,15 @@ Browser / PWA
 | 4.9 | Drag-and-drop notes | Move notes between notebooks via drag-and-drop in sidebar |
 | 4.10 | Mobile FAB button | Floating action button (bottom-right) for quick capture on touch/narrow viewports; replaces `Alt+N` keyboard shortcut on mobile |
 | 4.11 | Quick capture type differentiation | Differentiate Note vs Task vs Idea capture types (deferred from Phase 3 — currently all three are functional but Idea is identical to Note) |
+| 4.12 | Mobile Home Screen | Responsive mobile dashboard (`< 768px`): Quick Note hero card (full-width), Tasks/Inbox/Search cards (2x2 grid, 4th slot reserved for Reminders), collapsible recent notes (last 5), hamburger → sidebar slide-out overlay. Full-screen editor with back + Source/Normal toggle. |
 
 **Acceptance criteria:**
 - Files can be uploaded to notes and rendered inline (images) or as thumbnails (PDFs)
 - Reminders surface in a dedicated panel when due
 - App installable as PWA; loads offline shell when network unavailable
 - Quick capture accessible on mobile via FAB button
+- Mobile home screen renders at `< 768px` with action cards, collapsible recent notes, and hamburger navigation
+- Editor goes full-screen on mobile with back button and Source/Normal toggle
 
 ---
 
@@ -267,7 +270,7 @@ Browser / PWA
 
 These items are out of scope for Stages 1–2 but documented for future planning:
 
-- [ ] Notebook & Stack management UI — rename, delete, reorder stacks; rename, move, delete notebooks (backend CRUD exists, needs frontend UI)
+- [x] ~~Notebook & Stack management UI~~ — completed 2026-04-06
 - [ ] User settings page — change password, email, display preferences
 - [ ] Multi-user workspaces (shared notebooks)
 - [ ] Role-based access control (viewer / editor / admin)
@@ -292,6 +295,10 @@ These items are out of scope for Stages 1–2 but documented for future planning
 | 2026-04-05 | Quick capture shortcut | Changed from `Ctrl+Shift+N` to `Alt+N` — browser intercepts Ctrl+Shift+N as "new incognito window" |
 | 2026-04-05 | API client Content-Type | DELETE and GET requests must not send `Content-Type: application/json` header — Fastify rejects empty body with that content type |
 | 2026-04-05 | Inbox dropdown | Changed Move dropdown from hover-based to click-based — hover menus are unreliable for nested interactions |
+| 2026-04-06 | Mobile breakpoint | `< 768px` triggers mobile home screen; desktop three-pane layout at `≥ 768px` |
+| 2026-04-06 | Attachment storage | Files stored in `uploads/{year}/{month}/{noteId}/` with timestamp prefix to avoid collisions |
+| 2026-04-06 | PWA caching | Workbox CacheFirst for attachments (30-day TTL), NetworkFirst for API (5-min TTL) |
+| 2026-04-06 | Idea capture | Ideas get "💡" title prefix and blockquote content wrapper to distinguish from regular notes |
 
 ---
 
@@ -346,20 +353,29 @@ Notes: Tags CRUD with note counts + sidebar tag browser + tag pills in editor, P
 ### E2E Edge Case Testing ✅
 Completed: 2026-04-06
 Features added during testing:
-- Soft delete (trash can) — `deleted_at` column, trash/restore/permanent delete/empty trash API + UI
-- Trash view with Restore and Delete buttons, Empty Trash with confirmation
+- Soft delete (trash can) — migration 002 (`deleted_at` column), trash/restore/permanent delete/empty trash API + UI
+- Trash view with Restore and Delete buttons, Empty Trash with ConfirmModal
 - Trash icon in editor toolbar, right-click "Move to Trash" on note list
-- Session persistence across browser refresh (refresh token auto-restore)
-- Create notebook from sidebar ("+" button with inline form, optional stack assignment)
-- Right-click "Delete notebook" with ConfirmModal showing note count and Inbox migration
-- Right-click "Move to..." on notes with notebook submenu
+- Session persistence across browser refresh (refresh token auto-restore in route guard)
 - Reusable ConfirmModal component replacing all browser `confirm()` calls
-- Notebook note counts on stacked notebooks
-- Notebook counts auto-refresh after move/trash operations
+- Notebook note counts on stacked notebooks + auto-refresh after move/trash operations
+- Right-click "Move to..." on notes with notebook submenu
+
+### Stack & Notebook Management UI ✅
+Completed: 2026-04-06
+Features:
+- Create notebook from sidebar ("+" button → Notebook tab, inline form with stack selector)
+- Create stack from sidebar ("+" button → Stack tab)
+- Rename notebook via right-click context menu
+- Rename stack via right-click context menu
+- Delete notebook with ConfirmModal showing note count + Inbox migration
+- Delete stack with ConfirmModal showing notebook count (notebooks become unstacked)
+- Move notebook to/from stack via right-click → "Move to stack..." submenu
+- Backend PUT /notebooks/:id updated to support explicit `stack_id: null` (remove from stack)
 
 ### E2E Test Status (as of 2026-04-06)
 
-All Phase 0–3 features + edge cases tested and passing:
+All Phase 0–3 features + edge cases + stack/notebook management tested and passing:
 - [x] Health check, Login/Logout, Auth guard
 - [x] Session persistence across browser refresh
 - [x] Sidebar navigation, notebook filtering, stacks expand/collapse
@@ -371,13 +387,41 @@ All Phase 0–3 features + edge cases tested and passing:
 - [x] Inbox view — Move, Convert, Discard actions
 - [x] Tasks view — Add, Toggle, Delete, Filter tabs, Linked notes
 - [x] Trash — soft delete from editor + right-click, restore, permanent delete, empty trash
-- [x] Create notebook from sidebar with stack assignment
-- [x] Delete notebook with note migration to Inbox
+- [x] Create/rename/delete notebook from sidebar
+- [x] Create/rename/delete stack from sidebar
+- [x] Move notebook to/from stack
 - [x] Move note to notebook via right-click context menu
+- [x] Delete notebook with note migration to Inbox
 - [x] Notebook counts update on all operations
 - [x] Error state — app degrades gracefully when backend down
 
-**Next up:** Phase 4 (Attachments, Reminders & PWA).
+**Next up:** Phase 5 (Production Deployment).
+
+### Phase 4 — Attachments, Reminders & PWA ✅
+Completed: 2026-04-06
+Features:
+- **Attachments API** (4.1–4.2): `POST /notes/:id/attachments` (multipart), `GET /attachments/:id` (stream), `DELETE /attachments/:id`, `GET /notes/:id/attachments` (list). Files stored in `uploads/{year}/{month}/{noteId}/`. MIME type whitelist (images, PDF, Office, text). 25MB size limit. Migration 003 applied.
+- **Upload UI** (4.3): `AttachmentZone.vue` — drag-and-drop into editor + toolbar upload button. Expandable attachment list with delete. Auto-inserts Markdown image syntax for uploaded images.
+- **Inline image rendering** (4.4): Uploaded images referenced via `![alt](/api/v1/attachments/:id)` render in Normal Mode.
+- **Reminders backend** (4.5): `GET /api/v1/reminders` (overdue/upcoming/dismissed), `GET /api/v1/reminders/due` (polling). `reminder_at` column on notes (migration 003). Tasks already had `reminder_at`.
+- **Reminders panel** (4.6): `RemindersPanel.vue` — overlay panel showing overdue (red border) and upcoming reminders. Click to navigate to note. Sidebar "Reminders" nav item with red badge for overdue count. 60s background polling.
+- **PWA manifest** (4.7): `vite-plugin-pwa` configured with manifest (name, icons, theme_color, standalone). Icons generated.
+- **Service worker** (4.8): Workbox with generateSW — precaches app shell, CacheFirst for attachments, NetworkFirst for API.
+- **Drag-and-drop notes** (4.9): Notes in NoteListPanel are draggable. Notebooks in sidebar accept drops with visual highlight. Moves note to target notebook, updates counts.
+- **Mobile FAB** (4.10): `MobileFAB.vue` — fixed bottom-right orange "+" button, visible only at `< 768px`, triggers Quick Capture.
+- **Capture type differentiation** (4.11): Idea capture prefixes title with "💡" and wraps content in blockquote. Note and Task unchanged.
+- **Mobile Home Screen** (4.12): `MobileHome.vue` — responsive at `< 768px`. Full-width Quick Note hero card, Tasks/Inbox/Search cards with badges (4th slot reserved for Reminders), collapsible recent notes (last 5). Hamburger → sidebar slides in as overlay. `MobileEditor.vue` — full-screen editor with back button + Source/Normal toggle. Desktop three-pane layout unchanged at `≥ 768px`.
+
+---
+
+### Remaining Development Phases
+
+| Phase | Focus | Status |
+|-------|-------|--------|
+| ~~Phase 4~~ | ~~Attachments, Reminders, PWA, Mobile~~ | ✅ Complete |
+| **Phase 5** | **Production launch** — Docker prod stack, Nginx, TLS, deploy script, backups, cron | Next |
+| Phase 6 | Knowledge Graph — wikilinks, backlinks, D3.js graph (Stage 2) | Future |
+| Phase 7 | Web Clipper & OCR (Stage 2) | Future |
 
 ---
 

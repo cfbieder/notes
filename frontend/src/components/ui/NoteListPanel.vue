@@ -24,6 +24,11 @@ function isActive(note) {
   return route.params.id === note.id;
 }
 
+function onDragStart(e, note) {
+  e.dataTransfer.setData('text/plain', note.id);
+  e.dataTransfer.effectAllowed = 'move';
+}
+
 function onContextMenu(e, note) {
   e.preventDefault();
   contextMenu.value = {
@@ -108,6 +113,8 @@ function getPreview(content) {
         :key="note.id"
         class="note-item"
         :class="{ active: isActive(note) }"
+        draggable="true"
+        @dragstart="onDragStart($event, note)"
         @click="selectNote(note)"
         @contextmenu="onContextMenu($event, note)"
       >

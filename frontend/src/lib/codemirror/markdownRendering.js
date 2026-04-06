@@ -1,6 +1,7 @@
 import { ViewPlugin, Decoration, WidgetType } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import { RangeSetBuilder } from '@codemirror/state';
+import { getAccessToken } from '../../api/client.js';
 
 // Widget for rendering interactive checkboxes
 class CheckboxWidget extends WidgetType {
@@ -35,6 +36,55 @@ class CheckboxWidget extends WidgetType {
 
   ignoreEvent() {
     return false;
+  }
+}
+
+// Widget for rendering inline images
+class ImageWidget extends WidgetType {
+  constructor(alt, src) {
+    super();
+    this.alt = alt;
+    this.src = src;
+  }
+
+  toDOM() {
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('cm-image-wrapper');
+    wrapper.style.cssText = 'margin: 8px 0; max-width: 100%;';
+
+    const img = document.createElement('img');
+    // Append auth token for our API URLs
+    let imgSrc = this.src;
+    if (imgSrc.startsWith('/api/')) {
+      const token = getAccessToken();
+      if (token) {
+        imgSrc += (imgSrc.includes('?') ? '&' : '?') + 'token=' + token;
+      }
+    }
+    img.src = imgSrc;
+    img.alt = this.alt;
+    img.title = this.alt;
+    img.style.cssText = 'max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);';
+    img.loading = 'lazy';
+
+    img.onerror = () => {
+      img.style.display = 'none';
+      const fallback = document.createElement('span');
+      fallback.textContent = `[Image: ${this.alt}]`;
+      fallback.style.cssText = 'color: #6b8dbb; font-size: 12px; font-style: italic;';
+      wrapper.appendChild(fallback);
+    };
+
+    wrapper.appendChild(img);
+    return wrapper;
+  }
+
+  eq(other) {
+    return this.alt === other.alt && this.src === other.src;
+  }
+
+  ignoreEvent() {
+    return true;
   }
 }
 
@@ -111,6 +161,8 @@ function buildDecorations(view) {
           builder.add(node.from, Math.min(node.to + 1, doc.length), Decoration.replace({}));
         }
 
+        // Note: inline image rendering handled separately via regex scan below
+
         // Style list markers as bullets
         if (node.name === 'ListMark') {
           const text = doc.sliceString(node.from, node.to).trim();
@@ -127,7 +179,37 @@ function buildDecorations(view) {
   return builder.finish();
 }
 
-export const markdownRenderPlugin = ViewPlugin.fromClass(
+// Separate image decoration builder using regex (avoids parser issues with underscores in alt text)
+function buildImageDecorations(view) {
+  const builder = new RangeSetBuilder();
+  const doc = view.state.doc;
+  const cursorLine = doc.lineAt(view.state.selection.main.head).number;
+  const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+
+  for (const { from, to } of view.visibleRanges) {
+    const text = doc.sliceString(from, to);
+    let match;
+    while ((match = imageRegex.exec(text)) !== null) {
+      const matchFrom = from + match.index;
+      const matchTo = matchFrom + match[0].length;
+      const alt = match[1];
+      const src = match[2];
+
+      if (src.startsWith('/api/') || src.startsWith('http')) {
+        const matchLine = doc.lineAt(matchFrom).number;
+        if (matchLine !== cursorLine) {
+          builder.add(matchFrom, matchTo, Decoration.replace({
+            widget: new ImageWidget(alt, src)
+          }));
+        }
+      }
+    }
+  }
+
+  return builder.finish();
+}
+
+const markdownSyntaxPlugin = ViewPlugin.fromClass(
   class {
     constructor(view) {
       this.decorations = buildDecorations(view);
@@ -144,3 +226,23 @@ export const markdownRenderPlugin = ViewPlugin.fromClass(
     provide: () => []
   }
 );
+
+const imageRenderPlugin = ViewPlugin.fromClass(
+  class {
+    constructor(view) {
+      this.decorations = buildImageDecorations(view);
+    }
+
+    update(update) {
+      if (update.docChanged || update.viewportChanged || update.selectionSet) {
+        this.decorations = buildImageDecorations(update.view);
+      }
+    }
+  },
+  {
+    decorations: (v) => v.decorations,
+    provide: () => []
+  }
+);
+
+export const markdownRenderPlugin = [markdownSyntaxPlugin, imageRenderPlugin];

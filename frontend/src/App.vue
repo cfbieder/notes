@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { RouterView } from 'vue-router';
 import SearchPalette from './components/ui/SearchPalette.vue';
 import QuickCapture from './components/ui/QuickCapture.vue';
+import MobileFAB from './components/mobile/MobileFAB.vue';
 import { useAuthStore } from './stores/auth.js';
 
 const authStore = useAuthStore();
@@ -29,6 +30,12 @@ function onKeydown(e) {
   }
 }
 
+function onFABClick() {
+  if (authStore.isAuthenticated) {
+    showCapture.value = true;
+  }
+}
+
 onMounted(() => {
   window.addEventListener('keydown', onKeydown);
 });
@@ -42,6 +49,7 @@ onBeforeUnmount(() => {
   <RouterView />
   <SearchPalette v-if="showSearch" @close="showSearch = false" />
   <QuickCapture v-if="showCapture" @close="showCapture = false" />
+  <MobileFAB v-if="authStore.isAuthenticated" @click="onFABClick" />
 </template>
 
 <style>

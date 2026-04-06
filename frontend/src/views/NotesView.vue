@@ -7,7 +7,14 @@ import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import NoteListPanel from '../components/ui/NoteListPanel.vue';
 import EditorToolbar from '../components/editor/EditorToolbar.vue';
 import CodeMirrorEditor from '../components/editor/CodeMirrorEditor.vue';
+import AttachmentZone from '../components/editor/AttachmentZone.vue';
+import MobileHome from '../components/mobile/MobileHome.vue';
+import MobileEditor from '../components/mobile/MobileEditor.vue';
+import MobileFAB from '../components/mobile/MobileFAB.vue';
 import { FileText } from 'lucide-vue-next';
+import { useAttachmentsStore } from '../stores/attachments.js';
+
+const attachmentsStore = useAttachmentsStore();
 
 const route = useRoute();
 const router = useRouter();
@@ -20,10 +27,21 @@ let saveTimer = null;
 
 const isSourceMode = computed(() => uiStore.editorMode === 'source');
 
+// Mobile detection
+const isMobile = ref(window.innerWidth < 768);
+const mobileSidebarOpen = ref(false);
+const showMobileCapture = ref(false);
+
+function onResize() {
+  isMobile.value = window.innerWidth < 768;
+  if (!isMobile.value) mobileSidebarOpen.value = false;
+}
+
 onMounted(async () => {
+  window.addEventListener('resize', onResize);
+
   // Load notes if not already loaded
   if (notesStore.notes.length === 0) {
-    // Check if we're on a notebook route
     if (route.params.id && route.name === 'NotebookNotes') {
       notesStore.setFilter('notebook_id', route.params.id);
     }
@@ -37,19 +55,24 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize);
   if (saveTimer) clearTimeout(saveTimer);
 });
 
 // Watch route changes to load notes
 watch(() => route.params.id, async (newId) => {
   if (newId && route.name === 'NoteDetail') {
-    // Save any pending changes before switching
     if (saveTimer) {
       clearTimeout(saveTimer);
       await saveNote();
     }
     await loadNote(newId);
   }
+});
+
+// Mobile: detect if we're viewing a specific note
+const mobileShowEditor = computed(() => {
+  return isMobile.value && route.params.id && route.name === 'NoteDetail';
 });
 
 async function loadNote(id) {
@@ -79,7 +102,6 @@ function scheduleSave() {
 
 async function saveNote() {
   if (!notesStore.currentNote) return;
-
   uiStore.setSaveStatus('saving');
   try {
     await notesStore.updateNote(notesStore.currentNote.id, {
@@ -92,16 +114,58 @@ async function saveNote() {
   }
 }
 
+function onInsertImage(attachment) {
+  const markdownImg = `![${attachment.filename}](/api/v1/attachments/${attachment.id})`;
+  editorContent.value = editorContent.value + '\n' + markdownImg + '\n';
+  scheduleSave();
+}
+
+function onRemoveReference(attachmentId) {
+  // Remove any ![...](/api/v1/attachments/{id}) references from editor content
+  const pattern = new RegExp(`\\n?!\\[[^\\]]*\\]\\(/api/v1/attachments/${attachmentId}\\)\\n?`, 'g');
+  editorContent.value = editorContent.value.replace(pattern, '\n');
+  scheduleSave();
+}
+
 async function trashCurrentNote() {
   if (!notesStore.currentNote) return;
   if (saveTimer) clearTimeout(saveTimer);
   await notesStore.trashNote(notesStore.currentNote.id);
   router.push('/notes');
 }
+
+function onMobileCapture() {
+  showMobileCapture.value = true;
+}
 </script>
 
 <template>
-  <div class="notes-layout">
+  <!-- Mobile: Full-screen editor -->
+  <MobileEditor
+    v-if="mobileShowEditor"
+    :noteId="route.params.id"
+  />
+
+  <!-- Mobile: Home screen -->
+  <template v-else-if="isMobile">
+    <MobileHome
+      @open-sidebar="mobileSidebarOpen = true"
+      @open-capture="onMobileCapture"
+    />
+
+    <!-- Mobile sidebar overlay -->
+    <Teleport to="body">
+      <div v-if="mobileSidebarOpen" class="mobile-sidebar-overlay" @click="mobileSidebarOpen = false" />
+      <div v-if="mobileSidebarOpen" class="mobile-sidebar-drawer">
+        <AppSidebar />
+      </div>
+    </Teleport>
+
+    <!-- FAB (not on home screen since hero card covers it) -->
+  </template>
+
+  <!-- Desktop: Three-pane layout -->
+  <div v-else class="notes-layout">
     <AppSidebar />
     <NoteListPanel />
     <main class="editor-pane">
@@ -118,6 +182,7 @@ async function trashCurrentNote() {
             @update:modelValue="onContentChange"
           />
         </div>
+        <AttachmentZone @insert-image="onInsertImage" @remove-reference="onRemoveReference" />
       </template>
       <div v-else class="no-note">
         <FileText :size="48" />
@@ -158,5 +223,31 @@ async function trashCurrentNote() {
   color: var(--text-muted);
   gap: 12px;
   font-size: 15px;
+}
+</style>
+
+<style>
+/* Mobile sidebar overlay — unscoped for Teleport */
+.mobile-sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+
+.mobile-sidebar-drawer {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 1001;
+  width: 280px;
+  max-width: 80vw;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+}
+
+.mobile-sidebar-drawer .sidebar {
+  width: 100%;
+  min-width: auto;
 }
 </style>

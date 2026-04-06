@@ -50,7 +50,7 @@ async function notebookRoutes(fastify) {
         type: 'object',
         properties: {
           name: { type: 'string', minLength: 1, maxLength: 255 },
-          stack_id: { type: 'string', format: 'uuid' }
+          stack_id: {}
         }
       }
     }
@@ -58,13 +58,28 @@ async function notebookRoutes(fastify) {
     const { id } = request.params;
     const { name, stack_id } = request.body;
 
+    // Build dynamic SET clause — stack_id can be explicitly null (remove from stack)
+    const sets = [];
+    const params = [];
+    let idx = 1;
+
+    if (name !== undefined) {
+      sets.push(`name = $${idx++}`);
+      params.push(name);
+    }
+    if (stack_id !== undefined) {
+      sets.push(`stack_id = $${idx++}`);
+      params.push(stack_id || null);
+    }
+
+    if (sets.length === 0) {
+      return reply.code(400).send({ error: 'Bad Request', message: 'No fields to update', statusCode: 400 });
+    }
+
+    params.push(id, request.user.id);
     const result = await fastify.db.query(
-      `UPDATE notebooks
-       SET name = COALESCE($1, name),
-           stack_id = COALESCE($2, stack_id)
-       WHERE id = $3 AND user_id = $4
-       RETURNING *`,
-      [name, stack_id, id, request.user.id]
+      `UPDATE notebooks SET ${sets.join(', ')} WHERE id = $${idx++} AND user_id = $${idx} RETURNING *`,
+      params
     );
 
     if (result.rows.length === 0) {

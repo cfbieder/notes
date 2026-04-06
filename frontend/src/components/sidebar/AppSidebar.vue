@@ -7,10 +7,14 @@ import { useTagsStore } from '../../stores/tags.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { api } from '../../api/client.js';
 import ConfirmModal from '../ui/ConfirmModal.vue';
+import RemindersPanel from '../ui/RemindersPanel.vue';
+import { useRemindersStore } from '../../stores/reminders.js';
 import {
-  FileText, Inbox, CheckSquare, Search, Network, Trash2,
+  FileText, Inbox, CheckSquare, Search, Network, Trash2, Bell,
   ChevronRight, ChevronDown, Plus, LogOut, FolderOpen, Tag
 } from 'lucide-vue-next';
+
+const remindersStore = useRemindersStore();
 
 const router = useRouter();
 const route = useRoute();
@@ -22,6 +26,7 @@ const authStore = useAuthStore();
 const version = import.meta.env.VITE_APP_VERSION || 'dev';
 const envLabel = import.meta.env.VITE_ENV_LABEL;
 
+const showReminders = ref(false);
 const expanded = reactive({ stacks: new Set(), tags: false });
 
 function getNotebookCount(nbId) {
@@ -33,8 +38,10 @@ onMounted(async () => {
   await Promise.all([
     notebooksStore.fetchNotebooks(),
     notebooksStore.fetchStacks(),
-    tagsStore.fetchTags()
+    tagsStore.fetchTags(),
+    remindersStore.fetchReminders()
   ]);
+  remindersStore.startPolling(60000);
 });
 
 const unstackedNotebooks = computed(() =>
@@ -89,6 +96,29 @@ async function handleLogout() {
   router.push('/login');
 }
 
+// Drag-and-drop notes to notebooks
+const dragOverNotebook = ref(null);
+
+function onNotebookDragOver(e, nbId) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  dragOverNotebook.value = nbId;
+}
+
+function onNotebookDragLeave() {
+  dragOverNotebook.value = null;
+}
+
+async function onNotebookDrop(e, nbId) {
+  e.preventDefault();
+  dragOverNotebook.value = null;
+  const noteId = e.dataTransfer.getData('text/plain');
+  if (!noteId) return;
+  await notesStore.updateNote(noteId, { notebook_id: nbId, is_inbox: false });
+  await notesStore.fetchNotes();
+  await notebooksStore.fetchNotebooks();
+}
+
 async function handleNewNote() {
   const note = await notesStore.createNote({
     title: 'Untitled',
@@ -105,25 +135,30 @@ function toggleStack(id) {
   }
 }
 
-// Notebook creation
-const showNewNotebook = ref(false);
+// Notebook/Stack creation
+const showNewForm = ref(false);
+const newFormType = ref('notebook'); // 'notebook' | 'stack'
 const newNotebookName = ref('');
 const newNotebookStackId = ref('');
 
 async function createNotebook() {
   const name = newNotebookName.value.trim();
   if (!name) return;
-  await notebooksStore.createNotebook(name, newNotebookStackId.value || undefined);
+  if (newFormType.value === 'stack') {
+    await notebooksStore.createStack(name);
+  } else {
+    await notebooksStore.createNotebook(name, newNotebookStackId.value || undefined);
+  }
   await notebooksStore.fetchStacks();
-  newNotebookName.value = '';
-  newNotebookStackId.value = '';
-  showNewNotebook.value = false;
+  await notebooksStore.fetchNotebooks();
+  cancelNewForm();
 }
 
-function cancelNewNotebook() {
+function cancelNewForm() {
   newNotebookName.value = '';
   newNotebookStackId.value = '';
-  showNewNotebook.value = false;
+  newFormType.value = 'notebook';
+  showNewForm.value = false;
 }
 
 // Notebook context menu
@@ -131,7 +166,6 @@ const nbContextMenu = ref({ show: false, x: 0, y: 0, notebookId: null, notebookN
 
 function onNotebookContextMenu(e, nb) {
   e.preventDefault();
-  // Don't allow context menu on default (Inbox) notebook
   if (nb.is_default) return;
   nbContextMenu.value = {
     show: true,
@@ -142,8 +176,98 @@ function onNotebookContextMenu(e, nb) {
   };
 }
 
+const showMoveToStack = ref(false);
+
 function closeNbContextMenu() {
   nbContextMenu.value.show = false;
+  showMoveToStack.value = false;
+}
+
+async function moveNotebookToStack(stackId) {
+  const id = nbContextMenu.value.notebookId;
+  closeNbContextMenu();
+  await notebooksStore.updateNotebook(id, { stack_id: stackId });
+  await notebooksStore.fetchStacks();
+  await notebooksStore.fetchNotebooks();
+}
+
+// Notebook rename
+const renameNotebook = ref({ show: false, id: null, name: '' });
+
+async function startRenameNotebook() {
+  renameNotebook.value = {
+    show: true,
+    id: nbContextMenu.value.notebookId,
+    name: nbContextMenu.value.notebookName
+  };
+  closeNbContextMenu();
+}
+
+async function submitRenameNotebook() {
+  const name = renameNotebook.value.name.trim();
+  if (!name) return;
+  await notebooksStore.updateNotebook(renameNotebook.value.id, { name });
+  await notebooksStore.fetchStacks();
+  renameNotebook.value.show = false;
+}
+
+// Stack context menu
+const stackContextMenu = ref({ show: false, x: 0, y: 0, stackId: null, stackName: '' });
+
+function onStackContextMenu(e, stack) {
+  e.preventDefault();
+  e.stopPropagation();
+  stackContextMenu.value = {
+    show: true,
+    x: e.clientX,
+    y: e.clientY,
+    stackId: stack.id,
+    stackName: stack.name
+  };
+}
+
+function closeStackContextMenu() {
+  stackContextMenu.value.show = false;
+}
+
+// Stack rename
+const renameStack = ref({ show: false, id: null, name: '' });
+
+function startRenameStack() {
+  renameStack.value = {
+    show: true,
+    id: stackContextMenu.value.stackId,
+    name: stackContextMenu.value.stackName
+  };
+  closeStackContextMenu();
+}
+
+async function submitRenameStack() {
+  const name = renameStack.value.name.trim();
+  if (!name) return;
+  await api.put(`/stacks/${renameStack.value.id}`, { name });
+  await notebooksStore.fetchStacks();
+  renameStack.value.show = false;
+}
+
+async function deleteStack() {
+  const id = stackContextMenu.value.stackId;
+  const name = stackContextMenu.value.stackName;
+  const stack = notebooksStore.stacks.find(s => s.id === id);
+  const nbCount = stack?.notebooks?.length || 0;
+  closeStackContextMenu();
+
+  let message = `This will delete the stack "${name}".`;
+  if (nbCount > 0) {
+    message += `\n\n${nbCount} notebook${nbCount === 1 ? '' : 's'} will become unstacked (notes are not affected).`;
+  }
+
+  const confirmed = await showConfirm({ title: 'Delete Stack', message, danger: true });
+  if (!confirmed) return;
+
+  await notebooksStore.deleteStack(id);
+  await notebooksStore.fetchStacks();
+  await notebooksStore.fetchNotebooks();
 }
 
 // Confirm modal state
@@ -227,6 +351,11 @@ async function deleteNotebook() {
         <Network :size="16" />
         <span>Graph</span>
       </button>
+      <button class="nav-item" @click="showReminders = true">
+        <Bell :size="16" />
+        <span>Reminders</span>
+        <span v-if="remindersStore.overdueCount > 0" class="reminder-badge">{{ remindersStore.overdueCount }}</span>
+      </button>
       <button class="nav-item" :class="{ active: route.path === '/trash' }" @click="goToTrash">
         <Trash2 :size="16" />
         <span>Trash</span>
@@ -236,22 +365,26 @@ async function deleteNotebook() {
     <div class="sidebar-section">
       <div class="section-label-row">
         <span class="section-label">Notebooks</span>
-        <button class="section-add-btn" @click="showNewNotebook = !showNewNotebook" title="New notebook">
+        <button class="section-add-btn" @click="showNewForm = !showNewForm" title="New notebook or stack">
           <Plus :size="12" />
         </button>
       </div>
 
-      <!-- Inline new notebook form -->
-      <div v-if="showNewNotebook" class="new-notebook-form">
+      <!-- Inline create form -->
+      <div v-if="showNewForm" class="new-notebook-form">
+        <div class="form-type-tabs">
+          <button :class="{ active: newFormType === 'notebook' }" @click="newFormType = 'notebook'">Notebook</button>
+          <button :class="{ active: newFormType === 'stack' }" @click="newFormType = 'stack'">Stack</button>
+        </div>
         <input
           v-model="newNotebookName"
           class="new-notebook-input"
-          placeholder="Notebook name..."
+          :placeholder="newFormType === 'stack' ? 'Stack name...' : 'Notebook name...'"
           @keydown.enter="createNotebook"
-          @keydown.escape="cancelNewNotebook"
+          @keydown.escape="cancelNewForm"
           autofocus
         />
-        <select v-model="newNotebookStackId" class="new-notebook-select">
+        <select v-if="newFormType === 'notebook'" v-model="newNotebookStackId" class="new-notebook-select">
           <option value="">No stack</option>
           <option v-for="stack in notebooksStore.stacks" :key="stack.id" :value="stack.id">
             {{ stack.name }}
@@ -259,12 +392,44 @@ async function deleteNotebook() {
         </select>
         <div class="new-notebook-actions">
           <button class="nb-create-btn" @click="createNotebook" :disabled="!newNotebookName.trim()">Create</button>
-          <button class="nb-cancel-btn" @click="cancelNewNotebook">Cancel</button>
+          <button class="nb-cancel-btn" @click="cancelNewForm">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Rename notebook inline -->
+      <div v-if="renameNotebook.show" class="new-notebook-form">
+        <input
+          v-model="renameNotebook.name"
+          class="new-notebook-input"
+          placeholder="New name..."
+          @keydown.enter="submitRenameNotebook"
+          @keydown.escape="renameNotebook.show = false"
+          autofocus
+        />
+        <div class="new-notebook-actions">
+          <button class="nb-create-btn" @click="submitRenameNotebook" :disabled="!renameNotebook.name.trim()">Rename</button>
+          <button class="nb-cancel-btn" @click="renameNotebook.show = false">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Rename stack inline -->
+      <div v-if="renameStack.show" class="new-notebook-form">
+        <input
+          v-model="renameStack.name"
+          class="new-notebook-input"
+          placeholder="New stack name..."
+          @keydown.enter="submitRenameStack"
+          @keydown.escape="renameStack.show = false"
+          autofocus
+        />
+        <div class="new-notebook-actions">
+          <button class="nb-create-btn" @click="submitRenameStack" :disabled="!renameStack.name.trim()">Rename</button>
+          <button class="nb-cancel-btn" @click="renameStack.show = false">Cancel</button>
         </div>
       </div>
 
       <div v-for="stack in notebooksStore.stacks" :key="stack.id" class="stack-group">
-        <button class="stack-header" @click="toggleStack(stack.id)">
+        <button class="stack-header" @click="toggleStack(stack.id)" @contextmenu="onStackContextMenu($event, stack)">
           <ChevronDown v-if="expanded.stacks.has(stack.id)" :size="14" />
           <ChevronRight v-else :size="14" />
           <span>{{ stack.name }}</span>
@@ -274,9 +439,12 @@ async function deleteNotebook() {
             v-for="nb in stack.notebooks"
             :key="nb.id"
             class="nav-item notebook-item"
-            :class="{ active: route.params.id === nb.id }"
+            :class="{ active: route.params.id === nb.id, 'drop-target': dragOverNotebook === nb.id }"
             @click="selectNotebook(nb.id)"
             @contextmenu="onNotebookContextMenu($event, nb)"
+            @dragover="onNotebookDragOver($event, nb.id)"
+            @dragleave="onNotebookDragLeave"
+            @drop="onNotebookDrop($event, nb.id)"
           >
             <FolderOpen :size="14" />
             <span>{{ nb.name }}</span>
@@ -289,9 +457,12 @@ async function deleteNotebook() {
         v-for="nb in unstackedNotebooks"
         :key="nb.id"
         class="nav-item notebook-item"
-        :class="{ active: route.params.id === nb.id }"
+        :class="{ active: route.params.id === nb.id, 'drop-target': dragOverNotebook === nb.id }"
         @click="selectNotebook(nb.id)"
         @contextmenu="onNotebookContextMenu($event, nb)"
+        @dragover="onNotebookDragOver($event, nb.id)"
+        @dragleave="onNotebookDragLeave"
+        @drop="onNotebookDrop($event, nb.id)"
       >
         <FolderOpen :size="14" />
         <span>{{ nb.name }}</span>
@@ -339,6 +510,27 @@ async function deleteNotebook() {
         class="nb-context-menu"
         :style="{ left: nbContextMenu.x + 'px', top: nbContextMenu.y + 'px' }"
       >
+        <button class="nb-context-item" @click="startRenameNotebook">
+          <span>Rename</span>
+        </button>
+        <div class="nb-context-submenu-wrapper">
+          <button class="nb-context-item" @click="showMoveToStack = !showMoveToStack">
+            <span>Move to stack...</span>
+          </button>
+          <div v-if="showMoveToStack" class="nb-context-submenu">
+            <button class="nb-context-item" @click="moveNotebookToStack(null)">
+              No stack
+            </button>
+            <button
+              v-for="stack in notebooksStore.stacks"
+              :key="stack.id"
+              class="nb-context-item"
+              @click="moveNotebookToStack(stack.id)"
+            >
+              {{ stack.name }}
+            </button>
+          </div>
+        </div>
         <button class="nb-context-item delete" @click="deleteNotebook">
           <Trash2 :size="14" />
           Delete notebook
@@ -346,6 +538,26 @@ async function deleteNotebook() {
       </div>
       <div v-if="nbContextMenu.show" class="nb-context-overlay" @click="closeNbContextMenu" />
     </Teleport>
+
+    <!-- Stack context menu -->
+    <Teleport to="body">
+      <div
+        v-if="stackContextMenu.show"
+        class="nb-context-menu"
+        :style="{ left: stackContextMenu.x + 'px', top: stackContextMenu.y + 'px' }"
+      >
+        <button class="nb-context-item" @click="startRenameStack">
+          <span>Rename</span>
+        </button>
+        <button class="nb-context-item delete" @click="deleteStack">
+          <Trash2 :size="14" />
+          Delete stack
+        </button>
+      </div>
+      <div v-if="stackContextMenu.show" class="nb-context-overlay" @click="closeStackContextMenu" />
+    </Teleport>
+
+    <RemindersPanel v-if="showReminders" @close="showReminders = false" />
 
     <ConfirmModal
       v-if="confirmModal.show"
@@ -400,6 +612,23 @@ async function deleteNotebook() {
 .nb-context-item.delete:hover {
   background: rgba(255, 107, 107, 0.1);
   color: #ff6b6b;
+}
+
+.nb-context-submenu-wrapper {
+  position: relative;
+}
+
+.nb-context-submenu {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 140px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 </style>
 
@@ -538,6 +767,29 @@ async function deleteNotebook() {
   gap: 6px;
 }
 
+.form-type-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.form-type-tabs button {
+  flex: 1;
+  padding: 4px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+}
+.form-type-tabs button:hover { border-color: var(--accent-primary); }
+.form-type-tabs button.active {
+  background: rgba(58, 134, 255, 0.12);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
 .new-notebook-input, .new-notebook-select {
   width: 100%;
   padding: 5px 8px;
@@ -627,10 +879,28 @@ async function deleteNotebook() {
   padding: 5px 12px;
 }
 
+.notebook-item.drop-target {
+  background-color: rgba(58, 134, 255, 0.2);
+  border: 1px dashed var(--accent-primary);
+  border-radius: 6px;
+}
+
 .note-count {
   margin-left: auto;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.reminder-badge {
+  margin-left: auto;
+  background: #ff6b6b;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
 }
 
 .sidebar-footer {

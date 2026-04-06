@@ -51,6 +51,8 @@ const registerRoutes = async () => {
   await fastify.register(require('./routes/tags'), { prefix: '/api/v1/tags' });
   await fastify.register(require('./routes/tasks'), { prefix: '/api/v1/tasks' });
   await fastify.register(require('./routes/search'), { prefix: '/api/v1/search' });
+  await fastify.register(require('./routes/attachments'), { prefix: '/api/v1' });
+  await fastify.register(require('./routes/reminders'), { prefix: '/api/v1/reminders' });
 };
 
 // Health check

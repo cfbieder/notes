@@ -22,9 +22,12 @@ async function handleCapture() {
     if (captureType.value === 'task') {
       await tasksStore.createTask({ content: text });
     } else {
+      const title = text.split('\n')[0].slice(0, 80);
+      const isIdea = captureType.value === 'idea';
+      const noteContent = isIdea ? `> 💡 **Idea**\n\n${text}` : text;
       await notesStore.createNote({
-        title: text.split('\n')[0].slice(0, 80),
-        content: text,
+        title: isIdea ? `💡 ${title}` : title,
+        content: noteContent,
         is_inbox: true
       });
     }
