@@ -180,11 +180,14 @@ Browser / PWA
 | 4.7 | PWA manifest | `public/manifest.json` — app name, icons, theme color, display: standalone |
 | 4.8 | Service worker | Vite PWA plugin — offline shell, asset caching |
 | 4.9 | Drag-and-drop notes | Move notes between notebooks via drag-and-drop in sidebar |
+| 4.10 | Mobile FAB button | Floating action button (bottom-right) for quick capture on touch/narrow viewports; replaces `Alt+N` keyboard shortcut on mobile |
+| 4.11 | Quick capture type differentiation | Differentiate Note vs Task vs Idea capture types (deferred from Phase 3 — currently all three are functional but Idea is identical to Note) |
 
 **Acceptance criteria:**
 - Files can be uploaded to notes and rendered inline (images) or as thumbnails (PDFs)
 - Reminders surface in a dedicated panel when due
 - App installable as PWA; loads offline shell when network unavailable
+- Quick capture accessible on mobile via FAB button
 
 ---
 
@@ -200,11 +203,11 @@ Browser / PWA
 | 5.4 | Nginx config | SSL termination, SPA routing (`try_files`), API reverse proxy, static asset caching |
 | 5.5 | TLS certificates | `scripts/setup-certs.sh` — provision certs for Tailscale domain |
 | 5.6 | deploy-to-production.sh | Pre-flight checks, auto backup, Docker build, migrations, health verification |
-| 5.7 | update_version.sh | Semantic versioning with date stamp; git tags |
+| 5.7 | ✅ update_version.sh | Semantic versioning with date stamp; git tags — `scripts/update_version.sh <major\|minor\|patch\|X.Y.Z>` updates VERSION, package.json files, frontend/.env, creates git commit + annotated tag |
 | 5.8 | backup-db.sh | Local pg_dump with optional retention pruning |
 | 5.9 | backup-to-remote.sh | SSH-based remote backup with retention cleanup |
 | 5.10 | Cron jobs | Remote backup (every 2 days), cert renewal (monthly), Docker prune (weekly) |
-| 5.11 | Version display in UI | Show `VITE_APP_VERSION` in sidebar footer |
+| 5.11 | ✅ Version display in UI | Show `VITE_APP_VERSION` in sidebar footer — already implemented in `AppSidebar.vue` |
 
 **Acceptance criteria:**
 - `./scripts/deploy-to-production.sh` performs a zero-downtime deploy with automatic DB backup
@@ -264,6 +267,8 @@ Browser / PWA
 
 These items are out of scope for Stages 1–2 but documented for future planning:
 
+- [ ] Notebook & Stack management UI — rename, delete, reorder stacks; rename, move, delete notebooks (backend CRUD exists, needs frontend UI)
+- [ ] User settings page — change password, email, display preferences
 - [ ] Multi-user workspaces (shared notebooks)
 - [ ] Role-based access control (viewer / editor / admin)
 - [ ] pgvector semantic search (Python microservice for embeddings)
@@ -284,6 +289,9 @@ These items are out of scope for Stages 1–2 but documented for future planning
 | 2026-04-04 | node-pg-migrate for migrations | Forward-only migrations with numbered SQL files; no rollbacks in production |
 | 2026-04-04 | Naming convention | camelCase in JavaScript, snake_case in database columns |
 | 2026-04-04 | API response format | `{ data, meta }` for success; `{ error, message, statusCode }` for errors |
+| 2026-04-05 | Quick capture shortcut | Changed from `Ctrl+Shift+N` to `Alt+N` — browser intercepts Ctrl+Shift+N as "new incognito window" |
+| 2026-04-05 | API client Content-Type | DELETE and GET requests must not send `Content-Type: application/json` header — Fastify rejects empty body with that content type |
+| 2026-04-05 | Inbox dropdown | Changed Move dropdown from hover-based to click-based — hover menus are unreliable for nested interactions |
 
 ---
 
@@ -317,13 +325,59 @@ These items are out of scope for Stages 1–2 but documented for future planning
 
 ## 14. Completed Phases
 
-*No phases completed yet. Entries will be added as:*
+### Phase 0 — Project Scaffold & Infrastructure ✅
+Completed: 2026-04-04
+Notes: Monorepo structure, Fastify backend with `/health`, Vue 3 + Vite frontend, PostgreSQL Docker dev compose, migration runner, initial schema (8 tables), seed data, `setup-dev.sh` bootstrap script, CLAUDE.md.
 
-```
-### Phase X — Name ✅
-Completed: YYYY-MM-DD
-Notes: Any relevant notes about the phase completion.
-```
+### Phase 1 — Core Backend (Auth, Notes, Notebooks) ✅
+Completed: 2026-04-04
+Notes: JWT auth with refresh tokens (httpOnly cookie), bcrypt, auth middleware decorator, full CRUD for notes/notebooks/stacks with filtering/pagination, rate limiting on auth, global error handler, all endpoints tested via curl.
+
+### Phase 2 — Editor & Frontend Shell ✅
+Completed: 2026-04-05
+Notes: Three-pane layout (sidebar + note list + editor), Pinia stores (auth, notes, notebooks, UI), CodeMirror 6 with custom Sapphire theme, Normal Mode (hides Markdown syntax, inline rendering) + Source Mode toggle, interactive checkboxes that update note content, 500ms debounced autosave, route guards, API client with JWT refresh, login page, Lucide icons, dev/prod visual differentiation.
+
+### Phase 3 — Tags, Search, Inbox & Tasks ✅
+Completed: 2026-04-05
+Notes: Tags CRUD with note counts + sidebar tag browser + tag pills in editor, PostgreSQL `websearch_to_tsquery` search with highlighted snippets, `Ctrl+K` search palette with arrow key navigation, `Alt+N` quick capture modal (Note/Task/Idea), Inbox view with Move/Convert/Discard actions (click-based dropdown), Tasks view with add/toggle/delete/filter/linked notes. Bugs fixed during E2E: checkbox persistence, API client Content-Type on DELETE, form submit handling.
+
+---
+
+### E2E Edge Case Testing ✅
+Completed: 2026-04-06
+Features added during testing:
+- Soft delete (trash can) — `deleted_at` column, trash/restore/permanent delete/empty trash API + UI
+- Trash view with Restore and Delete buttons, Empty Trash with confirmation
+- Trash icon in editor toolbar, right-click "Move to Trash" on note list
+- Session persistence across browser refresh (refresh token auto-restore)
+- Create notebook from sidebar ("+" button with inline form, optional stack assignment)
+- Right-click "Delete notebook" with ConfirmModal showing note count and Inbox migration
+- Right-click "Move to..." on notes with notebook submenu
+- Reusable ConfirmModal component replacing all browser `confirm()` calls
+- Notebook note counts on stacked notebooks
+- Notebook counts auto-refresh after move/trash operations
+
+### E2E Test Status (as of 2026-04-06)
+
+All Phase 0–3 features + edge cases tested and passing:
+- [x] Health check, Login/Logout, Auth guard
+- [x] Session persistence across browser refresh
+- [x] Sidebar navigation, notebook filtering, stacks expand/collapse
+- [x] Editor Normal/Source mode, autosave, interactive checkboxes
+- [x] New note creation
+- [x] Tag assignment, tag filtering
+- [x] Search palette (Ctrl+K), Search page
+- [x] Quick capture (Alt+N) — Note and Task types
+- [x] Inbox view — Move, Convert, Discard actions
+- [x] Tasks view — Add, Toggle, Delete, Filter tabs, Linked notes
+- [x] Trash — soft delete from editor + right-click, restore, permanent delete, empty trash
+- [x] Create notebook from sidebar with stack assignment
+- [x] Delete notebook with note migration to Inbox
+- [x] Move note to notebook via right-click context menu
+- [x] Notebook counts update on all operations
+- [x] Error state — app degrades gracefully when backend down
+
+**Next up:** Phase 4 (Attachments, Reminders & PWA).
 
 ---
 

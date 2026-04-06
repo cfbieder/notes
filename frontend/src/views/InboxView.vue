@@ -1,15 +1,16 @@
 <script setup>
-import { onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNotesStore } from '../stores/notes.js';
 import { useNotebooksStore } from '../stores/notebooks.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
-import NoteListPanel from '../components/ui/NoteListPanel.vue';
 import { Inbox, ArrowRight, Trash2, FileText } from 'lucide-vue-next';
 
 const router = useRouter();
 const notesStore = useNotesStore();
 const notebooksStore = useNotebooksStore();
+
+const openMenuId = ref(null);
 
 onMounted(async () => {
   notesStore.clearFilters();
@@ -20,12 +21,18 @@ onMounted(async () => {
   }
 });
 
+function toggleMoveMenu(noteId) {
+  openMenuId.value = openMenuId.value === noteId ? null : noteId;
+}
+
 async function moveToNotebook(noteId, notebookId) {
+  openMenuId.value = null;
   await notesStore.updateNote(noteId, {
     notebook_id: notebookId,
     is_inbox: false
   });
   await notesStore.fetchNotes();
+  await notebooksStore.fetchNotebooks();
 }
 
 async function convertToNote(noteId) {
@@ -59,7 +66,7 @@ function openNote(noteId) {
       <div v-else-if="notesStore.notes.length === 0" class="empty">
         <Inbox :size="48" />
         <p>Inbox is clear</p>
-        <span>Use Ctrl+Shift+N to capture ideas quickly</span>
+        <span>Use Alt+N to capture ideas quickly</span>
       </div>
 
       <div v-else class="inbox-list">
@@ -71,11 +78,11 @@ function openNote(noteId) {
           </div>
           <div class="inbox-actions">
             <div class="move-dropdown">
-              <button class="action-btn move-btn" title="Move to notebook">
+              <button class="action-btn move-btn" @click="toggleMoveMenu(note.id)" title="Move to notebook">
                 <ArrowRight :size="14" />
                 Move
               </button>
-              <div class="dropdown-menu">
+              <div v-if="openMenuId === note.id" class="dropdown-menu">
                 <button
                   v-for="nb in notebooksStore.notebooks.filter(n => !n.is_default)"
                   :key="nb.id"
@@ -213,7 +220,6 @@ function openNote(noteId) {
 }
 
 .dropdown-menu {
-  display: none;
   position: absolute;
   top: 100%;
   right: 0;
@@ -225,10 +231,6 @@ function openNote(noteId) {
   min-width: 140px;
   box-shadow: var(--shadow-sm);
   z-index: 50;
-}
-
-.move-dropdown:hover .dropdown-menu {
-  display: block;
 }
 
 .dropdown-item {

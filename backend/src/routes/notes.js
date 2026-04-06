@@ -1,7 +1,7 @@
 async function noteRoutes(fastify) {
   fastify.addHook('onRequest', fastify.authenticate);
 
-  // GET /api/v1/notes
+  // GET /api/v1/notes — excludes trashed notes
   fastify.get('/', {
     schema: {
       querystring: {
@@ -21,7 +21,7 @@ async function noteRoutes(fastify) {
     const { notebook_id, tag_id, is_inbox, search, pinned, limit = 50, offset = 0 } = request.query;
     const userId = request.user.id;
 
-    const conditions = ['n.user_id = $1'];
+    const conditions = ['n.user_id = $1', 'n.deleted_at IS NULL'];
     const params = [userId];
     let paramIndex = 2;
 
@@ -54,13 +54,11 @@ async function noteRoutes(fastify) {
 
     const where = conditions.join(' AND ');
 
-    // Get total count
     const countResult = await fastify.db.query(
       `SELECT COUNT(DISTINCT n.id)::int AS total FROM notes n ${joinClause} WHERE ${where}`,
       params
     );
 
-    // Get notes
     params.push(limit, offset);
     const result = await fastify.db.query(
       `SELECT DISTINCT n.id, n.title, n.content, n.notebook_id, n.is_inbox, n.pinned,
@@ -74,12 +72,20 @@ async function noteRoutes(fastify) {
 
     return {
       data: result.rows,
-      meta: {
-        total: countResult.rows[0].total,
-        limit,
-        offset
-      }
+      meta: { total: countResult.rows[0].total, limit, offset }
     };
+  });
+
+  // GET /api/v1/notes/trash — trashed notes only
+  fastify.get('/trash', async (request) => {
+    const result = await fastify.db.query(
+      `SELECT id, title, content, notebook_id, deleted_at, created_at, updated_at
+       FROM notes
+       WHERE user_id = $1 AND deleted_at IS NOT NULL
+       ORDER BY deleted_at DESC`,
+      [request.user.id]
+    );
+    return { data: result.rows };
   });
 
   // GET /api/v1/notes/:id
@@ -124,7 +130,6 @@ async function noteRoutes(fastify) {
     const { title, content, notebook_id, is_inbox, tag_ids } = request.body;
     const userId = request.user.id;
 
-    // If no notebook specified and not inbox, use default notebook
     let finalNotebookId = notebook_id;
     if (!finalNotebookId && !is_inbox) {
       const defaultNb = await fastify.db.query(
@@ -145,7 +150,6 @@ async function noteRoutes(fastify) {
 
     const note = result.rows[0];
 
-    // Associate tags
     if (tag_ids && tag_ids.length > 0) {
       const tagValues = tag_ids.map((tid, i) => `($1, $${i + 2})`).join(', ');
       const tagParams = [note.id, ...tag_ids];
@@ -184,7 +188,7 @@ async function noteRoutes(fastify) {
            notebook_id = COALESCE($3, notebook_id),
            pinned = COALESCE($4, pinned),
            is_inbox = COALESCE($5, is_inbox)
-       WHERE id = $6 AND user_id = $7
+       WHERE id = $6 AND user_id = $7 AND deleted_at IS NULL
        RETURNING *`,
       [title, content, notebook_id, pinned, is_inbox, id, request.user.id]
     );
@@ -193,7 +197,6 @@ async function noteRoutes(fastify) {
       return reply.code(404).send({ error: 'Not Found', message: 'Note not found', statusCode: 404 });
     }
 
-    // Replace tags if provided
     if (tag_ids !== undefined) {
       await fastify.db.query('DELETE FROM note_tags WHERE note_id = $1', [id]);
       if (tag_ids.length > 0) {
@@ -208,11 +211,13 @@ async function noteRoutes(fastify) {
     return { data: result.rows[0] };
   });
 
-  // DELETE /api/v1/notes/:id
+  // DELETE /api/v1/notes/:id — soft delete (move to trash)
   fastify.delete('/:id', async (request, reply) => {
     const { id } = request.params;
     const result = await fastify.db.query(
-      'DELETE FROM notes WHERE id = $1 AND user_id = $2 RETURNING id',
+      `UPDATE notes SET deleted_at = NOW()
+       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
+       RETURNING id`,
       [id, request.user.id]
     );
 
@@ -220,6 +225,49 @@ async function noteRoutes(fastify) {
       return reply.code(404).send({ error: 'Not Found', message: 'Note not found', statusCode: 404 });
     }
     return reply.code(204).send();
+  });
+
+  // POST /api/v1/notes/:id/restore — restore from trash
+  fastify.post('/:id/restore', async (request, reply) => {
+    const { id } = request.params;
+    const result = await fastify.db.query(
+      `UPDATE notes SET deleted_at = NULL
+       WHERE id = $1 AND user_id = $2 AND deleted_at IS NOT NULL
+       RETURNING *`,
+      [id, request.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Note not in trash', statusCode: 404 });
+    }
+    return { data: result.rows[0] };
+  });
+
+  // DELETE /api/v1/notes/:id/permanent — permanently delete from trash
+  fastify.delete('/:id/permanent', async (request, reply) => {
+    const { id } = request.params;
+    const result = await fastify.db.query(
+      `DELETE FROM notes
+       WHERE id = $1 AND user_id = $2 AND deleted_at IS NOT NULL
+       RETURNING id`,
+      [id, request.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Note not in trash', statusCode: 404 });
+    }
+    return reply.code(204).send();
+  });
+
+  // DELETE /api/v1/notes/trash/empty — empty entire trash
+  fastify.delete('/trash/empty', async (request) => {
+    const result = await fastify.db.query(
+      `DELETE FROM notes
+       WHERE user_id = $1 AND deleted_at IS NOT NULL
+       RETURNING id`,
+      [request.user.id]
+    );
+    return { data: { deleted: result.rowCount } };
   });
 }
 

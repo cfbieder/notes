@@ -13,10 +13,12 @@ export function getAccessToken() {
 export async function apiFetch(path, options = {}) {
   const url = `${API_BASE}${path}`;
 
-  const headers = {
-    'Content-Type': 'application/json',
-    ...options.headers
-  };
+  const headers = { ...options.headers };
+
+  // Only set Content-Type for requests with a body
+  if (options.body) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (accessToken) {
     headers['Authorization'] = `Bearer ${accessToken}`;

@@ -91,6 +91,13 @@ async function saveNote() {
     uiStore.setSaveStatus('unsaved');
   }
 }
+
+async function trashCurrentNote() {
+  if (!notesStore.currentNote) return;
+  if (saveTimer) clearTimeout(saveTimer);
+  await notesStore.trashNote(notesStore.currentNote.id);
+  router.push('/notes');
+}
 </script>
 
 <template>
@@ -102,6 +109,7 @@ async function saveNote() {
         <EditorToolbar
           :noteTitle="noteTitle"
           @update:noteTitle="onTitleChange"
+          @trash="trashCurrentNote"
         />
         <div class="editor-body">
           <CodeMirrorEditor

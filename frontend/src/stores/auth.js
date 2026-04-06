@@ -28,6 +28,7 @@ export const useAuthStore = defineStore('auth', () => {
       const res = await api.post('/auth/refresh');
       if (res.accessToken) {
         setAccessToken(res.accessToken);
+        user.value = res.user;
         return true;
       }
     } catch {
@@ -36,5 +37,13 @@ export const useAuthStore = defineStore('auth', () => {
     return false;
   }
 
-  return { user, isAuthenticated, login, logout, refreshSession };
+  // Try to restore session on app load
+  const initialized = ref(false);
+  async function init() {
+    if (initialized.value) return;
+    await refreshSession();
+    initialized.value = true;
+  }
+
+  return { user, isAuthenticated, initialized, login, logout, refreshSession, init };
 });

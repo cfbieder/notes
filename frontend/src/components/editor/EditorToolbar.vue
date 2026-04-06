@@ -1,6 +1,6 @@
 <script setup>
 import { useUIStore } from '../../stores/ui.js';
-import { Code, Eye, Save } from 'lucide-vue-next';
+import { Code, Eye, Save, Trash2 } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
 
 const uiStore = useUIStore();
@@ -9,7 +9,7 @@ const props = defineProps({
   noteTitle: { type: String, default: '' }
 });
 
-const emit = defineEmits(['update:noteTitle']);
+const emit = defineEmits(['update:noteTitle', 'trash']);
 
 function onTitleInput(e) {
   emit('update:noteTitle', e.target.value);
@@ -42,6 +42,14 @@ function onTitleInput(e) {
         <Code v-if="uiStore.editorMode === 'normal'" :size="16" />
         <Eye v-else :size="16" />
         <span>{{ uiStore.editorMode === 'source' ? 'Normal' : 'Source' }}</span>
+      </button>
+
+      <button
+        class="trash-btn"
+        @click="$emit('trash')"
+        title="Move to trash"
+      >
+        <Trash2 :size="16" />
       </button>
     </div>
   </div>
@@ -111,5 +119,21 @@ function onTitleInput(e) {
   background-color: rgba(58, 134, 255, 0.12);
   border-color: var(--accent-primary);
   color: var(--accent-primary);
+}
+
+.trash-btn {
+  display: flex;
+  align-items: center;
+  padding: 5px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.trash-btn:hover {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
 }
 </style>

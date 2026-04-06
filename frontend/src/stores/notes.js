@@ -59,12 +59,36 @@ export const useNotesStore = defineStore('notes', () => {
     return res.data;
   }
 
-  async function deleteNote(id) {
+  // Soft delete — move to trash
+  async function trashNote(id) {
     await api.delete(`/notes/${id}`);
     if (currentNote.value && currentNote.value.id === id) {
       currentNote.value = null;
     }
     await fetchNotes();
+  }
+
+  // Trash management
+  const trashedNotes = ref([]);
+
+  async function fetchTrash() {
+    const res = await api.get('/notes/trash');
+    trashedNotes.value = res.data;
+  }
+
+  async function restoreNote(id) {
+    await api.post(`/notes/${id}/restore`);
+    await fetchTrash();
+  }
+
+  async function permanentlyDeleteNote(id) {
+    await api.delete(`/notes/${id}/permanent`);
+    trashedNotes.value = trashedNotes.value.filter(n => n.id !== id);
+  }
+
+  async function emptyTrash() {
+    await api.delete('/notes/trash/empty');
+    trashedNotes.value = [];
   }
 
   function setFilter(key, value) {
@@ -76,8 +100,9 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   return {
-    notes, currentNote, meta, loading, filters,
-    fetchNotes, fetchNote, createNote, updateNote, deleteNote,
+    notes, currentNote, meta, loading, filters, trashedNotes,
+    fetchNotes, fetchNote, createNote, updateNote,
+    trashNote, fetchTrash, restoreNote, permanentlyDeleteNote, emptyTrash,
     setFilter, clearFilters
   };
 });

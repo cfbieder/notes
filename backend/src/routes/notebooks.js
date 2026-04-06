@@ -73,13 +73,31 @@ async function notebookRoutes(fastify) {
     return { data: result.rows[0] };
   });
 
+  // GET /api/v1/notebooks/:id/info — get notebook with note count (for delete confirmation)
+  fastify.get('/:id/info', async (request, reply) => {
+    const { id } = request.params;
+    const result = await fastify.db.query(
+      `SELECT n.*, COUNT(notes.id)::int AS note_count
+       FROM notebooks n
+       LEFT JOIN notes ON notes.notebook_id = n.id AND notes.deleted_at IS NULL
+       WHERE n.id = $1 AND n.user_id = $2
+       GROUP BY n.id`,
+      [id, request.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Notebook not found', statusCode: 404 });
+    }
+    return { data: result.rows[0] };
+  });
+
   // DELETE /api/v1/notebooks/:id
   fastify.delete('/:id', async (request, reply) => {
     const { id } = request.params;
 
     // Prevent deleting the default notebook
     const check = await fastify.db.query(
-      'SELECT is_default FROM notebooks WHERE id = $1 AND user_id = $2',
+      'SELECT id, is_default FROM notebooks WHERE id = $1 AND user_id = $2',
       [id, request.user.id]
     );
 
@@ -88,6 +106,20 @@ async function notebookRoutes(fastify) {
     }
     if (check.rows[0].is_default) {
       return reply.code(400).send({ error: 'Bad Request', message: 'Cannot delete the default notebook', statusCode: 400 });
+    }
+
+    // Find the default (Inbox) notebook to move notes into
+    const defaultNb = await fastify.db.query(
+      'SELECT id FROM notebooks WHERE user_id = $1 AND is_default = TRUE LIMIT 1',
+      [request.user.id]
+    );
+
+    if (defaultNb.rows.length > 0) {
+      // Move all notes from this notebook to Inbox
+      await fastify.db.query(
+        'UPDATE notes SET notebook_id = $1, is_inbox = TRUE WHERE notebook_id = $2 AND user_id = $3',
+        [defaultNb.rows[0].id, id, request.user.id]
+      );
     }
 
     await fastify.db.query(

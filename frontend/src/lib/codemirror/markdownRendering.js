@@ -2,11 +2,13 @@ import { ViewPlugin, Decoration, WidgetType } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import { RangeSetBuilder } from '@codemirror/state';
 
-// Widget for rendering checkboxes
+// Widget for rendering interactive checkboxes
 class CheckboxWidget extends WidgetType {
-  constructor(checked) {
+  constructor(checked, pos, view) {
     super();
     this.checked = checked;
+    this.pos = pos;
+    this.view = view;
   }
 
   toDOM() {
@@ -15,12 +17,36 @@ class CheckboxWidget extends WidgetType {
     cb.checked = this.checked;
     cb.classList.add('cm-checkbox');
     cb.style.cssText = 'margin: 0 6px 0 0; vertical-align: middle; accent-color: #4cc9f0; cursor: pointer;';
+
+    cb.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const newText = this.checked ? '[ ]' : '[x]';
+      this.view.dispatch({
+        changes: { from: this.pos, to: this.pos + 3, insert: newText }
+      });
+    });
+
     return cb;
   }
 
   eq(other) {
-    return this.checked === other.checked;
+    return this.checked === other.checked && this.pos === other.pos;
   }
+
+  ignoreEvent() {
+    return false;
+  }
+}
+
+class BulletWidget extends WidgetType {
+  toDOM() {
+    const span = document.createElement('span');
+    span.textContent = '\u2022';
+    span.style.cssText = 'color: #ff9f1c; font-weight: bold; margin-right: 4px;';
+    return span;
+  }
+
+  eq() { return true; }
 }
 
 // Hide markdown syntax markers in normal mode
@@ -34,7 +60,6 @@ function buildDecorations(view) {
       enter(node) {
         // Hide heading markers: # ## ### etc.
         if (node.name === 'HeaderMark') {
-          // Hide the # marks and trailing space
           const end = Math.min(node.to + 1, doc.length);
           builder.add(node.from, end, Decoration.replace({}));
         }
@@ -54,12 +79,15 @@ function buildDecorations(view) {
           builder.add(node.from, node.to, Decoration.replace({}));
         }
 
-        // Replace task list markers with checkboxes
+        // Replace task list markers with interactive checkboxes
         if (node.name === 'TaskMarker') {
           const text = doc.sliceString(node.from, node.to);
           const checked = text.includes('x') || text.includes('X');
+          // TaskMarker covers [x] or [ ] — the inner part between brackets
+          // Find the actual [ ] or [x] position
+          const markerText = doc.sliceString(node.from, node.to);
           builder.add(node.from, node.to, Decoration.replace({
-            widget: new CheckboxWidget(checked)
+            widget: new CheckboxWidget(checked, node.from, view)
           }));
         }
 
@@ -72,7 +100,6 @@ function buildDecorations(view) {
 
         // Style blockquotes
         if (node.name === 'Blockquote') {
-          // Add line decoration for blockquote styling
           const line = doc.lineAt(node.from);
           builder.add(line.from, line.from, Decoration.line({
             class: 'cm-blockquote-line'
@@ -98,17 +125,6 @@ function buildDecorations(view) {
   }
 
   return builder.finish();
-}
-
-class BulletWidget extends WidgetType {
-  toDOM() {
-    const span = document.createElement('span');
-    span.textContent = '\u2022';
-    span.style.cssText = 'color: #ff9f1c; font-weight: bold; margin-right: 4px;';
-    return span;
-  }
-
-  eq() { return true; }
 }
 
 export const markdownRenderPlugin = ViewPlugin.fromClass(

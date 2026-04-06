@@ -1,14 +1,19 @@
 <script setup>
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useNotesStore } from '../../stores/notes.js';
-import { FileText, Pin } from 'lucide-vue-next';
+import { useNotebooksStore } from '../../stores/notebooks.js';
+import { FileText, Pin, Trash2, FolderOpen, ChevronRight } from 'lucide-vue-next';
 
 const router = useRouter();
 const route = useRoute();
 const notesStore = useNotesStore();
+const notebooksStore = useNotebooksStore();
 
 const sortedNotes = computed(() => notesStore.notes);
+
+// Context menu state
+const contextMenu = ref({ show: false, x: 0, y: 0, noteId: null });
 
 function selectNote(note) {
   notesStore.fetchNote(note.id);
@@ -17,6 +22,44 @@ function selectNote(note) {
 
 function isActive(note) {
   return route.params.id === note.id;
+}
+
+function onContextMenu(e, note) {
+  e.preventDefault();
+  contextMenu.value = {
+    show: true,
+    x: e.clientX,
+    y: e.clientY,
+    noteId: note.id
+  };
+}
+
+const showMoveSubmenu = ref(false);
+
+function closeContextMenu() {
+  contextMenu.value.show = false;
+  showMoveSubmenu.value = false;
+}
+
+async function trashNote() {
+  if (!contextMenu.value.noteId) return;
+  const id = contextMenu.value.noteId;
+  closeContextMenu();
+  if (notesStore.currentNote && notesStore.currentNote.id === id) {
+    notesStore.currentNote = null;
+    router.push('/notes');
+  }
+  await notesStore.trashNote(id);
+  await notebooksStore.fetchNotebooks();
+}
+
+async function moveToNotebook(notebookId) {
+  if (!contextMenu.value.noteId) return;
+  const id = contextMenu.value.noteId;
+  closeContextMenu();
+  await notesStore.updateNote(id, { notebook_id: notebookId, is_inbox: false });
+  await notesStore.fetchNotes();
+  await notebooksStore.fetchNotebooks();
 }
 
 function formatDate(dateStr) {
@@ -36,7 +79,6 @@ function formatDate(dateStr) {
 
 function getPreview(content) {
   if (!content) return '';
-  // Strip markdown syntax for preview
   const plain = content
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/[*_~`]/g, '')
@@ -48,7 +90,7 @@ function getPreview(content) {
 </script>
 
 <template>
-  <section class="note-list-panel">
+  <section class="note-list-panel" @click="closeContextMenu">
     <div class="list-header">
       <span class="list-count">{{ notesStore.meta.total }} notes</span>
     </div>
@@ -67,6 +109,7 @@ function getPreview(content) {
         class="note-item"
         :class="{ active: isActive(note) }"
         @click="selectNote(note)"
+        @contextmenu="onContextMenu($event, note)"
       >
         <div class="note-title-row">
           <span class="note-title">{{ note.title }}</span>
@@ -76,6 +119,38 @@ function getPreview(content) {
         <div class="note-meta">{{ formatDate(note.updated_at) }}</div>
       </button>
     </div>
+
+    <!-- Context menu -->
+    <Teleport to="body">
+      <div
+        v-if="contextMenu.show"
+        class="context-menu"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+      >
+        <div class="context-submenu-wrapper">
+          <button class="context-item" @click="showMoveSubmenu = !showMoveSubmenu">
+            <FolderOpen :size="14" />
+            Move to...
+            <ChevronRight :size="12" class="submenu-arrow" />
+          </button>
+          <div v-if="showMoveSubmenu" class="context-submenu">
+            <button
+              v-for="nb in notebooksStore.notebooks"
+              :key="nb.id"
+              class="context-item"
+              @click="moveToNotebook(nb.id)"
+            >
+              {{ nb.name }}
+            </button>
+          </div>
+        </div>
+        <button class="context-item trash" @click="trashNote">
+          <Trash2 :size="14" />
+          Move to Trash
+        </button>
+      </div>
+      <div v-if="contextMenu.show" class="context-overlay" @click="closeContextMenu" />
+    </Teleport>
   </section>
 </template>
 
@@ -162,5 +237,71 @@ function getPreview(content) {
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 4px;
+}
+</style>
+
+<style>
+/* Context menu — unscoped so Teleport works */
+.context-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 160px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.context-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.context-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+.context-item.trash:hover {
+  background: rgba(255, 107, 107, 0.1);
+  color: #ff6b6b;
+}
+
+.context-submenu-wrapper {
+  position: relative;
+}
+
+.submenu-arrow {
+  margin-left: auto;
+  color: var(--text-muted);
+}
+
+.context-submenu {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 140px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 </style>

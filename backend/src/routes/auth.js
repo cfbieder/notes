@@ -97,7 +97,10 @@ async function authRoutes(fastify) {
         maxAge: 30 * 24 * 60 * 60
       });
 
-      return { accessToken };
+      return {
+        accessToken,
+        user: { id: user.id, username: user.username, email: user.email }
+      };
     } catch {
       return reply.code(401).send({
         error: 'Unauthorized',

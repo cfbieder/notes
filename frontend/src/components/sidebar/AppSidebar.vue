@@ -1,12 +1,14 @@
 <script setup>
-import { onMounted, computed, reactive } from 'vue';
+import { onMounted, computed, reactive, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useNotebooksStore } from '../../stores/notebooks.js';
 import { useNotesStore } from '../../stores/notes.js';
 import { useTagsStore } from '../../stores/tags.js';
 import { useAuthStore } from '../../stores/auth.js';
+import { api } from '../../api/client.js';
+import ConfirmModal from '../ui/ConfirmModal.vue';
 import {
-  FileText, Inbox, CheckSquare, Search, Network,
+  FileText, Inbox, CheckSquare, Search, Network, Trash2,
   ChevronRight, ChevronDown, Plus, LogOut, FolderOpen, Tag
 } from 'lucide-vue-next';
 
@@ -21,6 +23,11 @@ const version = import.meta.env.VITE_APP_VERSION || 'dev';
 const envLabel = import.meta.env.VITE_ENV_LABEL;
 
 const expanded = reactive({ stacks: new Set(), tags: false });
+
+function getNotebookCount(nbId) {
+  const nb = notebooksStore.notebooks.find(n => n.id === nbId);
+  return nb ? nb.note_count : 0;
+}
 
 onMounted(async () => {
   await Promise.all([
@@ -73,6 +80,10 @@ function goToGraph() {
   router.push('/graph');
 }
 
+function goToTrash() {
+  router.push('/trash');
+}
+
 async function handleLogout() {
   await authStore.logout();
   router.push('/login');
@@ -91,6 +102,94 @@ function toggleStack(id) {
     expanded.stacks.delete(id);
   } else {
     expanded.stacks.add(id);
+  }
+}
+
+// Notebook creation
+const showNewNotebook = ref(false);
+const newNotebookName = ref('');
+const newNotebookStackId = ref('');
+
+async function createNotebook() {
+  const name = newNotebookName.value.trim();
+  if (!name) return;
+  await notebooksStore.createNotebook(name, newNotebookStackId.value || undefined);
+  await notebooksStore.fetchStacks();
+  newNotebookName.value = '';
+  newNotebookStackId.value = '';
+  showNewNotebook.value = false;
+}
+
+function cancelNewNotebook() {
+  newNotebookName.value = '';
+  newNotebookStackId.value = '';
+  showNewNotebook.value = false;
+}
+
+// Notebook context menu
+const nbContextMenu = ref({ show: false, x: 0, y: 0, notebookId: null, notebookName: '' });
+
+function onNotebookContextMenu(e, nb) {
+  e.preventDefault();
+  // Don't allow context menu on default (Inbox) notebook
+  if (nb.is_default) return;
+  nbContextMenu.value = {
+    show: true,
+    x: e.clientX,
+    y: e.clientY,
+    notebookId: nb.id,
+    notebookName: nb.name
+  };
+}
+
+function closeNbContextMenu() {
+  nbContextMenu.value.show = false;
+}
+
+// Confirm modal state
+const confirmModal = ref({ show: false, title: '', message: '', danger: false, onConfirm: null });
+
+function showConfirm({ title, message, danger = false }) {
+  return new Promise((resolve) => {
+    confirmModal.value = {
+      show: true, title, message, danger,
+      onConfirm: () => { confirmModal.value.show = false; resolve(true); }
+    };
+    // Also handle cancel
+    confirmModal.value.onCancel = () => { confirmModal.value.show = false; resolve(false); };
+  });
+}
+
+async function deleteNotebook() {
+  const id = nbContextMenu.value.notebookId;
+  const name = nbContextMenu.value.notebookName;
+  closeNbContextMenu();
+
+  try {
+    const res = await api.get(`/notebooks/${id}/info`);
+    const noteCount = res.data.note_count;
+
+    let message = `This will permanently delete the notebook "${name}".`;
+    if (noteCount > 0) {
+      message += `\n\n${noteCount} note${noteCount === 1 ? '' : 's'} will be moved to Inbox.`;
+    }
+
+    const confirmed = await showConfirm({
+      title: 'Delete Notebook',
+      message,
+      danger: true
+    });
+    if (!confirmed) return;
+
+    await notebooksStore.deleteNotebook(id);
+    await notebooksStore.fetchStacks();
+    if (route.params.id === id) {
+      notesStore.clearFilters();
+      notesStore.fetchNotes();
+      router.push('/notes');
+    }
+  } catch (err) {
+    console.error('Failed to delete notebook:', err);
   }
 }
 </script>
@@ -128,10 +227,41 @@ function toggleStack(id) {
         <Network :size="16" />
         <span>Graph</span>
       </button>
+      <button class="nav-item" :class="{ active: route.path === '/trash' }" @click="goToTrash">
+        <Trash2 :size="16" />
+        <span>Trash</span>
+      </button>
     </nav>
 
     <div class="sidebar-section">
-      <div class="section-label">Notebooks</div>
+      <div class="section-label-row">
+        <span class="section-label">Notebooks</span>
+        <button class="section-add-btn" @click="showNewNotebook = !showNewNotebook" title="New notebook">
+          <Plus :size="12" />
+        </button>
+      </div>
+
+      <!-- Inline new notebook form -->
+      <div v-if="showNewNotebook" class="new-notebook-form">
+        <input
+          v-model="newNotebookName"
+          class="new-notebook-input"
+          placeholder="Notebook name..."
+          @keydown.enter="createNotebook"
+          @keydown.escape="cancelNewNotebook"
+          autofocus
+        />
+        <select v-model="newNotebookStackId" class="new-notebook-select">
+          <option value="">No stack</option>
+          <option v-for="stack in notebooksStore.stacks" :key="stack.id" :value="stack.id">
+            {{ stack.name }}
+          </option>
+        </select>
+        <div class="new-notebook-actions">
+          <button class="nb-create-btn" @click="createNotebook" :disabled="!newNotebookName.trim()">Create</button>
+          <button class="nb-cancel-btn" @click="cancelNewNotebook">Cancel</button>
+        </div>
+      </div>
 
       <div v-for="stack in notebooksStore.stacks" :key="stack.id" class="stack-group">
         <button class="stack-header" @click="toggleStack(stack.id)">
@@ -146,9 +276,11 @@ function toggleStack(id) {
             class="nav-item notebook-item"
             :class="{ active: route.params.id === nb.id }"
             @click="selectNotebook(nb.id)"
+            @contextmenu="onNotebookContextMenu($event, nb)"
           >
             <FolderOpen :size="14" />
             <span>{{ nb.name }}</span>
+            <span class="note-count">{{ getNotebookCount(nb.id) }}</span>
           </button>
         </div>
       </div>
@@ -159,6 +291,7 @@ function toggleStack(id) {
         class="nav-item notebook-item"
         :class="{ active: route.params.id === nb.id }"
         @click="selectNotebook(nb.id)"
+        @contextmenu="onNotebookContextMenu($event, nb)"
       >
         <FolderOpen :size="14" />
         <span>{{ nb.name }}</span>
@@ -189,13 +322,86 @@ function toggleStack(id) {
     </div>
 
     <div class="sidebar-footer">
-      <span class="version">v{{ version }}</span>
+      <div class="footer-user">
+        <span class="user-name">{{ authStore.user?.username }}</span>
+        <span class="version">v{{ version }}</span>
+      </div>
       <button class="logout-btn" @click="handleLogout" title="Sign out">
         <LogOut :size="16" />
+        <span>Sign out</span>
       </button>
     </div>
+
+    <!-- Notebook context menu -->
+    <Teleport to="body">
+      <div
+        v-if="nbContextMenu.show"
+        class="nb-context-menu"
+        :style="{ left: nbContextMenu.x + 'px', top: nbContextMenu.y + 'px' }"
+      >
+        <button class="nb-context-item delete" @click="deleteNotebook">
+          <Trash2 :size="14" />
+          Delete notebook
+        </button>
+      </div>
+      <div v-if="nbContextMenu.show" class="nb-context-overlay" @click="closeNbContextMenu" />
+    </Teleport>
+
+    <ConfirmModal
+      v-if="confirmModal.show"
+      :title="confirmModal.title"
+      :message="confirmModal.message"
+      :danger="confirmModal.danger"
+      confirm-text="Delete"
+      @confirm="confirmModal.onConfirm"
+      @cancel="confirmModal.onCancel"
+    />
   </aside>
 </template>
+
+<style>
+/* Notebook context menu — unscoped for Teleport */
+.nb-context-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.nb-context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 170px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.nb-context-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.nb-context-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+.nb-context-item.delete:hover {
+  background: rgba(255, 107, 107, 0.1);
+  color: #ff6b6b;
+}
+</style>
 
 <style scoped>
 .sidebar {
@@ -293,14 +499,89 @@ function toggleStack(id) {
   margin-bottom: 8px;
 }
 
+.section-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  margin-bottom: 8px;
+}
+
 .section-label {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-muted);
-  padding: 0 12px;
+}
+
+.section-add-btn {
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.section-add-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+}
+
+.new-notebook-form {
+  padding: 6px 12px;
   margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.new-notebook-input, .new-notebook-select {
+  width: 100%;
+  padding: 5px 8px;
+  background: var(--bg-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+.new-notebook-input:focus, .new-notebook-select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.new-notebook-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.nb-create-btn {
+  flex: 1;
+  padding: 4px;
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+}
+.nb-create-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.nb-cancel-btn {
+  flex: 1;
+  padding: 4px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
 }
 
 .section-label.clickable {
@@ -356,23 +637,43 @@ function toggleStack(id) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px;
+  padding: 10px 12px;
   margin-top: 8px;
   border-top: 1px solid var(--border-subtle);
 }
 
+.footer-user {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
 .version {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
 }
 
 .logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   background: none;
-  border: none;
+  border: 1px solid var(--border-subtle);
   color: var(--text-muted);
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
 }
-.logout-btn:hover { color: var(--text-primary); }
+.logout-btn:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
 </style>

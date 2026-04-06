@@ -25,7 +25,7 @@ const routes = [
   {
     path: '/inbox',
     name: 'Inbox',
-    component: () => import('../views/NotesView.vue')
+    component: () => import('../views/InboxView.vue')
   },
   {
     path: '/tasks',
@@ -51,6 +51,11 @@ const routes = [
     path: '/search',
     name: 'Search',
     component: () => import('../views/SearchView.vue')
+  },
+  {
+    path: '/trash',
+    name: 'Trash',
+    component: () => import('../views/TrashView.vue')
   }
 ];
 
@@ -59,12 +64,16 @@ const router = createRouter({
   routes
 });
 
-// Auth guard — useAuthStore must be called after pinia is installed,
-// so we call it lazily inside the guard.
-router.beforeEach((to) => {
+// Auth guard — attempt session restore before redirecting to login
+router.beforeEach(async (to) => {
   if (to.meta.public) return true;
 
   const authStore = useAuthStore();
+
+  // On first load, try to restore session from refresh token cookie
+  if (!authStore.initialized) {
+    await authStore.init();
+  }
 
   if (!authStore.isAuthenticated) {
     return { name: 'Login' };

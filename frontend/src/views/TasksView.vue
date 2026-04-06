@@ -2,18 +2,26 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTasksStore } from '../stores/tasks.js';
+import { useNotesStore } from '../stores/notes.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import { CheckSquare, Square, Calendar, FileText, Trash2, Plus } from 'lucide-vue-next';
 
 const router = useRouter();
 const tasksStore = useTasksStore();
+const notesStore = useNotesStore();
 
 const filter = ref('all'); // 'all' | 'open' | 'done'
 const newTaskContent = ref('');
 const newTaskDue = ref('');
+const newTaskNoteId = ref('');
 
-onMounted(() => {
-  tasksStore.fetchTasks();
+onMounted(async () => {
+  await tasksStore.fetchTasks();
+  // Load notes for the "link to note" dropdown
+  if (notesStore.notes.length === 0) {
+    notesStore.clearFilters();
+    await notesStore.fetchNotes();
+  }
 });
 
 const filteredTasks = computed(() => {
@@ -26,20 +34,29 @@ async function toggle(task) {
   await tasksStore.toggleTask(task.id);
 }
 
-async function deleteTask(id) {
-  await tasksStore.deleteTask(id);
+async function removeTask(id) {
+  try {
+    await tasksStore.deleteTask(id);
+  } catch (err) {
+    console.error('Failed to delete task:', err);
+  }
 }
 
 async function addTask() {
   const content = newTaskContent.value.trim();
   if (!content) return;
-  await tasksStore.createTask({
-    content,
-    due_date: newTaskDue.value || undefined
-  });
-  newTaskContent.value = '';
-  newTaskDue.value = '';
-  await tasksStore.fetchTasks();
+  const data = { content };
+  if (newTaskDue.value) data.due_date = newTaskDue.value;
+  if (newTaskNoteId.value) data.note_id = newTaskNoteId.value;
+  try {
+    await tasksStore.createTask(data);
+    newTaskContent.value = '';
+    newTaskDue.value = '';
+    newTaskNoteId.value = '';
+    await tasksStore.fetchTasks();
+  } catch (err) {
+    console.error('Failed to create task:', err);
+  }
 }
 
 function goToNote(noteId) {
@@ -65,27 +82,34 @@ function isOverdue(dateStr) {
       <div class="tasks-header">
         <h2>Tasks</h2>
         <div class="filter-tabs">
-          <button :class="{ active: filter === 'all' }" @click="filter = 'all'">All</button>
-          <button :class="{ active: filter === 'open' }" @click="filter = 'open'">Open</button>
-          <button :class="{ active: filter === 'done' }" @click="filter = 'done'">Done</button>
+          <button type="button" :class="{ active: filter === 'all' }" @click="filter = 'all'">All</button>
+          <button type="button" :class="{ active: filter === 'open' }" @click="filter = 'open'">Open</button>
+          <button type="button" :class="{ active: filter === 'done' }" @click="filter = 'done'">Done</button>
         </div>
       </div>
 
       <!-- Add task -->
-      <form class="add-task-form" @submit.prevent="addTask">
+      <div class="add-task-form">
         <Plus :size="16" class="add-icon" />
         <input
           v-model="newTaskContent"
           class="add-task-input"
           placeholder="Add a task..."
+          @keydown.enter="addTask"
         />
+        <select v-model="newTaskNoteId" class="add-task-select">
+          <option value="">No linked note</option>
+          <option v-for="note in notesStore.notes" :key="note.id" :value="note.id">
+            {{ note.title }}
+          </option>
+        </select>
         <input
           v-model="newTaskDue"
           type="date"
           class="add-task-date"
         />
-        <button type="submit" class="add-task-btn" :disabled="!newTaskContent.trim()">Add</button>
-      </form>
+        <button type="button" class="add-task-btn" @click="addTask" :disabled="!newTaskContent">Add</button>
+      </div>
 
       <div v-if="tasksStore.loading" class="loading">Loading...</div>
 
@@ -126,7 +150,7 @@ function isOverdue(dateStr) {
               </button>
             </div>
           </div>
-          <button class="task-delete" @click="deleteTask(task.id)" title="Delete">
+          <button class="task-delete" @click="removeTask(task.id)" title="Delete">
             <Trash2 :size="14" />
           </button>
         </div>
@@ -203,6 +227,17 @@ function isOverdue(dateStr) {
   outline: none;
 }
 .add-task-input::placeholder { color: var(--text-muted); }
+
+.add-task-select {
+  background: var(--bg-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  padding: 4px 8px;
+  max-width: 160px;
+}
 
 .add-task-date {
   background: var(--bg-main);
@@ -312,7 +347,7 @@ function isOverdue(dateStr) {
   color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
-  opacity: 0;
+  opacity: 0.4;
   transition: opacity 0.1s;
 }
 .task-item:hover .task-delete { opacity: 1; }

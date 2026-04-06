@@ -19,8 +19,8 @@ function onKeydown(e) {
     }
   }
 
-  // Ctrl+Shift+N — Quick capture
-  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'N') {
+  // Alt+N — Quick capture
+  if (e.altKey && e.key === 'n') {
     e.preventDefault();
     if (authStore.isAuthenticated) {
       showCapture.value = !showCapture.value;
