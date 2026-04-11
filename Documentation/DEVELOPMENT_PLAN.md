@@ -381,6 +381,7 @@ These items are out of scope for Stages 1–2 but documented for future planning
 | 2026-04-11 | OAuth callback auth bypass | Fastify plugin-level `addHook('onRequest')` cannot be overridden per-route with `onRequest: []`. Fixed by using Fastify encapsulation: callback in its own `register()` block without auth, other routes in a separate `register()` block with auth. |
 | 2026-04-11 | PWA service worker intercepts API | Workbox `navigateFallback` serves `index.html` for all navigation requests including `/api/` callback redirects. Fixed by adding `navigateFallbackDenylist: [/^\/api\//]` to Vite PWA workbox config. After deploy, users must unregister old service worker in DevTools. |
 | 2026-04-11 | Google Drive OAuth scope | `drive.file` scope only grants write access to files the app created. Changed to `drive` scope for full read/write. Move-to-processed is best-effort — import counted as success regardless. |
+| 2026-04-11 | PWA install on all platforms | Added `apple-touch-icon.png`, iOS meta tags (`apple-mobile-web-app-capable`, `black-translucent` status bar, `theme-color`), and fixed `includeAssets` (was referencing nonexistent `favicon.ico`). App now installable via Chrome "Install app" (PC/Android) and Safari "Add to Home Screen" (iOS). |
 | 2026-04-11 | Sidebar notebook count stale after delete | `GET /notebooks` SQL counted all notes including soft-deleted (trashed) ones. Fixed by adding `deleted_at IS NULL` to the JOIN. Also added `fetchNotebooks()` call after trashing from editor toolbar (NoteListPanel already had it). |
 
 ---
@@ -520,7 +521,7 @@ Features:
 - **Inline image rendering** (4.4): Uploaded images referenced via `![alt](/api/v1/attachments/:id)` render in Normal Mode.
 - **Reminders backend** (4.5): `GET /api/v1/reminders` (overdue/upcoming/dismissed), `GET /api/v1/reminders/due` (polling). `reminder_at` column on notes (migration 003). Tasks already had `reminder_at`.
 - **Reminders panel** (4.6): `RemindersPanel.vue` — overlay panel showing overdue (red border) and upcoming reminders. Click to navigate to note. Sidebar "Reminders" nav item with red badge for overdue count. 60s background polling.
-- **PWA manifest** (4.7): `vite-plugin-pwa` configured with manifest (name, icons, theme_color, standalone). Icons generated.
+- **PWA manifest** (4.7): `vite-plugin-pwa` configured with manifest (name, icons, theme_color, standalone). Icons generated. Apple Touch Icon and iOS meta tags (`apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style`, `apple-mobile-web-app-title`) for iOS Add to Home Screen support. Installable on Chrome (PC), Android, and iOS.
 - **Service worker** (4.8): Workbox with generateSW — precaches app shell, CacheFirst for attachments, NetworkFirst for API.
 - **Drag-and-drop notes** (4.9): Notes in NoteListPanel are draggable. Notebooks in sidebar accept drops with visual highlight. Moves note to target notebook, updates counts.
 - **Mobile FAB** (4.10): `MobileFAB.vue` — fixed bottom-right orange "+" button, visible only at `< 768px`, triggers Quick Capture.

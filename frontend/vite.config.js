@@ -9,14 +9,17 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
+        id: '/',
         name: 'Noted — Knowledge & Task Manager',
         short_name: 'Noted',
         description: 'Markdown-first note-taking with knowledge graph',
         theme_color: '#102a50',
         background_color: '#1a3a6d',
         display: 'standalone',
+        orientation: 'any',
         scope: '/',
         start_url: '/',
+        prefer_related_applications: false,
         icons: [
           {
             src: '/icons/icon-192.png',
