@@ -7,7 +7,7 @@ async function notebookRoutes(fastify) {
     const result = await fastify.db.query(
       `SELECT n.*, COUNT(notes.id)::int AS note_count
        FROM notebooks n
-       LEFT JOIN notes ON notes.notebook_id = n.id
+       LEFT JOIN notes ON notes.notebook_id = n.id AND notes.deleted_at IS NULL
        WHERE n.user_id = $1
        GROUP BY n.id
        ORDER BY n.is_default DESC, n.name`,

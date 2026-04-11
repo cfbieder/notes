@@ -48,3 +48,9 @@ backend/logs/
 attachments/
 certs/
 Backups/
+backups/
+*.sql.gz
+
+# Production env (keep example)
+backend/.env.prod
+!backend/.env.prod.example

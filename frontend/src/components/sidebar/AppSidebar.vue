@@ -11,7 +11,7 @@ import RemindersPanel from '../ui/RemindersPanel.vue';
 import { useRemindersStore } from '../../stores/reminders.js';
 import {
   FileText, Inbox, CheckSquare, Search, Network, Trash2, Bell,
-  ChevronRight, ChevronDown, Plus, LogOut, FolderOpen, Tag
+  ChevronRight, ChevronDown, Plus, LogOut, FolderOpen, Tag, Settings
 } from 'lucide-vue-next';
 
 const remindersStore = useRemindersStore();
@@ -359,6 +359,10 @@ async function deleteNotebook() {
       <button class="nav-item" :class="{ active: route.path === '/trash' }" @click="goToTrash">
         <Trash2 :size="16" />
         <span>Trash</span>
+      </button>
+      <button class="nav-item" :class="{ active: route.path === '/settings' }" @click="router.push('/settings')">
+        <Settings :size="16" />
+        <span>Settings</span>
       </button>
     </nav>
 

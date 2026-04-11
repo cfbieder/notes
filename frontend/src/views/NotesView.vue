@@ -13,8 +13,10 @@ import MobileEditor from '../components/mobile/MobileEditor.vue';
 import MobileFAB from '../components/mobile/MobileFAB.vue';
 import { FileText } from 'lucide-vue-next';
 import { useAttachmentsStore } from '../stores/attachments.js';
+import { useNotebooksStore } from '../stores/notebooks.js';
 
 const attachmentsStore = useAttachmentsStore();
+const notebooksStore = useNotebooksStore();
 
 const route = useRoute();
 const router = useRouter();
@@ -131,6 +133,7 @@ async function trashCurrentNote() {
   if (!notesStore.currentNote) return;
   if (saveTimer) clearTimeout(saveTimer);
   await notesStore.trashNote(notesStore.currentNote.id);
+  await notebooksStore.fetchNotebooks();
   router.push('/notes');
 }
 

@@ -1,7 +1,7 @@
 # Development Plan — Noted
 
 > Personal Knowledge & Task Management App
-> Status: Phases 0–4 complete | Last updated: 2026-04-06
+> Status: Phases 0–5, 9 complete | Last updated: 2026-04-11
 
 ---
 
@@ -17,7 +17,8 @@
 8. [Phase 5 — Production Deployment](#8-phase-5--production-deployment)
 9. [Phase 6 — Knowledge Graph (Stage 2)](#9-phase-6--knowledge-graph-stage-2)
 10. [Phase 7 — Web Clipper & OCR (Stage 2)](#10-phase-7--web-clipper--ocr-stage-2)
-11. [Backlog & Future (Stage 3)](#11-backlog--future-stage-3)
+11. [Phase 8 — LLM-Powered Intelligence (Stage 2)](#105-phase-8--llm-powered-intelligence-stage-2)
+12. [Backlog & Future (Stage 3)](#11-backlog--future-stage-3)
 12. [Known Issues & Decisions](#12-known-issues--decisions)
 13. [Infrastructure Notes](#13-infrastructure-notes)
 14. [Completed Phases](#14-completed-phases)
@@ -200,16 +201,16 @@ Browser / PWA
 
 | # | Task | Details |
 |---|------|---------|
-| 5.1 | Docker production compose | `docker-compose.prod.yml` — PostgreSQL + Fastify backend + Nginx; healthchecks on all services |
-| 5.2 | Backend Dockerfile | Multi-stage build; non-root user; healthcheck endpoint |
-| 5.3 | Frontend Dockerfile | Multi-stage build (Vite build → Nginx Alpine); version build arg |
-| 5.4 | Nginx config | SSL termination, SPA routing (`try_files`), API reverse proxy, static asset caching |
-| 5.5 | TLS certificates | `scripts/setup-certs.sh` — provision certs for Tailscale domain |
-| 5.6 | deploy-to-production.sh | Pre-flight checks, auto backup, Docker build, migrations, health verification |
+| 5.1 | ✅ Docker production compose | `docker-compose.prod.yml` — PostgreSQL + Fastify backend + Nginx; healthchecks on all services |
+| 5.2 | ✅ Backend Dockerfile | Multi-stage build; non-root `noted` user; wget healthcheck |
+| 5.3 | ✅ Frontend Dockerfile | Multi-stage build (Vite build → Nginx 1.27 Alpine); version build arg |
+| 5.4 | ✅ Nginx config | `nginx/noted.conf` — SSL termination, SPA `try_files`, API reverse proxy, asset caching (1y immutable), gzip, security headers |
+| 5.5 | ✅ TLS certificates | `scripts/setup-certs.sh` — `tailscale cert` for `noted.tail413695.ts.net`; auto-reloads Nginx if running |
+| 5.6 | ✅ deploy-to-production.sh | Pre-flight checks (Docker, Tailscale, env, certs), auto backup, Docker build, migrations, service start, health verification |
 | 5.7 | ✅ update_version.sh | Semantic versioning with date stamp; git tags — `scripts/update_version.sh <major\|minor\|patch\|X.Y.Z>` updates VERSION, package.json files, frontend/.env, creates git commit + annotated tag |
-| 5.8 | backup-db.sh | Local pg_dump with optional retention pruning |
-| 5.9 | backup-to-remote.sh | SSH-based remote backup with retention cleanup |
-| 5.10 | Cron jobs | Remote backup (every 2 days), cert renewal (monthly), Docker prune (weekly) |
+| 5.8 | ✅ backup-db.sh | Local `pg_dump` with gzip, optional `--prune N` retention |
+| 5.9 | ✅ backup-to-remote.sh | SSH-based remote backup with configurable retention (REMOTE_HOST, REMOTE_KEEP) |
+| 5.10 | ✅ Cron jobs | `scripts/setup-cron.sh` — idempotent cron installer: remote backup (every 2 days 2 AM), cert renewal (monthly 3 AM), Docker prune (weekly Sunday 3 AM) |
 | 5.11 | ✅ Version display in UI | Show `VITE_APP_VERSION` in sidebar footer — already implemented in `AppSidebar.vue` |
 
 **Acceptance criteria:**
@@ -249,20 +250,84 @@ Browser / PWA
 
 ## 10. Phase 7 — Web Clipper & OCR (Stage 2)
 
-**Goal:** Capture external content and make attachments searchable.
+**Goal:** Capture external content and make attachments searchable. Leverages existing LLM gateway OCR (Gemini 2.5 Flash → Claude Sonnet vision fallback) instead of Tesseract.
 
 | # | Task | Details |
 |---|------|---------|
 | 7.1 | Web clipper extension | Chrome extension — capture full page, article (Readability.js), selection, or screenshot |
 | 7.2 | Clipper API endpoint | Accept clipped content with URL, timestamp, notebook, tags |
 | 7.3 | Clipper destination UI | Popup with notebook/tag selection or "send to inbox" |
-| 7.4 | OCR pipeline | Tesseract.js (or pytesseract microservice) for PDF/image text extraction |
-| 7.5 | OCR text storage | Populate `attachments.ocr_text` column on upload |
+| 7.4 | OCR integration | Backend calls LLM gateway `POST /ocr` for text extraction and `POST /ocr/json` for structured data extraction from PDF/image attachments. No local Tesseract dependency. |
+| 7.5 | OCR text storage | Populate `attachments.ocr_text` column on upload — triggered automatically when image/PDF attachments are saved |
 | 7.6 | OCR in search index | Include `ocr_text` in full-text search tsvector |
+| 7.7 | OCR + translate on clip | Optional translation of clipped/OCR'd content via gateway `POST /ocr/translate` — useful for foreign-language documents |
 
 **Acceptance criteria:**
 - Browser extension can clip pages to the app with notebook/tag selection
-- Uploaded PDFs and images have extracted text searchable via full-text search
+- Uploaded PDFs and images have extracted text (via LLM gateway OCR) searchable via full-text search
+- OCR works without any local ML dependencies — calls existing gateway at `100.66.213.40:8080`
+
+---
+
+## 10.5. Phase 8 — LLM-Powered Intelligence (Stage 2)
+
+**Goal:** Add AI-powered features using the existing local LLM gateway (dual-GPU Ollama + cloud fallback). All LLM features degrade gracefully when the gateway is unreachable — the app remains fully functional without AI.
+
+**LLM Gateway:** `http://100.66.213.40:8080` (Tailscale) — phi4:14b (fast), qwen3:32b (deep reasoning), nomic-embed-text (embeddings)
+
+| # | Task | Details |
+|---|------|---------|
+| 8.1 | LLM service layer | `backend/src/services/llmService.js` — centralized HTTP client for the LLM gateway. Health check on startup, circuit breaker pattern, timeout handling (300s). All LLM features route through this service. Config via env vars (`LLM_GATEWAY_URL`, `LLM_ENABLED`). |
+| 8.2 | pgvector + embedding pipeline | Migration: enable `pgvector` extension, add `embedding vector(768)` column to `notes` table. On note save (debounced), call Ollama `nomic-embed-text` via gateway to generate embedding, store in pgvector. Background job for initial backfill of existing notes. |
+| 8.3 | Semantic search | Augment existing tsvector search with pgvector cosine similarity (`<=>`). `GET /api/v1/search` gains `mode` param: `keyword` (existing), `semantic` (embedding), `hybrid` (both, RRF-merged). Frontend search palette (`Ctrl+K`) gets a toggle for search mode. |
+| 8.4 | Related notes panel | `GET /api/v1/notes/:id/related` — top 5 notes by embedding similarity (excluding self). `RelatedNotesPanel.vue` — collapsible panel in editor view, similar to planned Backlinks panel. Click to navigate. |
+| 8.5 | Smart tag suggestions | On note save, send content + user's existing tag list to gateway `POST /llm/generate` (phi4:14b). Returns 2-3 suggested tags. Frontend shows as ghost/dashed pills in the tag bar — one click to accept, dismiss on hover. `POST /api/v1/notes/:id/suggest-tags`. |
+| 8.6 | Auto-title for captures | Quick captures with empty/generic titles get an LLM-generated title suggestion. Runs after save via gateway (phi4:14b). UI shows suggestion inline with accept/dismiss. Non-blocking — title appears after a short delay. |
+| 8.7 | Note summarization | `POST /api/v1/notes/:id/summarize` — generates 2-3 sentence summary via gateway (phi4:14b). `NoteSummary.vue` — collapsible summary block at top of editor. Also used in note list panel as preview text (cached, regenerated on content change). |
+| 8.8 | Task extraction | "Extract tasks" button in editor toolbar. Sends note content to gateway (phi4:14b) with prompt to identify action items. Returns proposed tasks in a review modal — user can accept/edit/dismiss each before creation. `POST /api/v1/notes/:id/extract-tasks`. |
+| 8.9 | Natural language note query | "Ask my notes" mode in search palette. User types a question → backend embeds query → pgvector retrieves top-N relevant notes → sends to gateway with context for synthesis → returns answer with note citations (clickable links). `POST /api/v1/search/ask`. |
+| 8.10 | Audio note capture | Record audio in quick capture modal (MediaRecorder API) or upload audio file. Backend sends to gateway `POST /transcribe` (Whisper). Transcribed text becomes note content. Mobile FAB gets microphone option. Supports OGG, MP3, WAV, M4A. |
+| 8.11 | Note translation | Translate note content via gateway `POST /translate`. UI: toolbar button → language picker → side-by-side or in-place translation. `POST /api/v1/notes/:id/translate`. Supports ~40 languages via LLM-based translation. |
+
+**Acceptance criteria:**
+- `Ctrl+K` search supports semantic mode — finds conceptually related notes even without keyword matches
+- Related notes panel shows semantically similar notes when viewing any note
+- Smart tag suggestions appear as ghost pills after saving a note; one click to accept
+- Quick captures get auto-generated titles when saved without one
+- "Extract tasks" identifies action items from note content and creates tasks after user review
+- "Ask my notes" returns synthesized answers with citations to source notes
+- Audio capture creates notes from voice recordings via Whisper transcription
+- All LLM features degrade gracefully — app works normally when gateway is down
+
+---
+
+## 10.6. Phase 9 — Google Drive Import
+
+**Goal:** Import files from a designated Google Drive folder into the Noted inbox, via OAuth + polling.
+
+| # | Task | Details |
+|---|------|---------|
+| 9.1 | ✅ Database migration | `004_google_drive_integration.sql` — `integrations` table (OAuth tokens, JSONB config) + `import_history` table (dedup, status log) |
+| 9.2 | ✅ Drive importer service | `backend/src/services/driveImporter.js` — downloads Drive files, creates inbox notes + attachments. Text files become note body; images/PDFs/Google Docs become attachments. |
+| 9.3 | ✅ Drive poller service | `backend/src/services/drivePoller.js` — 60s tick interval, checks poll_interval_minutes per integration, dedup via import_history, best-effort move to "Processed" subfolder |
+| 9.4 | ✅ Poller Fastify plugin | `backend/src/plugins/drivePoller.js` — registers poller on `onReady`, exposes `fastify.drivePoller` for manual scan trigger |
+| 9.5 | ✅ Integration routes | `backend/src/routes/integrations.js` — 7 endpoints: OAuth auth-url, callback, status, config, scan, disconnect, history |
+| 9.6 | ✅ Frontend settings view | `frontend/src/views/SettingsView.vue` — Google Drive connection, folder config, poll interval, manual scan button, import history |
+| 9.7 | ✅ Frontend integrations store | `frontend/src/stores/integrations.js` — Pinia store for Drive status, config, scan, history |
+| 9.8 | ✅ Router + sidebar | Settings nav item added to sidebar and router |
+| 9.9 | ✅ Docker/prod config | Google OAuth env vars in `docker-compose.prod.yml` and `.env.prod.example` |
+
+**Prerequisites:** Google Cloud project with Drive API enabled + OAuth2 credentials (Web application type). Redirect URI must include Tailscale domain.
+
+**Acceptance criteria:**
+- User can connect Google Drive from Settings page via OAuth
+- User designates a Drive folder by name; backend validates it exists
+- Backend polls folder on configurable interval (1–30 min) and imports new files to inbox
+- Manual "Scan Now" button triggers immediate import
+- Import history shows file name, status, timestamp, and link to created note
+- Imported files moved to "Processed" subfolder in Drive (best-effort; import succeeds even if move fails)
+- `.md`/`.txt` content imported as note body; other files attached to inbox notes
+- App works normally when Google credentials are not configured (graceful degradation)
 
 ---
 
@@ -271,12 +336,15 @@ Browser / PWA
 These items are out of scope for Stages 1–2 but documented for future planning:
 
 - [x] ~~Notebook & Stack management UI~~ — completed 2026-04-06
+- [x] ~~pgvector semantic search~~ — moved to Phase 8.2/8.3 (uses Ollama nomic-embed-text via LLM gateway, no Python microservice needed)
+- [x] ~~AI summarization of notes~~ — moved to Phase 8.7 (local LLM via gateway, no cloud API cost)
+- [x] ~~Smart tag suggestions~~ — moved to Phase 8.5
 - [ ] User settings page — change password, email, display preferences
 - [ ] Multi-user workspaces (shared notebooks)
 - [ ] Role-based access control (viewer / editor / admin)
-- [ ] pgvector semantic search (Python microservice for embeddings)
-- [ ] AI summarization of notes (Claude API integration)
-- [ ] Smart tag suggestions
+- [ ] Weekly digest — scheduled job summarizes week's captures, completed tasks, emerging themes; generates a "Weekly Review" note
+- [ ] Link suggestions — use embeddings to suggest wikilinks between semantically related notes (enhances Phase 6 graph)
+- [ ] Content scaffolding — type a one-liner prompt, LLM expands into a structured note skeleton
 - [ ] Electron desktop app wrapper
 - [ ] React Native mobile app (iOS first)
 - [ ] Real-time collaborative editing
@@ -299,6 +367,20 @@ These items are out of scope for Stages 1–2 but documented for future planning
 | 2026-04-06 | Attachment storage | Files stored in `uploads/{year}/{month}/{noteId}/` with timestamp prefix to avoid collisions |
 | 2026-04-06 | PWA caching | Workbox CacheFirst for attachments (30-day TTL), NetworkFirst for API (5-min TTL) |
 | 2026-04-06 | Idea capture | Ideas get "💡" title prefix and blockquote content wrapper to distinguish from regular notes |
+| 2026-04-10 | TLS via Tailscale | Using `tailscale cert` (Let's Encrypt) instead of manual cert management — Nginx handles SSL termination, Tailscale handles provisioning/renewal |
+| 2026-04-10 | Docker prod architecture | Three containers (noted-db, noted-api, noted-web) on internal bridge network; only Nginx exposes ports 80/443 |
+| 2026-04-10 | Alpine IPv6 healthcheck | Alpine's `wget` resolves `localhost` to `::1` (IPv6) but Node binds `0.0.0.0` (IPv4 only) — all Docker healthchecks must use `127.0.0.1` explicitly |
+| 2026-04-10 | Vite .env in Docker builds | Vite reads `.env` files at build time, overriding `ENV` directives — frontend Dockerfile must `rm -f .env` before `npm run build` and omit `VITE_ENV_LABEL` so production builds have no dev label |
+| 2026-04-10 | Dev/prod favicon | Dev: orange background + dark blue "N" (dynamically swapped via data URI in `main.js`). Prod: dark blue background + orange "N" (static `favicon.svg`). Controlled by `VITE_ENV_LABEL` being set/unset |
+| 2026-04-10 | LLM gateway integration | All LLM/OCR/transcription routed through existing gateway at `100.66.213.40:8080` (Tailscale: `100.66.213.40:8080`) via `/task` and `/llm/generate` endpoints. No embedded ML dependencies in Noted. Embeddings via Ollama `nomic-embed-text` (768-dim), stored in pgvector. Features degrade gracefully when gateway is unreachable. |
+| 2026-04-10 | OCR via cloud vision | Replaced planned Tesseract.js OCR with LLM gateway's Gemini 2.5 Flash → Claude Sonnet vision fallback chain. Higher accuracy, no local model dependency. |
+| 2026-04-10 | Embedding model | `nomic-embed-text` on GPU 0 via Ollama — 768-dimension vectors stored in pgvector. Chosen for speed and local-only operation. |
+| 2026-04-11 | Google Drive OAuth behind Tailscale | OAuth redirect URI uses Tailscale domain (`noted.tail413695.ts.net`). Works because the user's browser is on the Tailnet. Google consent screen in "testing" mode with user's Gmail as test user. |
+| 2026-04-11 | Drive import polling vs webhooks | Chose polling over Google push notifications since the app has no public URL (Tailscale only). 60s tick interval with configurable per-integration poll frequency (1–30 min). |
+| 2026-04-11 | Drive file processing | Imported files moved to a "Processed" subfolder (not deleted) for safety — best-effort, import succeeds even if move fails. Google Docs/Sheets/Slides exported as PDF. Files exceeding MAX_FILE_SIZE are skipped and logged. |
+| 2026-04-11 | OAuth callback auth bypass | Fastify plugin-level `addHook('onRequest')` cannot be overridden per-route with `onRequest: []`. Fixed by using Fastify encapsulation: callback in its own `register()` block without auth, other routes in a separate `register()` block with auth. |
+| 2026-04-11 | PWA service worker intercepts API | Workbox `navigateFallback` serves `index.html` for all navigation requests including `/api/` callback redirects. Fixed by adding `navigateFallbackDenylist: [/^\/api\//]` to Vite PWA workbox config. After deploy, users must unregister old service worker in DevTools. |
+| 2026-04-11 | Google Drive OAuth scope | `drive.file` scope only grants write access to files the app created. Changed to `drive` scope for full read/write. Move-to-processed is best-effort — import counted as success regardless. |
 
 ---
 
@@ -417,7 +499,16 @@ All Phase 4 features tested and passing:
 - [x] Desktop regression — three-pane layout, autosave, search, tags all working
 - [x] Console clean — no errors on load
 
-**Next up:** Phase 5 (Production Deployment).
+### Phase 9 — Google Drive Import ✅
+Completed: 2026-04-11
+Notes: Google Drive OAuth2 integration with polling-based file import. Backend: `googleapis` npm package, `integrations` + `import_history` tables (migration 004), DriveImporter service (text → note body, binary → attachment), DrivePoller service (60s tick, configurable poll interval), Fastify plugin for lifecycle management. Frontend: Settings view with connect/disconnect, folder config, poll interval selector, manual scan button, import history with status badges. 7 API endpoints under `/api/v1/integrations/google-drive/`. Files moved to "Processed" subfolder after import (best-effort). Google Docs exported as PDF. Graceful degradation when Google credentials not configured.
+
+Bugs fixed during E2E testing:
+- OAuth callback returned 401 — Fastify `addHook` at plugin level applies to all routes; fixed with encapsulated `register()` blocks
+- Callback page showed SPA instead of API response — PWA service worker intercepted `/api/` navigation; fixed with `navigateFallbackDenylist`
+- Move-to-processed failed with 403 — `drive.file` scope insufficient; changed to `drive` scope, made move best-effort
+
+**Next up:** Phase 6 (Knowledge Graph).
 
 ### Phase 4 — Attachments, Reminders & PWA ✅
 Completed: 2026-04-06
@@ -434,6 +525,20 @@ Features:
 - **Capture type differentiation** (4.11): Idea capture prefixes title with "💡" and wraps content in blockquote. Note and Task unchanged.
 - **Mobile Home Screen** (4.12): `MobileHome.vue` — responsive at `< 768px`. Full-width Quick Note hero card, Tasks/Inbox/Search cards with badges (4th slot reserved for Reminders), collapsible recent notes (last 5). Hamburger → sidebar slides in as overlay. `MobileEditor.vue` — full-screen editor with back button + Source/Normal toggle. Desktop three-pane layout unchanged at `≥ 768px`.
 
+### Phase 5 — Production Deployment ✅
+Completed: 2026-04-10
+Features:
+- **Backend Dockerfile** (5.2): Multi-stage build (deps → production). Non-root `noted` user, wget healthcheck on `/health`, uploads/logs directories.
+- **Frontend Dockerfile** (5.3): Multi-stage build (node build → Nginx 1.27 Alpine). `VITE_APP_VERSION` and `VITE_ENV_LABEL` build args.
+- **Nginx config** (5.4): `nginx/noted.conf` — HTTP→HTTPS redirect, TLS termination (Tailscale certs), SPA `try_files` fallback, API reverse proxy to `noted-api:3001`, static asset caching (1y immutable for `/assets/`), no-cache for service worker and HTML, gzip, security headers (X-Frame-Options, X-Content-Type-Options, HSTS-ready), 25MB upload limit.
+- **docker-compose.prod.yml** (5.1): Three services (postgres, api, web) on `noted-network`. Environment sourced from `.env.prod`. Named volumes for data, uploads, logs. All services have healthchecks with `depends_on: condition: service_healthy`.
+- **TLS via Tailscale** (5.5): `scripts/setup-certs.sh` — runs `tailscale cert` to provision Let's Encrypt certs for `noted.tail413695.ts.net`. Writes to `/etc/noted/certs/`. Auto-reloads Nginx if container is running. Requires root.
+- **Deploy script** (5.6): `scripts/deploy-to-production.sh` — pre-flight checks (Docker, Tailscale, env file, no CHANGE_ME placeholders, certs), auto-backup if DB running, Docker build, migration via `docker compose run`, service start, health verification (container status, API endpoint, HTTPS). Flags: `--skip-backup`, `--build-only`.
+- **Local backup** (5.8): `scripts/backup-db.sh` — `pg_dump` via `noted-db` container, gzipped to `backups/noted_YYYYMMDD_HHMMSS.sql.gz`. Optional `--prune N` to retain last N backups.
+- **Remote backup** (5.9): `scripts/backup-to-remote.sh` — runs local backup first (keeps 7), then SCP to `REMOTE_HOST:REMOTE_DIR` with remote retention pruning.
+- **Cron jobs** (5.10): `scripts/setup-cron.sh` — idempotent cron installer with marker-based cleanup. Schedule: remote backup every 2 days at 2 AM, cert renewal monthly at 3 AM, Docker prune weekly Sunday 3 AM.
+- **.env.prod.example**: Production env template with all config vars. `.dockerignore` files for both backend and frontend.
+
 ---
 
 ### Remaining Development Phases
@@ -441,11 +546,12 @@ Features:
 | Phase | Focus | Status |
 |-------|-------|--------|
 | ~~Phase 4~~ | ~~Attachments, Reminders, PWA, Mobile~~ | ✅ Complete |
-| **Phase 5** | **Production launch** — Docker prod stack, Nginx, TLS, deploy script, backups, cron | Next |
-| Phase 6 | Knowledge Graph — wikilinks, backlinks, D3.js graph (Stage 2) | Future |
-| Phase 7 | Web Clipper & OCR (Stage 2) | Future |
+| ~~Phase 5~~ | ~~Production launch — Docker prod stack, Nginx, TLS, deploy script, backups, cron~~ | ✅ Complete |
+| **Phase 6** | **Knowledge Graph** — wikilinks, backlinks, D3.js graph (Stage 2) | Next |
+| Phase 7 | Web Clipper & OCR — uses LLM gateway OCR (Gemini Flash → Claude vision) instead of Tesseract (Stage 2) | Future |
+| Phase 8 | LLM Intelligence — semantic search (pgvector), related notes, smart tags, summarization, task extraction, audio capture, natural language queries (Stage 2) | Future |
 
 ---
 
 *Development approach: Claude Code AI-assisted, steady pace alongside other projects.*
-*Target: Stage 1 MVP in ~10 weeks, Stage 2 Knowledge Graph in ~10 weeks after.*
+*Target: Stage 1 MVP in ~10 weeks, Stage 2 Knowledge Graph + LLM Intelligence in ~14 weeks after.*

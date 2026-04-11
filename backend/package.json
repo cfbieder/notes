@@ -1,6 +1,6 @@
 {
   "name": "noted-backend",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Noted — Personal Knowledge & Task Management API",
   "main": "src/app.js",
   "scripts": {
@@ -22,6 +22,7 @@
     "bcrypt": "^5.1.1",
     "dotenv": "^16.4.0",
     "fastify": "^5.3.3",
+    "googleapis": "^171.4.0",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.13.0"
   },

@@ -29,6 +29,7 @@ const registerPlugins = async () => {
   // App plugins
   await fastify.register(require('./plugins/db'));
   await fastify.register(require('./plugins/auth'));
+  await fastify.register(require('./plugins/drivePoller'));
 };
 
 // Register routes
@@ -53,6 +54,7 @@ const registerRoutes = async () => {
   await fastify.register(require('./routes/search'), { prefix: '/api/v1/search' });
   await fastify.register(require('./routes/attachments'), { prefix: '/api/v1' });
   await fastify.register(require('./routes/reminders'), { prefix: '/api/v1/reminders' });
+  await fastify.register(require('./routes/integrations'), { prefix: '/api/v1/integrations' });
 };
 
 // Health check
