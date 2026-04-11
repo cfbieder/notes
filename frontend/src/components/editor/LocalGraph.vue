@@ -54,9 +54,9 @@ function renderGraph() {
     .selectAll('line')
     .data(edgeData)
     .join('line')
-    .attr('stroke', d => d.type === 'tag' ? 'rgba(255, 159, 28, 0.2)' : 'rgba(58, 134, 255, 0.25)')
-    .attr('stroke-width', 1)
-    .attr('stroke-dasharray', d => d.type === 'tag' ? '3,3' : null);
+    .attr('stroke', d => d.type === 'tag' ? 'rgba(255, 159, 28, 0.45)' : 'rgba(58, 134, 255, 0.5)')
+    .attr('stroke-width', d => d.type === 'tag' ? 1.5 : 2)
+    .attr('stroke-dasharray', d => d.type === 'tag' ? '6,4' : null);
 
   const node = g.append('g')
     .selectAll('circle')
