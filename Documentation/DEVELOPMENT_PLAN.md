@@ -381,6 +381,7 @@ These items are out of scope for Stages 1–2 but documented for future planning
 | 2026-04-11 | OAuth callback auth bypass | Fastify plugin-level `addHook('onRequest')` cannot be overridden per-route with `onRequest: []`. Fixed by using Fastify encapsulation: callback in its own `register()` block without auth, other routes in a separate `register()` block with auth. |
 | 2026-04-11 | PWA service worker intercepts API | Workbox `navigateFallback` serves `index.html` for all navigation requests including `/api/` callback redirects. Fixed by adding `navigateFallbackDenylist: [/^\/api\//]` to Vite PWA workbox config. After deploy, users must unregister old service worker in DevTools. |
 | 2026-04-11 | Google Drive OAuth scope | `drive.file` scope only grants write access to files the app created. Changed to `drive` scope for full read/write. Move-to-processed is best-effort — import counted as success regardless. |
+| 2026-04-11 | Sidebar notebook count stale after delete | `GET /notebooks` SQL counted all notes including soft-deleted (trashed) ones. Fixed by adding `deleted_at IS NULL` to the JOIN. Also added `fetchNotebooks()` call after trashing from editor toolbar (NoteListPanel already had it). |
 
 ---
 
@@ -507,6 +508,7 @@ Bugs fixed during E2E testing:
 - OAuth callback returned 401 — Fastify `addHook` at plugin level applies to all routes; fixed with encapsulated `register()` blocks
 - Callback page showed SPA instead of API response — PWA service worker intercepted `/api/` navigation; fixed with `navigateFallbackDenylist`
 - Move-to-processed failed with 403 — `drive.file` scope insufficient; changed to `drive` scope, made move best-effort
+- Sidebar notebook note count didn't update after deleting a note — `GET /notebooks` query counted trashed notes; fixed SQL JOIN filter and added missing `fetchNotebooks()` in editor toolbar delete path
 
 **Next up:** Phase 6 (Knowledge Graph).
 
