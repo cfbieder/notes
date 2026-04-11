@@ -110,6 +110,52 @@ async function authRoutes(fastify) {
     }
   });
 
+  // PUT /api/v1/auth/password
+  fastify.put('/password', { onRequest: fastify.authenticate, schema: {
+    body: {
+      type: 'object',
+      required: ['currentPassword', 'newPassword'],
+      properties: {
+        currentPassword: { type: 'string', minLength: 1 },
+        newPassword: { type: 'string', minLength: 8 }
+      }
+    }
+  }}, async (request, reply) => {
+    const { currentPassword, newPassword } = request.body;
+
+    const result = await fastify.db.query(
+      'SELECT id, password_hash FROM users WHERE id = $1',
+      [request.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return reply.code(404).send({
+        error: 'Not Found',
+        message: 'User not found',
+        statusCode: 404
+      });
+    }
+
+    const user = result.rows[0];
+    const valid = await fastify.auth.comparePassword(currentPassword, user.password_hash);
+
+    if (!valid) {
+      return reply.code(400).send({
+        error: 'Bad Request',
+        message: 'Current password is incorrect',
+        statusCode: 400
+      });
+    }
+
+    const newHash = await fastify.auth.hashPassword(newPassword);
+    await fastify.db.query(
+      'UPDATE users SET password_hash = $1 WHERE id = $2',
+      [newHash, request.user.id]
+    );
+
+    return { data: { message: 'Password updated' } };
+  });
+
   // POST /api/v1/auth/logout
   fastify.post('/logout', async (request, reply) => {
     reply.clearCookie('refreshToken', {

@@ -1,6 +1,6 @@
 {
   "name": "noted-frontend",
-  "version": "0.2.3",
+  "version": "0.2.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/commands": "^6.7.0",
     "@codemirror/lang-markdown": "^6.3.0",
     "@codemirror/language": "^6.10.0",
@@ -16,6 +17,7 @@
     "@codemirror/state": "^6.5.0",
     "@codemirror/view": "^6.36.0",
     "@lezer/highlight": "^1.2.0",
+    "d3": "^7.9.0",
     "lucide-vue-next": "^0.474.0",
     "pinia": "^3.0.0",
     "vue": "^3.5.0",
@@ -25,6 +27,7 @@
     "@vitejs/plugin-vue": "^5.2.0",
     "@vue/test-utils": "^2.4.6",
     "happy-dom": "^20.8.9",
+    "sharp": "^0.34.5",
     "vite": "^6.2.0",
     "vite-plugin-pwa": "^0.21.2",
     "vitest": "^4.1.2"

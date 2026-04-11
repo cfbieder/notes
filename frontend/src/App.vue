@@ -4,6 +4,7 @@ import { RouterView } from 'vue-router';
 import SearchPalette from './components/ui/SearchPalette.vue';
 import QuickCapture from './components/ui/QuickCapture.vue';
 import MobileFAB from './components/mobile/MobileFAB.vue';
+import InstallBanner from './components/ui/InstallBanner.vue';
 import { useAuthStore } from './stores/auth.js';
 
 const authStore = useAuthStore();
@@ -50,6 +51,7 @@ onBeforeUnmount(() => {
   <SearchPalette v-if="showSearch" @close="showSearch = false" />
   <QuickCapture v-if="showCapture" @close="showCapture = false" />
   <MobileFAB v-if="authStore.isAuthenticated" @click="onFABClick" />
+  <InstallBanner />
 </template>
 
 <style>

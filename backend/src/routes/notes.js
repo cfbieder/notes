@@ -1,3 +1,41 @@
+const { extractWikilinks, resolveWikilinks } = require('../services/wikilinkParser');
+
+async function syncWikilinks(fastify, noteId, userId, content) {
+  const extracted = extractWikilinks(content);
+
+  // Always clear old links first
+  await fastify.db.query('DELETE FROM note_links WHERE source_note_id = $1', [noteId]);
+
+  if (extracted.length === 0) return;
+
+  // Batch lookup all referenced titles
+  const titles = [...new Set(extracted.map(e => e.title.toLowerCase()))];
+  const titleResult = await fastify.db.query(
+    `SELECT id, LOWER(title) AS lower_title FROM notes
+     WHERE user_id = $1 AND deleted_at IS NULL AND LOWER(title) = ANY($2) AND id != $3`,
+    [userId, titles, noteId]
+  );
+
+  const titleToId = {};
+  titleResult.rows.forEach(r => { titleToId[r.lower_title] = r.id; });
+
+  const { resolved } = resolveWikilinks(extracted, titleToId);
+  if (resolved.length === 0) return;
+
+  const values = resolved.map((_, i) =>
+    `($1, $${i * 2 + 2}, $${i * 2 + 3})`
+  ).join(', ');
+  const params = [noteId];
+  resolved.forEach(r => { params.push(r.targetNoteId, r.contextSnippet); });
+
+  await fastify.db.query(
+    `INSERT INTO note_links (source_note_id, target_note_id, context_snippet)
+     VALUES ${values}
+     ON CONFLICT (source_note_id, target_note_id) DO UPDATE SET context_snippet = EXCLUDED.context_snippet`,
+    params
+  );
+}
+
 async function noteRoutes(fastify) {
   fastify.addHook('onRequest', fastify.authenticate);
 
@@ -159,6 +197,11 @@ async function noteRoutes(fastify) {
       );
     }
 
+    // Sync wikilinks
+    if (content) {
+      await syncWikilinks(fastify, note.id, userId, content);
+    }
+
     return reply.code(201).send({ data: note });
   });
 
@@ -206,6 +249,11 @@ async function noteRoutes(fastify) {
           [id, ...tag_ids]
         );
       }
+    }
+
+    // Sync wikilinks when content changes
+    if (content !== undefined) {
+      await syncWikilinks(fastify, id, request.user.id, content);
     }
 
     return { data: result.rows[0] };

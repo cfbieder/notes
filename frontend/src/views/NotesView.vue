@@ -8,15 +8,19 @@ import NoteListPanel from '../components/ui/NoteListPanel.vue';
 import EditorToolbar from '../components/editor/EditorToolbar.vue';
 import CodeMirrorEditor from '../components/editor/CodeMirrorEditor.vue';
 import AttachmentZone from '../components/editor/AttachmentZone.vue';
+import BacklinksPanel from '../components/editor/BacklinksPanel.vue';
+import LocalGraph from '../components/editor/LocalGraph.vue';
 import MobileHome from '../components/mobile/MobileHome.vue';
 import MobileEditor from '../components/mobile/MobileEditor.vue';
 import MobileFAB from '../components/mobile/MobileFAB.vue';
 import { FileText } from 'lucide-vue-next';
 import { useAttachmentsStore } from '../stores/attachments.js';
 import { useNotebooksStore } from '../stores/notebooks.js';
+import { useGraphStore } from '../stores/graph.js';
 
 const attachmentsStore = useAttachmentsStore();
 const notebooksStore = useNotebooksStore();
+const graphStore = useGraphStore();
 
 const route = useRoute();
 const router = useRouter();
@@ -28,6 +32,22 @@ const noteTitle = ref('');
 let saveTimer = null;
 
 const isSourceMode = computed(() => uiStore.editorMode === 'source');
+
+// Wikilink support: note titles for autocomplete, note map for link resolution
+const noteTitles = computed(() => notesStore.notes.map(n => n.title).filter(Boolean));
+const noteMap = computed(() => {
+  const map = new Map();
+  for (const n of notesStore.notes) {
+    if (n.title) {
+      map.set(n.title.toLowerCase(), { id: n.id, deleted_at: null });
+    }
+  }
+  return map;
+});
+
+function navigateToNote(noteId) {
+  router.push(`/notes/${noteId}`);
+}
 
 // Mobile detection
 const isMobile = ref(window.innerWidth < 768);
@@ -83,6 +103,10 @@ async function loadNote(id) {
     noteTitle.value = note.title;
     editorContent.value = note.content;
     uiStore.setSaveStatus('saved');
+    // Fetch backlinks and local graph in background
+    graphStore.fetchBacklinks(id);
+    graphStore.fetchUnlinkedMentions(id);
+    graphStore.fetchLocalGraph(id);
   }
 }
 
@@ -183,9 +207,14 @@ function onMobileCapture() {
           <CodeMirrorEditor
             :modelValue="editorContent"
             :sourceMode="isSourceMode"
+            :noteTitles="noteTitles"
+            :noteMap="noteMap"
+            :onNavigateToNote="navigateToNote"
             @update:modelValue="onContentChange"
           />
         </div>
+        <BacklinksPanel v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />
+        <LocalGraph v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />
         <AttachmentZone @insert-image="onInsertImage" @remove-reference="onRemoveReference" />
       </template>
       <div v-else class="no-note">

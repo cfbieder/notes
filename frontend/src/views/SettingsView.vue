@@ -5,11 +5,52 @@ import { useIntegrationsStore } from '../stores/integrations.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import { useMobile } from '../composables/useMobile.js';
-import { Settings, HardDrive, RefreshCw, CheckCircle, XCircle, Loader2, Unplug, ExternalLink } from 'lucide-vue-next';
+import { Settings, HardDrive, RefreshCw, CheckCircle, XCircle, Loader2, Unplug, ExternalLink, Lock } from 'lucide-vue-next';
+import { api } from '../api/client.js';
 
 const { isMobile } = useMobile();
 const router = useRouter();
 const integrationsStore = useIntegrationsStore();
+
+// Password change
+const currentPassword = ref('');
+const newPassword = ref('');
+const confirmPassword = ref('');
+const passwordSaving = ref(false);
+const passwordMessage = ref('');
+const passwordError = ref(false);
+
+async function changePassword() {
+  passwordMessage.value = '';
+  passwordError.value = false;
+
+  if (newPassword.value !== confirmPassword.value) {
+    passwordMessage.value = 'New passwords do not match';
+    passwordError.value = true;
+    return;
+  }
+
+  passwordSaving.value = true;
+  try {
+    await api.put('/auth/password', {
+      currentPassword: currentPassword.value,
+      newPassword: newPassword.value
+    });
+    passwordMessage.value = 'Password updated successfully';
+    passwordError.value = false;
+    currentPassword.value = '';
+    newPassword.value = '';
+    confirmPassword.value = '';
+  } catch (err) {
+    passwordMessage.value = err.message || 'Failed to update password';
+    passwordError.value = true;
+  } finally {
+    passwordSaving.value = false;
+  }
+}
+
+const canSubmitPassword = () =>
+  currentPassword.value && newPassword.value.length >= 8 && confirmPassword.value;
 
 const folderName = ref('');
 const pollInterval = ref(5);
@@ -102,7 +143,34 @@ function formatDate(dateStr) {
   <MobileLayout v-if="isMobile" title="Settings">
     <main class="settings-main" style="padding: 16px;">
       <div class="settings-content">
-        <!-- Same content as desktop, rendered inside mobile layout -->
+        <!-- Change Password -->
+        <section class="settings-section">
+          <h3><Lock :size="16" /> Change Password</h3>
+          <p class="section-desc">Update your account password.</p>
+          <div class="config-form">
+            <div class="form-group">
+              <label>Current password</label>
+              <input v-model="currentPassword" type="password" class="form-input" autocomplete="current-password" />
+            </div>
+            <div class="form-group">
+              <label>New password</label>
+              <input v-model="newPassword" type="password" class="form-input" autocomplete="new-password" />
+              <span class="form-hint">Minimum 8 characters</span>
+            </div>
+            <div class="form-group">
+              <label>Confirm new password</label>
+              <input v-model="confirmPassword" type="password" class="form-input" autocomplete="new-password" />
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" @click="changePassword" :disabled="passwordSaving || !canSubmitPassword()">
+                {{ passwordSaving ? 'Updating...' : 'Update Password' }}
+              </button>
+              <span v-if="passwordMessage" :class="['config-msg', { 'config-msg-error': passwordError }]">{{ passwordMessage }}</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Google Drive Import -->
         <section class="settings-section">
           <h3>Google Drive Import</h3>
           <p class="section-desc">Import files from a Google Drive folder into your inbox.</p>
@@ -196,6 +264,33 @@ function formatDate(dateStr) {
       <div v-if="integrationsStore.loading" class="loading">Loading...</div>
 
       <div v-else class="settings-content">
+        <!-- Change Password -->
+        <section class="settings-section">
+          <h3><Lock :size="16" /> Change Password</h3>
+          <p class="section-desc">Update your account password.</p>
+          <div class="config-form">
+            <div class="form-group">
+              <label>Current password</label>
+              <input v-model="currentPassword" type="password" class="form-input" autocomplete="current-password" />
+            </div>
+            <div class="form-group">
+              <label>New password</label>
+              <input v-model="newPassword" type="password" class="form-input" autocomplete="new-password" />
+              <span class="form-hint">Minimum 8 characters</span>
+            </div>
+            <div class="form-group">
+              <label>Confirm new password</label>
+              <input v-model="confirmPassword" type="password" class="form-input" autocomplete="new-password" />
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" @click="changePassword" :disabled="passwordSaving || !canSubmitPassword()">
+                {{ passwordSaving ? 'Updating...' : 'Update Password' }}
+              </button>
+              <span v-if="passwordMessage" :class="['config-msg', { 'config-msg-error': passwordError }]">{{ passwordMessage }}</span>
+            </div>
+          </div>
+        </section>
+
         <!-- Google Drive Integration -->
         <section class="settings-section">
           <h3>Google Drive Import</h3>
@@ -442,6 +537,10 @@ function formatDate(dateStr) {
 .config-msg {
   font-size: 12px;
   color: #22c55e;
+}
+
+.config-msg-error {
+  color: #ef4444;
 }
 
 /* Scan section */

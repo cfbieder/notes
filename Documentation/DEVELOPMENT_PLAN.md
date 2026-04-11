@@ -1,7 +1,7 @@
 # Development Plan — Noted
 
 > Personal Knowledge & Task Management App
-> Status: Phases 0–5, 9 complete | Last updated: 2026-04-11
+> Status: Phases 0–6, 9 complete | Last updated: 2026-04-11
 
 ---
 
@@ -226,19 +226,19 @@ Browser / PWA
 
 | # | Task | Details |
 |---|------|---------|
-| 6.1 | Wikilink parser service | `backend/src/services/linkParser.js` — extract `[[Note Title]]` from Markdown, resolve to UUIDs |
-| 6.2 | note_links population | On note save, parse content for wikilinks and upsert into `note_links` table with context snippets |
-| 6.3 | Wikilink autocomplete | `[[` trigger in CodeMirror — autocomplete dropdown of existing note titles |
-| 6.4 | Backlinks API | `GET /api/v1/notes/:id/backlinks` — notes linking to current note with context snippets |
-| 6.5 | Backlinks panel | `BacklinksPanel.vue` — collapsible panel listing backlinks and unlinked mentions |
-| 6.6 | Unlinked mentions | Scan all notes for title mentions without `[[]]` wrapper |
-| 6.7 | Broken link detection | Flag links to deleted notes visually in editor |
-| 6.8 | Graph API | `GET /api/v1/graph` — all nodes (notes + tags) and edges for user; `GET /api/v1/notes/:id/graph` for local graph |
-| 6.9 | Graph service | `backend/src/services/graphService.js` — build node/edge data from notes, tags, and links tables |
-| 6.10 | Full graph view | `GraphView.vue` — D3.js force-directed layout; note nodes, tag nodes, edge rendering |
-| 6.11 | Graph interactions | Click to open note, hover for title/count, drag to reposition, filter toggles |
-| 6.12 | Local graph | Mini graph in note view showing 1-degree connections |
-| 6.13 | Tag nodes in graph | Tags rendered as distinct smaller nodes connecting all tagged notes |
+| 6.1 | ✅ Wikilink parser service | `backend/src/services/wikilinkParser.js` — extract `[[Note Title]]` and `[[Title\|display]]` from Markdown, resolve to UUIDs |
+| 6.2 | ✅ note_links population | On note save (POST + PUT), parse content for wikilinks and upsert into `note_links` table with context snippets |
+| 6.3 | ✅ Wikilink autocomplete | `[[` trigger in CodeMirror via `@codemirror/autocomplete` — dropdown of existing note titles |
+| 6.4 | ✅ Backlinks API | `GET /api/v1/notes/:id/backlinks` — notes linking to current note with context snippets |
+| 6.5 | ✅ Backlinks panel | `BacklinksPanel.vue` — collapsible panel listing backlinks and unlinked mentions |
+| 6.6 | ✅ Unlinked mentions | `GET /api/v1/notes/:id/unlinked-mentions` — ILIKE scan for title mentions not in `[[]]` |
+| 6.7 | ✅ Broken link detection | Wikilinks to deleted/non-existent notes render with red dashed underline in Normal Mode |
+| 6.8 | ✅ Graph API | `GET /api/v1/graph` (full) and `GET /api/v1/notes/:id/graph` (local 1-degree) |
+| 6.9 | ✅ Graph service | Graph data built inline in `routes/graph.js` and `routes/links.js` (no separate service needed) |
+| 6.10 | ✅ Full graph view | `GraphView.vue` — D3.js force-directed layout with note + tag nodes, edge rendering |
+| 6.11 | ✅ Graph interactions | Click to open note/tag, hover for title/count, drag to reposition, zoom/pan, filter toggles, search |
+| 6.12 | ✅ Local graph | `LocalGraph.vue` — collapsible mini graph in note view showing 1-degree connections |
+| 6.13 | ✅ Tag nodes in graph | Tags as distinct smaller nodes (colored) connecting all tagged notes, dashed edges |
 
 **Acceptance criteria:**
 - Typing `[[` shows autocomplete of note titles; selecting creates a tracked bidirectional link
@@ -339,7 +339,8 @@ These items are out of scope for Stages 1–2 but documented for future planning
 - [x] ~~pgvector semantic search~~ — moved to Phase 8.2/8.3 (uses Ollama nomic-embed-text via LLM gateway, no Python microservice needed)
 - [x] ~~AI summarization of notes~~ — moved to Phase 8.7 (local LLM via gateway, no cloud API cost)
 - [x] ~~Smart tag suggestions~~ — moved to Phase 8.5
-- [ ] User settings page — change password, email, display preferences
+- [x] ~~User settings page — change password~~ — completed 2026-04-11 (email, display preferences still pending)
+- [ ] User settings page — email, display preferences
 - [ ] Multi-user workspaces (shared notebooks)
 - [ ] Role-based access control (viewer / editor / admin)
 - [ ] Weekly digest — scheduled job summarizes week's captures, completed tasks, emerging themes; generates a "Weekly Review" note
@@ -381,7 +382,10 @@ These items are out of scope for Stages 1–2 but documented for future planning
 | 2026-04-11 | OAuth callback auth bypass | Fastify plugin-level `addHook('onRequest')` cannot be overridden per-route with `onRequest: []`. Fixed by using Fastify encapsulation: callback in its own `register()` block without auth, other routes in a separate `register()` block with auth. |
 | 2026-04-11 | PWA service worker intercepts API | Workbox `navigateFallback` serves `index.html` for all navigation requests including `/api/` callback redirects. Fixed by adding `navigateFallbackDenylist: [/^\/api\//]` to Vite PWA workbox config. After deploy, users must unregister old service worker in DevTools. |
 | 2026-04-11 | Google Drive OAuth scope | `drive.file` scope only grants write access to files the app created. Changed to `drive` scope for full read/write. Move-to-processed is best-effort — import counted as success regardless. |
-| 2026-04-11 | PWA install on all platforms | Added `apple-touch-icon.png`, iOS meta tags (`apple-mobile-web-app-capable`, `black-translucent` status bar, `theme-color`), and fixed `includeAssets` (was referencing nonexistent `favicon.ico`). App now installable via Chrome "Install app" (PC/Android) and Safari "Add to Home Screen" (iOS). |
+| 2026-04-11 | Wikilink sync on save | Wikilinks parsed and resolved on every note POST/PUT. Delete-then-insert pattern ensures stale links are removed. Case-insensitive title matching via `LOWER(title)`. Self-links excluded. |
+| 2026-04-11 | Graph service inline | Graph data built inline in route handlers rather than a separate service file — simpler for the current scale. |
+| 2026-04-11 | D3.js force graph | Using D3 v7 force simulation with forceLink, forceManyBody, forceCenter, forceCollide. Node radius scales with link count (6-18px for notes, 4-10px for tags). |
+| 2026-04-11 | PWA install on all platforms | Full PWA installability: Apple Touch Icon + iOS meta tags, branded PNG icons (orange "N"), manifest screenshots for rich install dialog, Nginx `application/manifest+json` MIME type, separate `any`/`maskable` icon purposes (Chrome deprecated combined value), in-app install banner (`InstallBanner.vue`) with `beforeinstallprompt` interception. Install via Chrome menu → Cast, save, and share → Install Noted (PC/Android) or Safari → Add to Home Screen (iOS). |
 | 2026-04-11 | Sidebar notebook count stale after delete | `GET /notebooks` SQL counted all notes including soft-deleted (trashed) ones. Fixed by adding `deleted_at IS NULL` to the JOIN. Also added `fetchNotebooks()` call after trashing from editor toolbar (NoteListPanel already had it). |
 
 ---
@@ -511,7 +515,11 @@ Bugs fixed during E2E testing:
 - Move-to-processed failed with 403 — `drive.file` scope insufficient; changed to `drive` scope, made move best-effort
 - Sidebar notebook note count didn't update after deleting a note — `GET /notebooks` query counted trashed notes; fixed SQL JOIN filter and added missing `fetchNotebooks()` in editor toolbar delete path
 
-**Next up:** Phase 6 (Knowledge Graph).
+### Phase 6 — Knowledge Graph ✅
+Completed: 2026-04-11
+Notes: Bidirectional wikilinks (`[[Note Title]]` and `[[Title|display]]`), backlinks API + panel, unlinked mentions, broken link detection (red dashed underline), full D3.js knowledge graph with tag nodes, local graph per note. Backend: `wikilinkParser.js` service, `links.js` + `graph.js` routes, migration 005 (indexes). Frontend: `wikilinkAutocomplete.js` + `wikilinkRendering.js` CodeMirror extensions, `graph.js` Pinia store, `BacklinksPanel.vue`, `LocalGraph.vue`, full `GraphView.vue` with D3 force simulation, zoom/pan/drag, filter toggles (tags, orphans), search highlight. All automated API tests passing.
+
+**Next up:** Phase 7 (Web Clipper & OCR).
 
 ### Phase 4 — Attachments, Reminders & PWA ✅
 Completed: 2026-04-06
@@ -521,7 +529,8 @@ Features:
 - **Inline image rendering** (4.4): Uploaded images referenced via `![alt](/api/v1/attachments/:id)` render in Normal Mode.
 - **Reminders backend** (4.5): `GET /api/v1/reminders` (overdue/upcoming/dismissed), `GET /api/v1/reminders/due` (polling). `reminder_at` column on notes (migration 003). Tasks already had `reminder_at`.
 - **Reminders panel** (4.6): `RemindersPanel.vue` — overlay panel showing overdue (red border) and upcoming reminders. Click to navigate to note. Sidebar "Reminders" nav item with red badge for overdue count. 60s background polling.
-- **PWA manifest** (4.7): `vite-plugin-pwa` configured with manifest (name, icons, theme_color, standalone). Icons generated. Apple Touch Icon and iOS meta tags (`apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style`, `apple-mobile-web-app-title`) for iOS Add to Home Screen support. Installable on Chrome (PC), Android, and iOS.
+- **PWA manifest** (4.7): `vite-plugin-pwa` configured with manifest (`id`, name, icons, theme_color, standalone, `orientation`, `prefer_related_applications: false`). Branded PNG icons (orange "N" on dark blue, matching favicon) at 192px and 512px with separate `any` and `maskable` purpose entries. Apple Touch Icon (180px) and iOS meta tags (`apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style: black-translucent`, `apple-mobile-web-app-title`, `theme-color`). Desktop and mobile screenshots (`form_factor: wide/narrow`) for Chrome's rich install dialog. Nginx serves manifest with explicit `application/manifest+json` MIME type.
+- **PWA install banner** (4.7b): `InstallBanner.vue` — intercepts `beforeinstallprompt` event, shows bottom banner with "Install Noted for quick access" and Install button. Dismissal saved to `localStorage`. Hidden when already running as installed PWA (`display-mode: standalone`). Positioned above MobileFAB on mobile.
 - **Service worker** (4.8): Workbox with generateSW — precaches app shell, CacheFirst for attachments, NetworkFirst for API.
 - **Drag-and-drop notes** (4.9): Notes in NoteListPanel are draggable. Notebooks in sidebar accept drops with visual highlight. Moves note to target notebook, updates counts.
 - **Mobile FAB** (4.10): `MobileFAB.vue` — fixed bottom-right orange "+" button, visible only at `< 768px`, triggers Quick Capture.

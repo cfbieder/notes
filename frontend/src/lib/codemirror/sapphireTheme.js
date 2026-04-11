@@ -50,6 +50,39 @@ export const sapphireTheme = EditorView.theme({
     paddingLeft: '12px',
     fontStyle: 'italic',
     color: '#c4d9ff'
+  },
+  /* Wikilink styles */
+  '.cm-wikilink': {
+    color: '#3a86ff',
+    cursor: 'pointer',
+    borderBottom: '1px solid rgba(58, 134, 255, 0.3)',
+    transition: 'border-color 0.15s'
+  },
+  '.cm-wikilink:hover': {
+    borderBottomColor: '#3a86ff'
+  },
+  '.cm-wikilink-broken': {
+    color: '#ff6b6b',
+    borderBottom: '1px dashed rgba(255, 107, 107, 0.5)',
+    cursor: 'pointer'
+  },
+  '.cm-wikilink-broken:hover': {
+    borderBottomColor: '#ff6b6b'
+  },
+  /* Autocomplete tooltip */
+  '.cm-tooltip-autocomplete': {
+    backgroundColor: '#244a85',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
+    borderRadius: '8px',
+    overflow: 'hidden'
+  },
+  '.cm-tooltip-autocomplete > ul > li': {
+    color: '#c4d9ff',
+    padding: '4px 12px'
+  },
+  '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+    backgroundColor: 'rgba(58, 134, 255, 0.25)',
+    color: '#ffffff'
   }
 });
 

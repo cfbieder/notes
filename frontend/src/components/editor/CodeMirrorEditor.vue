@@ -7,10 +7,15 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { sapphireTheme, sapphireHighlight } from '../../lib/codemirror/sapphireTheme.js';
 import { markdownRenderPlugin } from '../../lib/codemirror/markdownRendering.js';
+import { wikilinkAutocomplete } from '../../lib/codemirror/wikilinkAutocomplete.js';
+import { wikilinkRenderPlugin } from '../../lib/codemirror/wikilinkRendering.js';
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
-  sourceMode: { type: Boolean, default: false }
+  sourceMode: { type: Boolean, default: false },
+  noteTitles: { type: Array, default: () => [] },
+  noteMap: { type: Map, default: () => new Map() },
+  onNavigateToNote: { type: Function, default: null }
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -41,7 +46,14 @@ function createState(doc) {
   } else {
     // Normal mode: hide syntax, render inline
     extensions.push(markdownRenderPlugin);
+    extensions.push(wikilinkRenderPlugin(
+      () => props.noteMap,
+      props.onNavigateToNote
+    ));
   }
+
+  // Wikilink autocomplete works in both modes
+  extensions.push(wikilinkAutocomplete(() => props.noteTitles));
 
   return EditorState.create({ doc, extensions });
 }

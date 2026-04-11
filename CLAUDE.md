@@ -52,6 +52,12 @@ Update both:
 | `backend/src/services/drivePoller.js` | Google Drive polling scheduler |
 | `backend/src/routes/integrations.js` | Google Drive OAuth + config + scan API |
 | `frontend/src/views/SettingsView.vue` | Settings page (Google Drive integration) |
+| `backend/src/services/wikilinkParser.js` | Wikilink extraction and resolution |
+| `backend/src/routes/links.js` | Backlinks, unlinked mentions, local graph APIs |
+| `backend/src/routes/graph.js` | Full knowledge graph API |
+| `frontend/src/views/GraphView.vue` | D3.js knowledge graph visualization |
+| `frontend/src/lib/codemirror/wikilinkRendering.js` | Wikilink rendering in editor |
+| `frontend/src/lib/codemirror/wikilinkAutocomplete.js` | `[[` autocomplete in editor |
 
 ## Dev Environment
 
