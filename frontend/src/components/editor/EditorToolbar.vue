@@ -2,6 +2,7 @@
 import { useUIStore } from '../../stores/ui.js';
 import { Code, Eye, Save, Trash2 } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
+import NoteNotebooks from './NoteNotebooks.vue';
 
 const uiStore = useUIStore();
 
@@ -24,6 +25,8 @@ function onTitleInput(e) {
       @input="onTitleInput"
       placeholder="Untitled"
     />
+
+    <NoteNotebooks />
 
     <NoteTags />
 

@@ -340,6 +340,7 @@ These items are out of scope for Stages 1–2 but documented for future planning
 - [x] ~~AI summarization of notes~~ — moved to Phase 8.7 (local LLM via gateway, no cloud API cost)
 - [x] ~~Smart tag suggestions~~ — moved to Phase 8.5
 - [x] ~~User settings page — change password~~ — completed 2026-04-11 (email, display preferences still pending)
+- [x] ~~Notebook picker in editor toolbar~~ — completed 2026-04-12 (NoteNotebooks.vue dropdown next to tag picker; supports filter + inline create)
 - [ ] User settings page — email, display preferences
 - [ ] Multi-user workspaces (shared notebooks)
 - [ ] Role-based access control (viewer / editor / admin)
