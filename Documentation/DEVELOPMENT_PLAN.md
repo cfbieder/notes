@@ -340,7 +340,9 @@ These items are out of scope for Stages 1–2 but documented for future planning
 - [x] ~~AI summarization of notes~~ — moved to Phase 8.7 (local LLM via gateway, no cloud API cost)
 - [x] ~~Smart tag suggestions~~ — moved to Phase 8.5
 - [x] ~~User settings page — change password~~ — completed 2026-04-11 (email, display preferences still pending)
-- [x] ~~Notebook picker in editor toolbar~~ — completed 2026-04-12 (NoteNotebooks.vue dropdown next to tag picker; supports filter + inline create)
+- [x] ~~Notebook picker in editor toolbar~~ — completed 2026-04-13 (NoteNotebooks.vue dropdown next to tag picker; supports filter + inline create)
+- [x] ~~Reset checkboxes button~~ — completed 2026-04-13 (EditorToolbar shows Reset button when note contains `- [x]`; flips all checked task-list items to unchecked, with confirm prompt)
+- [x] ~~Notebook count refresh bug~~ — fixed 2026-04-13 (notes store `createNote`/`updateNote`/`trashNote` now trigger `notebooksStore.fetchNotebooks()` so sidebar counts stay in sync; `updateNote` only refreshes when `notebook_id`/`is_inbox` changes to avoid hammering on autosave)
 - [ ] User settings page — email, display preferences
 - [ ] Multi-user workspaces (shared notebooks)
 - [ ] Role-based access control (viewer / editor / admin)
@@ -383,6 +385,7 @@ These items are out of scope for Stages 1–2 but documented for future planning
 | 2026-04-11 | OAuth callback auth bypass | Fastify plugin-level `addHook('onRequest')` cannot be overridden per-route with `onRequest: []`. Fixed by using Fastify encapsulation: callback in its own `register()` block without auth, other routes in a separate `register()` block with auth. |
 | 2026-04-11 | PWA service worker intercepts API | Workbox `navigateFallback` serves `index.html` for all navigation requests including `/api/` callback redirects. Fixed by adding `navigateFallbackDenylist: [/^\/api\//]` to Vite PWA workbox config. After deploy, users must unregister old service worker in DevTools. |
 | 2026-04-11 | Google Drive OAuth scope | `drive.file` scope only grants write access to files the app created. Changed to `drive` scope for full read/write. Move-to-processed is best-effort — import counted as success regardless. |
+| 2026-04-13 | Offline quick-capture | IndexedDB outbox (`frontend/src/lib/offlineOutbox.js`) queues notes/tasks when `apiFetch` throws `OfflineError`. Flushed on `online` event and on `OfflineStatus` mount. Backend idempotency via `notes.client_id` (migration 006) so flush replays are safe. Session hint (`noted.hasSession` in localStorage) lets the router load the app shell offline instead of bouncing to /login. iOS has no true background sync — flush runs on next app open. |
 | 2026-04-11 | Wikilink sync on save | Wikilinks parsed and resolved on every note POST/PUT. Delete-then-insert pattern ensures stale links are removed. Case-insensitive title matching via `LOWER(title)`. Self-links excluded. |
 | 2026-04-11 | Graph service inline | Graph data built inline in route handlers rather than a separate service file — simpler for the current scale. |
 | 2026-04-11 | D3.js force graph | Using D3 v7 force simulation with forceLink, forceManyBody, forceCenter, forceCollide. Node radius scales with link count (6-18px for notes, 4-10px for tags). |

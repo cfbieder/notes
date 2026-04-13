@@ -1,15 +1,29 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { api, setAccessToken } from '../api/client.js';
+import { api, setAccessToken, OfflineError } from '../api/client.js';
+
+const SESSION_HINT_KEY = 'noted.hasSession';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null);
-  const isAuthenticated = computed(() => !!user.value);
+  const hasSessionHint = ref(localStorage.getItem(SESSION_HINT_KEY) === '1');
+  const offlineMode = ref(false);
+  // Treat a persisted session hint as "authenticated enough to render the shell"
+  // so an offline cold-load doesn't bounce to /login.
+  const isAuthenticated = computed(() => !!user.value || hasSessionHint.value);
+
+  function setSessionHint(on) {
+    hasSessionHint.value = on;
+    if (on) localStorage.setItem(SESSION_HINT_KEY, '1');
+    else localStorage.removeItem(SESSION_HINT_KEY);
+  }
 
   async function login(username, password) {
     const res = await api.post('/auth/login', { username, password });
     user.value = res.data.user;
     setAccessToken(res.data.accessToken);
+    setSessionHint(true);
+    offlineMode.value = false;
     return res.data;
   }
 
@@ -21,6 +35,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
     user.value = null;
     setAccessToken(null);
+    setSessionHint(false);
   }
 
   async function refreshSession() {
@@ -29,15 +44,22 @@ export const useAuthStore = defineStore('auth', () => {
       if (res.accessToken) {
         setAccessToken(res.accessToken);
         user.value = res.user;
+        setSessionHint(true);
+        offlineMode.value = false;
         return true;
       }
-    } catch {
-      // refresh failed
+    } catch (err) {
+      if (err instanceof OfflineError) {
+        // Keep session hint; enter offline mode so the app shell still loads.
+        offlineMode.value = true;
+        return hasSessionHint.value;
+      }
+      // Real failure (401, etc.) — drop the hint.
+      setSessionHint(false);
     }
     return false;
   }
 
-  // Try to restore session on app load
   const initialized = ref(false);
   async function init() {
     if (initialized.value) return;
@@ -45,5 +67,8 @@ export const useAuthStore = defineStore('auth', () => {
     initialized.value = true;
   }
 
-  return { user, isAuthenticated, initialized, login, logout, refreshSession, init };
+  return {
+    user, isAuthenticated, hasSessionHint, offlineMode, initialized,
+    login, logout, refreshSession, init
+  };
 });

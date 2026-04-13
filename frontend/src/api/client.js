@@ -2,6 +2,19 @@ const API_BASE = '/api/v1';
 
 let accessToken = null;
 
+export class OfflineError extends Error {
+  constructor(message = 'Network unavailable') {
+    super(message);
+    this.name = 'OfflineError';
+    this.offline = true;
+  }
+}
+
+function isNetworkFailure(err) {
+  // fetch() rejects with TypeError on network failure (DNS, offline, CORS preflight down).
+  return err instanceof TypeError || err.name === 'TypeError' || !navigator.onLine;
+}
+
 export function setAccessToken(token) {
   accessToken = token;
 }
@@ -24,7 +37,13 @@ export async function apiFetch(path, options = {}) {
     headers['Authorization'] = `Bearer ${accessToken}`;
   }
 
-  const res = await fetch(url, { ...options, headers, credentials: 'include' });
+  let res;
+  try {
+    res = await fetch(url, { ...options, headers, credentials: 'include' });
+  } catch (err) {
+    if (isNetworkFailure(err)) throw new OfflineError();
+    throw err;
+  }
 
   // Attempt token refresh on 401 (skip for auth routes to avoid loops)
   if (res.status === 401 && !options._retried && !path.startsWith('/auth/')) {

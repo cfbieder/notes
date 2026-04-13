@@ -2,6 +2,8 @@
 import { ref } from 'vue';
 import { useNotesStore } from '../../stores/notes.js';
 import { useTasksStore } from '../../stores/tasks.js';
+import { OfflineError } from '../../api/client.js';
+import { enqueue, KIND_NOTE, KIND_TASK } from '../../lib/offlineOutbox.js';
 import { X, FileText, CheckSquare, Lightbulb } from 'lucide-vue-next';
 
 const emit = defineEmits(['close']);
@@ -11,28 +13,51 @@ const tasksStore = useTasksStore();
 const content = ref('');
 const captureType = ref('note'); // 'note' | 'task' | 'idea'
 const loading = ref(false);
+const status = ref(null); // null | 'saved-offline'
 const inputRef = ref(null);
+
+function buildNotePayload(text, isIdea) {
+  const title = text.split('\n')[0].slice(0, 80);
+  const noteContent = isIdea ? `> 💡 **Idea**\n\n${text}` : text;
+  return {
+    title: isIdea ? `💡 ${title}` : title,
+    content: noteContent,
+    is_inbox: true
+  };
+}
 
 async function handleCapture() {
   const text = content.value.trim();
   if (!text) return;
 
   loading.value = true;
+  status.value = null;
   try {
     if (captureType.value === 'task') {
-      await tasksStore.createTask({ content: text });
+      try {
+        await tasksStore.createTask({ content: text });
+      } catch (err) {
+        if (!(err instanceof OfflineError)) throw err;
+        await enqueue(KIND_TASK, { content: text });
+        status.value = 'saved-offline';
+      }
     } else {
-      const title = text.split('\n')[0].slice(0, 80);
-      const isIdea = captureType.value === 'idea';
-      const noteContent = isIdea ? `> 💡 **Idea**\n\n${text}` : text;
-      await notesStore.createNote({
-        title: isIdea ? `💡 ${title}` : title,
-        content: noteContent,
-        is_inbox: true
-      });
+      const payload = buildNotePayload(text, captureType.value === 'idea');
+      try {
+        await notesStore.createNote(payload);
+      } catch (err) {
+        if (!(err instanceof OfflineError)) throw err;
+        await enqueue(KIND_NOTE, payload);
+        status.value = 'saved-offline';
+      }
     }
     content.value = '';
-    emit('close');
+    if (status.value === 'saved-offline') {
+      // Leave the toast visible briefly so the user sees it before close.
+      setTimeout(() => emit('close'), 900);
+    } else {
+      emit('close');
+    }
   } finally {
     loading.value = false;
   }
@@ -84,6 +109,10 @@ async function handleCapture() {
         @keydown.ctrl.enter="handleCapture"
         @keydown.escape="$emit('close')"
       />
+
+      <div v-if="status === 'saved-offline'" class="capture-offline-toast">
+        Saved offline — will sync when online.
+      </div>
 
       <div class="capture-footer">
         <span class="capture-hint">Ctrl+Enter to save</span>
@@ -203,4 +232,14 @@ async function handleCapture() {
 }
 .capture-save:hover { opacity: 0.88; }
 .capture-save:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.capture-offline-toast {
+  margin: 0 16px 10px;
+  padding: 8px 12px;
+  background: rgba(255, 193, 7, 0.12);
+  border: 1px solid rgba(255, 193, 7, 0.35);
+  border-radius: 6px;
+  color: var(--accent-warn);
+  font-size: 12px;
+}
 </style>

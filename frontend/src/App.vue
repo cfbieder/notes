@@ -5,6 +5,7 @@ import SearchPalette from './components/ui/SearchPalette.vue';
 import QuickCapture from './components/ui/QuickCapture.vue';
 import MobileFAB from './components/mobile/MobileFAB.vue';
 import InstallBanner from './components/ui/InstallBanner.vue';
+import OfflineStatus from './components/ui/OfflineStatus.vue';
 import { useAuthStore } from './stores/auth.js';
 
 const authStore = useAuthStore();
@@ -52,6 +53,7 @@ onBeforeUnmount(() => {
   <QuickCapture v-if="showCapture" @close="showCapture = false" />
   <MobileFAB v-if="authStore.isAuthenticated" @click="onFABClick" />
   <InstallBanner />
+  <OfflineStatus v-if="authStore.isAuthenticated" />
 </template>
 
 <style>

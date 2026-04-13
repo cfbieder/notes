@@ -160,13 +160,25 @@ async function noteRoutes(fastify) {
           content: { type: 'string' },
           notebook_id: { type: 'string', format: 'uuid' },
           is_inbox: { type: 'boolean' },
+          client_id: { type: 'string', format: 'uuid' },
           tag_ids: { type: 'array', items: { type: 'string', format: 'uuid' } }
         }
       }
     }
   }, async (request, reply) => {
-    const { title, content, notebook_id, is_inbox, tag_ids } = request.body;
+    const { title, content, notebook_id, is_inbox, client_id, tag_ids } = request.body;
     const userId = request.user.id;
+
+    // Idempotency: if this client_id already exists for the user, return existing row.
+    if (client_id) {
+      const existing = await fastify.db.query(
+        'SELECT * FROM notes WHERE user_id = $1 AND client_id = $2',
+        [userId, client_id]
+      );
+      if (existing.rows.length > 0) {
+        return reply.code(200).send({ data: existing.rows[0] });
+      }
+    }
 
     let finalNotebookId = notebook_id;
     if (!finalNotebookId && !is_inbox) {
@@ -180,10 +192,10 @@ async function noteRoutes(fastify) {
     }
 
     const result = await fastify.db.query(
-      `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox, client_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [userId, finalNotebookId || null, title || 'Untitled', content || '', is_inbox || false]
+      [userId, finalNotebookId || null, title || 'Untitled', content || '', is_inbox || false, client_id || null]
     );
 
     const note = result.rows[0];
