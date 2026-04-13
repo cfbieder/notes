@@ -341,7 +341,7 @@ These items are out of scope for Stages 1–2 but documented for future planning
 - [x] ~~Smart tag suggestions~~ — moved to Phase 8.5
 - [x] ~~User settings page — change password~~ — completed 2026-04-11 (email, display preferences still pending)
 - [x] ~~Notebook picker in editor toolbar~~ — completed 2026-04-13 (NoteNotebooks.vue dropdown next to tag picker; supports filter + inline create)
-- [x] ~~Reset checkboxes button~~ — completed 2026-04-13 (EditorToolbar shows Reset button when note contains `- [x]`; flips all checked task-list items to unchecked, with confirm prompt)
+- [x] ~~Reset checkboxes button~~ — completed 2026-04-13 (EditorToolbar shows Reset button when note contains `- [x]`; flips all checked task-list items to unchecked, using standard `ConfirmModal`)
 - [x] ~~Notebook count refresh bug~~ — fixed 2026-04-13 (notes store `createNote`/`updateNote`/`trashNote` now trigger `notebooksStore.fetchNotebooks()` so sidebar counts stay in sync; `updateNote` only refreshes when `notebook_id`/`is_inbox` changes to avoid hammering on autosave)
 - [ ] User settings page — email, display preferences
 - [ ] Multi-user workspaces (shared notebooks)

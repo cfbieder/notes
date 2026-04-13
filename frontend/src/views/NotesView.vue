@@ -13,6 +13,7 @@ import LocalGraph from '../components/editor/LocalGraph.vue';
 import MobileHome from '../components/mobile/MobileHome.vue';
 import MobileEditor from '../components/mobile/MobileEditor.vue';
 import MobileFAB from '../components/mobile/MobileFAB.vue';
+import ConfirmModal from '../components/ui/ConfirmModal.vue';
 import { FileText } from 'lucide-vue-next';
 import { useAttachmentsStore } from '../stores/attachments.js';
 import { useNotebooksStore } from '../stores/notebooks.js';
@@ -32,6 +33,8 @@ const noteTitle = ref('');
 let saveTimer = null;
 
 const isSourceMode = computed(() => uiStore.editorMode === 'source');
+
+const resetConfirm = ref({ open: false, count: 0 });
 
 // Wikilink support: note titles for autocomplete, note map for link resolution
 const noteTitles = computed(() => notesStore.notes.map(n => n.title).filter(Boolean));
@@ -144,8 +147,12 @@ function resetCheckboxes() {
   if (!editorContent.value) return;
   const count = (editorContent.value.match(/- \[x\]/gi) || []).length;
   if (count === 0) return;
-  if (!confirm(`Reset ${count} checked item${count === 1 ? '' : 's'} to unchecked?`)) return;
+  resetConfirm.value = { open: true, count };
+}
+
+function confirmResetCheckboxes() {
   editorContent.value = editorContent.value.replace(/- \[x\]/gi, '- [ ]');
+  resetConfirm.value.open = false;
   scheduleSave();
 }
 
@@ -228,6 +235,14 @@ function onMobileCapture() {
         <LocalGraph v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />
         <AttachmentZone @insert-image="onInsertImage" @remove-reference="onRemoveReference" />
       </template>
+      <ConfirmModal
+        v-if="resetConfirm.open"
+        title="Reset Checkboxes"
+        :message="`Reset ${resetConfirm.count} checked item${resetConfirm.count === 1 ? '' : 's'} to unchecked?`"
+        confirmText="Reset"
+        @confirm="confirmResetCheckboxes"
+        @cancel="resetConfirm.open = false"
+      />
       <div v-else class="no-note">
         <FileText :size="48" />
         <p>Select a note or create a new one</p>

@@ -2,10 +2,12 @@
 import { ref, watch, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNotesStore } from '../../stores/notes.js';
+import { useNotebooksStore } from '../../stores/notebooks.js';
 import { useUIStore } from '../../stores/ui.js';
 import CodeMirrorEditor from '../editor/CodeMirrorEditor.vue';
 import AttachmentZone from '../editor/AttachmentZone.vue';
-import { ArrowLeft, Code, Eye } from 'lucide-vue-next';
+import ConfirmModal from '../ui/ConfirmModal.vue';
+import { ArrowLeft, Code, Eye, Trash2 } from 'lucide-vue-next';
 
 const props = defineProps({
   noteId: { type: String, required: true }
@@ -13,10 +15,12 @@ const props = defineProps({
 
 const router = useRouter();
 const notesStore = useNotesStore();
+const notebooksStore = useNotebooksStore();
 const uiStore = useUIStore();
 
 const noteTitle = ref('');
 const editorContent = ref('');
+const showDeleteConfirm = ref(false);
 let saveTimer = null;
 
 watch(() => props.noteId, async (id) => {
@@ -72,6 +76,16 @@ function goBack() {
   router.back();
 }
 
+async function confirmDelete() {
+  showDeleteConfirm.value = false;
+  if (saveTimer) clearTimeout(saveTimer);
+  const id = notesStore.currentNote?.id || props.noteId;
+  if (!id) return;
+  await notesStore.trashNote(id);
+  notebooksStore.fetchNotebooks();
+  router.back();
+}
+
 function onInsertImage(attachment) {
   const markdownImg = `![${attachment.filename}](/api/v1/attachments/${attachment.id})`;
   editorContent.value = editorContent.value + '\n' + markdownImg + '\n';
@@ -105,7 +119,20 @@ function onRemoveReference(attachmentId) {
         <Code v-if="uiStore.editorMode === 'normal'" :size="18" />
         <Eye v-else :size="18" />
       </button>
+      <button class="delete-btn" @click="showDeleteConfirm = true" title="Delete note">
+        <Trash2 :size="18" />
+      </button>
     </header>
+
+    <ConfirmModal
+      v-if="showDeleteConfirm"
+      title="Delete note?"
+      message="This will move the note to Trash."
+      confirmText="Delete"
+      danger
+      @confirm="confirmDelete"
+      @cancel="showDeleteConfirm = false"
+    />
 
     <div class="mobile-editor-body">
       <CodeMirrorEditor
@@ -176,6 +203,21 @@ function onRemoveReference(attachmentId) {
   background: rgba(58, 134, 255, 0.12);
   border-color: var(--accent-primary);
   color: var(--accent-primary);
+}
+
+.delete-btn {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.delete-btn:hover {
+  border-color: #e74c3c;
+  color: #e74c3c;
 }
 
 .mobile-editor-body {

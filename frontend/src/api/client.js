@@ -37,6 +37,12 @@ export async function apiFetch(path, options = {}) {
     headers['Authorization'] = `Bearer ${accessToken}`;
   }
 
+  // Fast-fail if the browser already knows it's offline. Avoids waiting on the
+  // service worker, which can intercept and stall mutating requests.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    throw new OfflineError();
+  }
+
   let res;
   try {
     res = await fetch(url, { ...options, headers, credentials: 'include' });

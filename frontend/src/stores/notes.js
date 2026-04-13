@@ -43,7 +43,9 @@ export const useNotesStore = defineStore('notes', () => {
 
   async function createNote(data) {
     const res = await api.post('/notes', data);
-    await fetchNotes();
+    // Refresh list in the background — don't block the caller on a potentially
+    // slow GET (especially via the service worker on mobile).
+    fetchNotes().catch(() => {});
     useNotebooksStore().fetchNotebooks();
     return res.data;
   }

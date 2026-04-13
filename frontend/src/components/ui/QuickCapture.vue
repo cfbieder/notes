@@ -1,19 +1,18 @@
 <script setup>
 import { ref } from 'vue';
 import { useNotesStore } from '../../stores/notes.js';
-import { useTasksStore } from '../../stores/tasks.js';
-import { OfflineError } from '../../api/client.js';
+import { api, OfflineError } from '../../api/client.js';
 import { enqueue, KIND_NOTE, KIND_TASK } from '../../lib/offlineOutbox.js';
 import { X, FileText, CheckSquare, Lightbulb } from 'lucide-vue-next';
 
 const emit = defineEmits(['close']);
 const notesStore = useNotesStore();
-const tasksStore = useTasksStore();
 
 const content = ref('');
 const captureType = ref('note'); // 'note' | 'task' | 'idea'
 const loading = ref(false);
 const status = ref(null); // null | 'saved-offline'
+const debugStep = ref(''); // temporary — shows pipeline stage in PWA
 const inputRef = ref(null);
 
 function buildNotePayload(text, isIdea) {
@@ -32,32 +31,39 @@ async function handleCapture() {
 
   loading.value = true;
   status.value = null;
+
+  const isTask = captureType.value === 'task';
+  const payload = isTask
+    ? { content: text }
+    : buildNotePayload(text, captureType.value === 'idea');
+  const endpoint = isTask ? '/tasks' : '/notes';
+  const kind = isTask ? KIND_TASK : KIND_NOTE;
+
+  debugStep.value = '1:start';
   try {
-    if (captureType.value === 'task') {
-      try {
-        await tasksStore.createTask({ content: text });
-      } catch (err) {
-        if (!(err instanceof OfflineError)) throw err;
-        await enqueue(KIND_TASK, { content: text });
-        status.value = 'saved-offline';
-      }
-    } else {
-      const payload = buildNotePayload(text, captureType.value === 'idea');
-      try {
-        await notesStore.createNote(payload);
-      } catch (err) {
-        if (!(err instanceof OfflineError)) throw err;
-        await enqueue(KIND_NOTE, payload);
-        status.value = 'saved-offline';
-      }
+    try {
+      debugStep.value = '2:pre-post';
+      await api.post(endpoint, payload);
+      debugStep.value = '3:post-done';
+    } catch (err) {
+      debugStep.value = '2e:' + (err?.name || 'err') + ':' + (err?.message || '').slice(0, 30);
+      if (!(err instanceof OfflineError)) throw err;
+      await enqueue(kind, payload);
+      status.value = 'saved-offline';
+      debugStep.value = '3:queued';
     }
     content.value = '';
+    debugStep.value = '4:cleared';
+    if (!isTask) notesStore.fetchNotes?.().catch(() => {});
+    debugStep.value = '5:refresh-kicked';
     if (status.value === 'saved-offline') {
-      // Leave the toast visible briefly so the user sees it before close.
       setTimeout(() => emit('close'), 900);
     } else {
       emit('close');
     }
+    debugStep.value = '6:emitted';
+  } catch (outerErr) {
+    debugStep.value = 'OUTER:' + (outerErr?.message || '').slice(0, 40);
   } finally {
     loading.value = false;
   }
@@ -113,6 +119,7 @@ async function handleCapture() {
       <div v-if="status === 'saved-offline'" class="capture-offline-toast">
         Saved offline — will sync when online.
       </div>
+      <div v-if="debugStep" class="capture-debug">DEBUG: {{ debugStep }}</div>
 
       <div class="capture-footer">
         <span class="capture-hint">Ctrl+Enter to save</span>
@@ -232,6 +239,18 @@ async function handleCapture() {
 }
 .capture-save:hover { opacity: 0.88; }
 .capture-save:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.capture-debug {
+  margin: 0 16px 8px;
+  padding: 6px 10px;
+  background: rgba(231, 76, 60, 0.15);
+  border: 1px solid rgba(231, 76, 60, 0.5);
+  border-radius: 4px;
+  color: #e74c3c;
+  font-family: monospace;
+  font-size: 11px;
+  word-break: break-all;
+}
 
 .capture-offline-toast {
   margin: 0 16px 10px;

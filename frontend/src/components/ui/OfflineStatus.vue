@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { WifiOff, RefreshCw, Check } from 'lucide-vue-next';
 import { pendingCount, flush } from '../../lib/offlineOutbox.js';
 import { useAuthStore } from '../../stores/auth.js';
@@ -9,6 +9,9 @@ const online = ref(navigator.onLine);
 const syncing = ref(false);
 const lastResult = ref(null); // 'synced' | 'failed' | null
 let resultTimer = null;
+let retryTimer = null;
+const RETRY_DELAYS = [1000, 3000, 8000, 20000]; // backoff for flaky reconnects
+let retryAttempt = 0;
 
 function showResult(kind) {
   lastResult.value = kind;
@@ -16,19 +19,34 @@ function showResult(kind) {
   resultTimer = setTimeout(() => { lastResult.value = null; }, 2500);
 }
 
+function scheduleRetry() {
+  if (retryTimer) return;
+  if (pendingCount.value === 0) return;
+  const delay = RETRY_DELAYS[Math.min(retryAttempt, RETRY_DELAYS.length - 1)];
+  retryAttempt++;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    doFlush();
+  }, delay);
+}
+
 async function doFlush() {
   if (syncing.value) return;
   if (pendingCount.value === 0) return;
+  if (!navigator.onLine) return;
   syncing.value = true;
   try {
     const res = await flush();
     if (res.offline) {
-      // still offline — silent
+      // Network flipped or SW stalled — retry with backoff instead of waiting for user click.
+      scheduleRetry();
     } else if (res.failed > 0) {
       showResult('failed');
+      retryAttempt = 0;
     } else if (res.synced > 0) {
       showResult('synced');
       authStore.offlineMode = false;
+      retryAttempt = 0;
     }
   } finally {
     syncing.value = false;
@@ -38,12 +56,21 @@ async function doFlush() {
 function onOnline() {
   online.value = true;
   authStore.offlineMode = false;
-  doFlush();
+  retryAttempt = 0;
+  // Brief delay: navigator.onLine can flip true before the network is actually reachable.
+  setTimeout(doFlush, 500);
 }
 function onOffline() {
   online.value = false;
   authStore.offlineMode = true;
+  if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
 }
+
+// If the queue grows while we're online (e.g. a mutation failed silently),
+// kick off a flush automatically.
+watch(pendingCount, (n, prev) => {
+  if (n > prev && online.value) doFlush();
+});
 
 onMounted(() => {
   window.addEventListener('online', onOnline);
@@ -56,6 +83,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('online', onOnline);
   window.removeEventListener('offline', onOffline);
   if (resultTimer) clearTimeout(resultTimer);
+  if (retryTimer) clearTimeout(retryTimer);
 });
 
 const visible = computed(() =>
@@ -100,8 +128,8 @@ const variant = computed(() => {
 <style scoped>
 .offline-pill {
   position: fixed;
-  top: 12px;
-  right: 12px;
+  bottom: 16px;
+  left: 16px;
   display: flex;
   align-items: center;
   gap: 6px;
