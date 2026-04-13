@@ -140,6 +140,15 @@ async function saveNote() {
   }
 }
 
+function resetCheckboxes() {
+  if (!editorContent.value) return;
+  const count = (editorContent.value.match(/- \[x\]/gi) || []).length;
+  if (count === 0) return;
+  if (!confirm(`Reset ${count} checked item${count === 1 ? '' : 's'} to unchecked?`)) return;
+  editorContent.value = editorContent.value.replace(/- \[x\]/gi, '- [ ]');
+  scheduleSave();
+}
+
 function onInsertImage(attachment) {
   const markdownImg = `![${attachment.filename}](/api/v1/attachments/${attachment.id})`;
   editorContent.value = editorContent.value + '\n' + markdownImg + '\n';
@@ -200,8 +209,10 @@ function onMobileCapture() {
       <template v-if="notesStore.currentNote">
         <EditorToolbar
           :noteTitle="noteTitle"
+          :noteContent="editorContent"
           @update:noteTitle="onTitleChange"
           @trash="trashCurrentNote"
+          @reset-checkboxes="resetCheckboxes"
         />
         <div class="editor-body">
           <CodeMirrorEditor

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { api } from '../api/client.js';
+import { useNotebooksStore } from './notebooks.js';
 
 export const useNotesStore = defineStore('notes', () => {
   const notes = ref([]);
@@ -43,6 +44,7 @@ export const useNotesStore = defineStore('notes', () => {
   async function createNote(data) {
     const res = await api.post('/notes', data);
     await fetchNotes();
+    useNotebooksStore().fetchNotebooks();
     return res.data;
   }
 
@@ -56,6 +58,9 @@ export const useNotesStore = defineStore('notes', () => {
     if (currentNote.value && currentNote.value.id === id) {
       currentNote.value = { ...currentNote.value, ...res.data };
     }
+    if (data.notebook_id !== undefined || data.is_inbox !== undefined) {
+      useNotebooksStore().fetchNotebooks();
+    }
     return res.data;
   }
 
@@ -66,6 +71,7 @@ export const useNotesStore = defineStore('notes', () => {
       currentNote.value = null;
     }
     await fetchNotes();
+    useNotebooksStore().fetchNotebooks();
   }
 
   // Trash management

@@ -1,16 +1,20 @@
 <script setup>
 import { useUIStore } from '../../stores/ui.js';
-import { Code, Eye, Save, Trash2 } from 'lucide-vue-next';
+import { computed } from 'vue';
+import { Code, Eye, Save, Trash2, RotateCcw } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
 import NoteNotebooks from './NoteNotebooks.vue';
 
 const uiStore = useUIStore();
 
 const props = defineProps({
-  noteTitle: { type: String, default: '' }
+  noteTitle: { type: String, default: '' },
+  noteContent: { type: String, default: '' }
 });
 
-const emit = defineEmits(['update:noteTitle', 'trash']);
+const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes']);
+
+const hasCheckedBoxes = computed(() => /- \[x\]/i.test(props.noteContent));
 
 function onTitleInput(e) {
   emit('update:noteTitle', e.target.value);
@@ -45,6 +49,16 @@ function onTitleInput(e) {
         <Code v-if="uiStore.editorMode === 'normal'" :size="16" />
         <Eye v-else :size="16" />
         <span>{{ uiStore.editorMode === 'source' ? 'Normal' : 'Source' }}</span>
+      </button>
+
+      <button
+        v-if="hasCheckedBoxes"
+        class="reset-btn"
+        @click="$emit('reset-checkboxes')"
+        title="Reset all checkboxes to unchecked"
+      >
+        <RotateCcw :size="14" />
+        <span>Reset</span>
       </button>
 
       <button
@@ -120,6 +134,25 @@ function onTitleInput(e) {
 }
 .mode-toggle.active {
   background-color: rgba(58, 134, 255, 0.12);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.reset-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.reset-btn:hover {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
 }
