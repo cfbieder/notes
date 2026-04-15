@@ -1,7 +1,7 @@
 <script setup>
 import { useUIStore } from '../../stores/ui.js';
 import { computed } from 'vue';
-import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages } from 'lucide-vue-next';
+import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
 import NoteNotebooks from './NoteNotebooks.vue';
 
@@ -13,7 +13,7 @@ const props = defineProps({
   noteType: { type: String, default: 'note' }
 });
 
-const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'translate']);
+const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'translate', 'insert-table']);
 
 const isIdea = computed(() => props.noteType === 'idea');
 
@@ -81,6 +81,15 @@ function onTitleInput(e) {
       >
         <RotateCcw :size="14" />
         <span>Reset</span>
+      </button>
+
+      <button
+        class="table-btn"
+        @click="$emit('insert-table')"
+        title="Insert table"
+      >
+        <Table :size="14" />
+        <span>Table</span>
       </button>
 
       <button
@@ -204,6 +213,25 @@ function onTitleInput(e) {
   transition: all 0.1s;
 }
 .reset-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.table-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.table-btn:hover {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
 }

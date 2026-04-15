@@ -9,6 +9,7 @@ import { sapphireTheme, sapphireHighlight } from '../../lib/codemirror/sapphireT
 import { markdownRenderPlugin } from '../../lib/codemirror/markdownRendering.js';
 import { wikilinkAutocomplete } from '../../lib/codemirror/wikilinkAutocomplete.js';
 import { wikilinkRenderPlugin } from '../../lib/codemirror/wikilinkRendering.js';
+import { tableKeymap } from '../../lib/codemirror/tableKeymap.js';
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -18,13 +19,14 @@ const props = defineProps({
   onNavigateToNote: { type: Function, default: null }
 });
 
-const emit = defineEmits(['update:modelValue', 'paste-image']);
+const emit = defineEmits(['update:modelValue', 'paste-image', 'edit-table']);
 
 const editorContainer = ref(null);
 let view = null;
 
 function createState(doc) {
   const extensions = [
+    tableKeymap,
     keymap.of([...defaultKeymap, ...historyKeymap]),
     history(),
     drawSelection(),
@@ -86,11 +88,18 @@ function initEditor() {
   });
 }
 
+function onEditTableEvent(e) {
+  const { from, to, text } = e.detail || {};
+  emit('edit-table', { from, to, text });
+}
+
 onMounted(() => {
   initEditor();
+  editorContainer.value?.addEventListener('noter-edit-table', onEditTableEvent);
 });
 
 onBeforeUnmount(() => {
+  editorContainer.value?.removeEventListener('noter-edit-table', onEditTableEvent);
   if (view) {
     view.destroy();
     view = null;
@@ -109,6 +118,39 @@ watch(() => props.sourceMode, () => {
     }
   }
 });
+
+function replaceRange(from, to, text) {
+  if (!view) return;
+  const docLen = view.state.doc.length;
+  const safeFrom = Math.max(0, Math.min(from, docLen));
+  const safeTo = Math.max(safeFrom, Math.min(to, docLen));
+  view.dispatch({
+    changes: { from: safeFrom, to: safeTo, insert: text }
+  });
+}
+
+function findRange(text) {
+  if (!view) return null;
+  const idx = view.state.doc.toString().indexOf(text);
+  if (idx === -1) return null;
+  return { from: idx, to: idx + text.length };
+}
+
+function insertAtCursor(text) {
+  if (!view) return;
+  const sel = view.state.selection.main;
+  const line = view.state.doc.lineAt(sel.head);
+  // Ensure table starts on its own line: prepend newline if current line is non-empty.
+  const needsLeadingNl = line.text.length > 0 && sel.head !== line.from;
+  const insert = (needsLeadingNl ? '\n' : '') + text + '\n';
+  view.dispatch({
+    changes: { from: sel.head, to: sel.head, insert },
+    selection: { anchor: sel.head + insert.length }
+  });
+  view.focus();
+}
+
+defineExpose({ insertAtCursor, replaceRange, findRange });
 
 // Update content when modelValue changes externally
 watch(() => props.modelValue, (newVal) => {

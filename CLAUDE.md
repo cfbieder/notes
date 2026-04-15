@@ -62,6 +62,11 @@ Update both:
 | `clipper/` | Chrome MV3 web-clipper extension (manifest, background, popup, options, vendor libs) |
 | `frontend/src/lib/codemirror/wikilinkRendering.js` | Wikilink rendering in editor |
 | `frontend/src/lib/codemirror/wikilinkAutocomplete.js` | `[[` autocomplete in editor |
+| `frontend/src/lib/codemirror/tableKeymap.js` | Source-mode Enter auto-row + Tab auto-extend inside GFM pipe tables |
+| `frontend/src/lib/codemirror/markdownRendering.js` | Normal-mode decoration plugins (headings, lists, checkboxes, images, GFM table block widget) |
+| `frontend/src/lib/tableParser.js` | Shared GFM pipe-table parse/serialize/align helpers (renderer, keymap, table editor modal) |
+| `frontend/src/components/ui/InsertTableModal.vue` | Rows/cols/alignment modal for inserting a new table |
+| `frontend/src/components/ui/TableEditorModal.vue` | Click-to-edit grid editor for existing tables (`<input>` cells, add/del row/col, per-col align) |
 
 ## Dev Environment
 

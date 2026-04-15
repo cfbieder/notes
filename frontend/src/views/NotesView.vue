@@ -16,6 +16,8 @@ import MobileHome from '../components/mobile/MobileHome.vue';
 import MobileEditor from '../components/mobile/MobileEditor.vue';
 import MobileFAB from '../components/mobile/MobileFAB.vue';
 import ConfirmModal from '../components/ui/ConfirmModal.vue';
+import InsertTableModal from '../components/ui/InsertTableModal.vue';
+import TableEditorModal from '../components/ui/TableEditorModal.vue';
 import { FileText, X, Search } from 'lucide-vue-next';
 import { useAttachmentsStore } from '../stores/attachments.js';
 import { useNotebooksStore } from '../stores/notebooks.js';
@@ -138,6 +140,9 @@ let saveTimer = null;
 const isSourceMode = computed(() => uiStore.editorMode === 'source');
 
 const resetConfirm = ref({ open: false, count: 0 });
+const insertTableOpen = ref(false);
+const tableEditor = ref({ open: false, from: 0, to: 0, text: '' });
+const editorRef = ref(null);
 
 // Wikilink support: note titles for autocomplete, note map for link resolution
 const noteTitles = computed(() => notesStore.notes.map(n => n.title).filter(Boolean));
@@ -261,6 +266,43 @@ function resetCheckboxes() {
   resetConfirm.value = { open: true, count };
 }
 
+function openInsertTable() {
+  insertTableOpen.value = true;
+}
+
+function onInsertTable(tableMarkdown) {
+  insertTableOpen.value = false;
+  if (editorRef.value && typeof editorRef.value.insertAtCursor === 'function') {
+    editorRef.value.insertAtCursor(tableMarkdown);
+  } else {
+    editorContent.value = editorContent.value + '\n\n' + tableMarkdown + '\n';
+  }
+  scheduleSave();
+}
+
+function onEditTable({ from, to, text }) {
+  tableEditor.value = { open: true, from, to, text };
+}
+
+function onSaveTable(newText) {
+  const { from, to, text } = tableEditor.value;
+  tableEditor.value = { open: false, from: 0, to: 0, text: '' };
+  if (!editorRef.value) return;
+  // Re-locate the original table text in case the doc shifted during edit
+  // (e.g. autosave-triggered replacement or concurrent typing elsewhere).
+  let targetFrom = from;
+  let targetTo = to;
+  if (typeof editorRef.value.findRange === 'function') {
+    const located = editorRef.value.findRange(text);
+    if (located) {
+      targetFrom = located.from;
+      targetTo = located.to;
+    }
+  }
+  editorRef.value.replaceRange(targetFrom, targetTo, newText);
+  scheduleSave();
+}
+
 function confirmResetCheckboxes() {
   editorContent.value = editorContent.value.replace(/- \[x\]/gi, '- [ ]');
   resetConfirm.value.open = false;
@@ -351,9 +393,11 @@ function onMobileCapture() {
           @promote="openPromoteModal"
           @merge="openMergeModal"
           @translate="openTranslateModal"
+          @insert-table="openInsertTable"
         />
         <div class="editor-body">
           <CodeMirrorEditor
+            ref="editorRef"
             :modelValue="editorContent"
             :sourceMode="isSourceMode"
             :noteTitles="noteTitles"
@@ -361,6 +405,7 @@ function onMobileCapture() {
             :onNavigateToNote="navigateToNote"
             @update:modelValue="onContentChange"
             @paste-image="onPasteImage"
+            @edit-table="onEditTable"
           />
         </div>
         <BacklinksPanel v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />
@@ -374,6 +419,17 @@ function onMobileCapture() {
         confirmText="Reset"
         @confirm="confirmResetCheckboxes"
         @cancel="resetConfirm.open = false"
+      />
+      <InsertTableModal
+        v-if="insertTableOpen"
+        @insert="onInsertTable"
+        @cancel="insertTableOpen = false"
+      />
+      <TableEditorModal
+        v-if="tableEditor.open"
+        :initialText="tableEditor.text"
+        @save="onSaveTable"
+        @cancel="tableEditor = { open: false, from: 0, to: 0, text: '' }"
       />
       <div v-else class="no-note">
         <FileText :size="48" />

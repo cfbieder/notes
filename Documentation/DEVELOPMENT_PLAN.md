@@ -1,7 +1,7 @@
 # Development Plan — Noted
 
 > Personal Knowledge & Task Management App
-> Status: Phases 0–6, 9 complete | Last updated: 2026-04-13
+> Status: Phases 0–6, 9 complete | Last updated: 2026-04-15
 
 ---
 
@@ -440,6 +440,7 @@ These items are out of scope for Stages 1–2 but documented for future planning
 - [x] ~~Smart tag suggestions~~ — moved to Phase 8.5
 - [x] ~~User settings page — change password~~ — completed 2026-04-11 (email, display preferences still pending)
 - [x] ~~Notebook picker in editor toolbar~~ — completed 2026-04-13 (NoteNotebooks.vue dropdown next to tag picker; supports filter + inline create)
+- [x] ~~Markdown table insertion + editor~~ — completed 2026-04-15 (desktop-only). **Storage:** GFM pipe tables, round-trip through notes/search/wikilinks/clipper unchanged. **Insert:** EditorToolbar "Table" button opens `InsertTableModal` (rows, cols, optional header labels, per-column alignment dropdowns); emits pipe markdown inserted at cursor via `CodeMirrorEditor.insertAtCursor`. **Render (normal mode):** `markdownRendering.js` `tableDecorationField` (StateField, block replace) scans for header+separator+body blocks and replaces them with a `TableWidget` styled `<table>`, honoring per-column alignment from the separator row. Block falls back to raw pipes when the cursor is inside the range, so source-level editing still works. **Edit:** clicking a rendered table dispatches a `noter-edit-table` CustomEvent; `CodeMirrorEditor.vue` bridges it to a Vue `edit-table` emit that `NotesView` routes into `TableEditorModal.vue` — an `<input>`-cell grid with add/delete row/col, per-column align toggles, Tab/Shift+Tab cell nav, Enter → next row (auto-appends past the last row), Esc cancel. On save, `NotesView` re-locates the original table via `editorRef.findRange(text)` before calling `replaceRange(from, to, newText)`, so concurrent autosave/typing can't corrupt a stale range. **Keymap:** `tableKeymap.js` adds Enter auto-row and Tab auto-extend in source mode (still works independently of the modal). **Shared parser:** `frontend/src/lib/tableParser.js` owns parse/serialize/align/escape logic (`\|` escaping, ragged-row padding); imported by `markdownRendering.js`, `tableKeymap.js`, and `TableEditorModal.vue`.
 - [x] ~~Reset checkboxes button~~ — completed 2026-04-13 (EditorToolbar shows Reset button when note contains `- [x]`; flips all checked task-list items to unchecked, using standard `ConfirmModal`)
 - [x] ~~Notebook count refresh bug~~ — fixed 2026-04-13 (notes store `createNote`/`updateNote`/`trashNote` now trigger `notebooksStore.fetchNotebooks()` so sidebar counts stay in sync; `updateNote` only refreshes when `notebook_id`/`is_inbox` changes to avoid hammering on autosave)
 - [ ] **[Security] Replace attachment query-string JWT with signed URLs.** `GET /api/v1/attachments/:id` currently accepts the JWT access token via `?token=` so `<img>`/`<iframe>` tags can render inline. This leaks the token into browser history, proxy logs, and referrer headers. Replace with short-lived signed attachment URLs: on note fetch, the backend mints an opaque HMAC token scoped to `(attachment_id, user_id, exp ~5min)`, distinct from the JWT; the attachments route validates the signed token instead of the bearer. Keep bearer-header path for the upload/delete routes.

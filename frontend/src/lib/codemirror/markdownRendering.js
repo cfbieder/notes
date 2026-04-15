@@ -1,7 +1,12 @@
-import { ViewPlugin, Decoration, WidgetType } from '@codemirror/view';
+import { ViewPlugin, Decoration, WidgetType, EditorView } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
-import { RangeSetBuilder } from '@codemirror/state';
+import { RangeSetBuilder, StateField } from '@codemirror/state';
 import { getAccessToken } from '../../api/client.js';
+import {
+  splitRowCells,
+  isSeparatorCells,
+  parseAlignFromSeparatorCell
+} from '../tableParser.js';
 
 // Widget for rendering interactive checkboxes
 class CheckboxWidget extends WidgetType {
@@ -128,6 +133,132 @@ class ImageWidget extends WidgetType {
     // Let mouse events through so the resize handle can capture them
     return event.type !== 'mousedown' && event.type !== 'mousemove' && event.type !== 'mouseup';
   }
+}
+
+class TableWidget extends WidgetType {
+  constructor(header, aligns, rows, from, to, sourceText) {
+    super();
+    this.header = header;
+    this.aligns = aligns;
+    this.rows = rows;
+    this.from = from;
+    this.to = to;
+    this.sourceText = sourceText;
+  }
+
+  toDOM() {
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('cm-table-wrapper');
+    wrapper.style.cssText = 'margin: 10px 0; overflow-x: auto; cursor: pointer;';
+    wrapper.title = 'Click to edit table';
+
+    const from = this.from;
+    const to = this.to;
+    const sourceText = this.sourceText;
+    wrapper.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      wrapper.dispatchEvent(new CustomEvent('noter-edit-table', {
+        bubbles: true,
+        detail: { from, to, text: sourceText }
+      }));
+    });
+
+    const table = document.createElement('table');
+    table.classList.add('cm-rendered-table');
+    table.style.cssText = 'border-collapse: collapse; width: auto; min-width: 50%; font-family: Inter, sans-serif; font-size: 13px; color: var(--text-primary); background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; overflow: hidden;';
+
+    const thead = document.createElement('thead');
+    const hrow = document.createElement('tr');
+    this.header.forEach((cell, i) => {
+      const th = document.createElement('th');
+      th.textContent = cell;
+      th.style.cssText = `padding: 6px 12px; text-align: ${this.aligns[i] || 'left'}; background: rgba(58,134,255,0.12); border-bottom: 1px solid rgba(255,255,255,0.15); font-weight: 600;`;
+      hrow.appendChild(th);
+    });
+    thead.appendChild(hrow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    this.rows.forEach((row) => {
+      const tr = document.createElement('tr');
+      for (let i = 0; i < this.header.length; i++) {
+        const td = document.createElement('td');
+        td.textContent = row[i] ?? '';
+        td.style.cssText = `padding: 6px 12px; text-align: ${this.aligns[i] || 'left'}; border-top: 1px solid rgba(255,255,255,0.06);`;
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    wrapper.appendChild(table);
+    return wrapper;
+  }
+
+  eq(other) {
+    return this.from === other.from && this.to === other.to
+      && this.sourceText === other.sourceText;
+  }
+
+  ignoreEvent(event) {
+    return event.type !== 'mousedown';
+  }
+}
+
+function buildTableDecorationsFromState(state) {
+  const builder = new RangeSetBuilder();
+  const doc = state.doc;
+  const cursorLine = doc.lineAt(state.selection.main.head).number;
+  const totalLines = doc.lines;
+
+  let lineNum = 1;
+  while (lineNum <= totalLines) {
+    const line = doc.line(lineNum);
+    const headerCells = splitRowCells(line.text);
+    if (!headerCells || headerCells.length === 0) {
+      lineNum++;
+      continue;
+    }
+    if (lineNum + 1 > totalLines) break;
+    const sepLine = doc.line(lineNum + 1);
+    const sepCells = splitRowCells(sepLine.text);
+    if (!isSeparatorCells(sepCells) || sepCells.length !== headerCells.length) {
+      lineNum++;
+      continue;
+    }
+
+    const aligns = sepCells.map(parseAlignFromSeparatorCell);
+    const bodyRows = [];
+    let endLine = lineNum + 1;
+    let probe = lineNum + 2;
+    while (probe <= totalLines) {
+      const pl = doc.line(probe);
+      const cells = splitRowCells(pl.text);
+      if (!cells || cells.length === 0) break;
+      // pad/truncate to header width
+      const padded = [];
+      for (let i = 0; i < headerCells.length; i++) padded.push(cells[i] ?? '');
+      bodyRows.push(padded);
+      endLine = probe;
+      probe++;
+    }
+
+    const blockFrom = line.from;
+    const blockTo = doc.line(endLine).to;
+    const cursorInside = cursorLine >= lineNum && cursorLine <= endLine;
+
+    if (!cursorInside) {
+      const sourceText = doc.sliceString(blockFrom, blockTo);
+      builder.add(blockFrom, blockTo, Decoration.replace({
+        widget: new TableWidget(headerCells, aligns, bodyRows, blockFrom, blockTo, sourceText),
+        block: true
+      }));
+    }
+    lineNum = endLine + 1;
+  }
+
+  return builder.finish();
 }
 
 class BulletWidget extends WidgetType {
@@ -299,4 +430,17 @@ const imageRenderPlugin = ViewPlugin.fromClass(
   }
 );
 
-export const markdownRenderPlugin = [markdownSyntaxPlugin, imageRenderPlugin];
+const tableDecorationField = StateField.define({
+  create(state) {
+    return buildTableDecorationsFromState(state);
+  },
+  update(deco, tr) {
+    if (tr.docChanged || tr.selection) {
+      return buildTableDecorationsFromState(tr.state);
+    }
+    return deco.map(tr.changes);
+  },
+  provide: (f) => EditorView.decorations.from(f)
+});
+
+export const markdownRenderPlugin = [markdownSyntaxPlugin, imageRenderPlugin, tableDecorationField];
