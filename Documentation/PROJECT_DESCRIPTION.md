@@ -197,8 +197,9 @@ Tags serve a dual purpose:
 A GTD-inspired frictionless capture system:
 
 - **Global capture shortcut:** Keyboard shortcut (e.g., `Ctrl+Shift+N`) opens a floating capture modal from anywhere in the app.
-- **Capture types:** Plain note, task/to-do, or idea.
-- **Inbox view:** A dedicated "Inbox" view shows all unallocated captures in reverse chronological order.
+- **Capture types:** Plain note, task/to-do, or idea. Ideas are a distinct `note_type` and live in a dedicated **Ideas** section rather than the Inbox.
+- **Inbox view:** A dedicated "Inbox" view shows all unallocated *note* captures in reverse chronological order.
+- **Ideas view:** A dedicated **💡 Ideas** view (sidebar entry + `Alt+I` shortcut, mobile home card) for notebook-less, pre-allocation captures. Each idea can be **promoted** to a regular note in a chosen notebook, **moved to a note** (appended as a bullet to an existing note's body, source soft-deleted), opened, or trashed — all actions available both from the Ideas list and from the editor toolbar when viewing an idea. Ideas are first-class across the app — they appear in All Notes, Search, Graph, and Tag views, distinguished by a 💡 chip rendered from `note_type`.
 - **Processing:** Each inbox item can be: converted to a full note, added as a task to an existing note, moved to a notebook, or discarded.
 - **No friction:** The capture modal requires zero allocation decisions upfront.
 

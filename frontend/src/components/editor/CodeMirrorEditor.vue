@@ -18,7 +18,7 @@ const props = defineProps({
   onNavigateToNote: { type: Function, default: null }
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'paste-image']);
 
 const editorContainer = ref(null);
 let view = null;
@@ -36,6 +36,23 @@ function createState(doc) {
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
         emit('update:modelValue', update.state.doc.toString());
+      }
+    }),
+    EditorView.domEventHandlers({
+      paste(event) {
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+        const imageFiles = [];
+        for (const item of items) {
+          if (item.kind === 'file' && item.type.startsWith('image/')) {
+            const file = item.getAsFile();
+            if (file) imageFiles.push(file);
+          }
+        }
+        if (imageFiles.length === 0) return false;
+        event.preventDefault();
+        for (const file of imageFiles) emit('paste-image', file);
+        return true;
       }
     })
   ];

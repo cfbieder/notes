@@ -273,6 +273,21 @@ function onInsertImage(attachment) {
   scheduleSave();
 }
 
+async function onPasteImage(file) {
+  if (!notesStore.currentNote) return;
+  try {
+    const ext = (file.type.split('/')[1] || 'png').split('+')[0];
+    const name = file.name && file.name !== 'image.png'
+      ? file.name
+      : `pasted-${new Date().toISOString().replace(/[:.]/g, '-')}.${ext}`;
+    const namedFile = new File([file], name, { type: file.type });
+    const attachment = await attachmentsStore.uploadFile(notesStore.currentNote.id, namedFile);
+    onInsertImage(attachment);
+  } catch (err) {
+    console.error('Paste image upload failed', err);
+  }
+}
+
 function onRemoveReference(attachmentId) {
   // Remove any ![...](/api/v1/attachments/{id}) references from editor content
   const pattern = new RegExp(`\\n?!\\[[^\\]]*\\]\\(/api/v1/attachments/${attachmentId}\\)\\n?`, 'g');
@@ -345,6 +360,7 @@ function onMobileCapture() {
             :noteMap="noteMap"
             :onNavigateToNote="navigateToNote"
             @update:modelValue="onContentChange"
+            @paste-image="onPasteImage"
           />
         </div>
         <BacklinksPanel v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />

@@ -400,16 +400,33 @@ Completed: 2026-04-15
 - **Sidebar nav** (`AppSidebar.vue`): "💡 Ideas" entry between Tasks and Search with idea-count badge (orange, matches accent-warn). Sidebar onMounted now also calls `ideasStore.fetchIdeas()`.
 - **Idea chip rendering**: `NoteListPanel.vue` shows 💡 next to title when `note.note_type === 'idea'`. `SearchView.vue` (mobile + desktop) replaces the FileText icon with 💡 for idea results.
 - **Mobile home** (`MobileHome.vue`): expanded action grid from 2x2 to 2x3. Order is Tasks/Inbox, Ideas/Search, (Reminders placeholder)/(reserved). Ideas card has 💡 icon and idea-count badge. Reminders + 6th slot rendered as dimmed placeholder cards (no nav wired yet — Reminders is still a global panel overlay).
-- **Router** (`router/index.js`): `/ideas` route added.
+- **Router** (`router/index.js`): `/ideas` route + `/ideas/:id` detail route (reuses `NotesView` with a note_type filter so the left list stays scoped to ideas when you drill in from `/ideas`).
 - **Automated tests** (`backend/tests/phase10-ideas.test.js`): 26 assertions covering create-idea, list-by-type, default-list-includes-ideas, promote (success + 409 on non-idea), merge (bullet formatting, soft-delete, 404 on bad target), PUT note_type flip. All passing. Phase 4 (29) and Phase 7 (22) regression tests still green.
 - **Files touched:**
   - Backend: `migrations/009_note_type_ideas.sql` (new), `routes/notes.js`, `routes/search.js`, `tests/phase10-ideas.test.js` (new)
-  - Frontend: `App.vue`, `router/index.js`, `stores/ideas.js` (new), `views/IdeasView.vue` (new), `components/ui/QuickCapture.vue`, `components/ui/NoteListPanel.vue`, `views/SearchView.vue`, `components/sidebar/AppSidebar.vue`, `components/mobile/MobileHome.vue`
+  - Frontend: `App.vue`, `router/index.js`, `stores/notes.js`, `stores/ideas.js` (new), `views/IdeasView.vue` (new), `views/NotesView.vue`, `components/ui/QuickCapture.vue`, `components/ui/NoteListPanel.vue`, `components/editor/EditorToolbar.vue`, `views/SearchView.vue`, `components/sidebar/AppSidebar.vue`, `components/mobile/MobileHome.vue`
+
+**Bugs found during manual QA walkthrough (2026-04-15) and fixed live:**
+- **Ideas count badge didn't refresh after capture.** `QuickCapture` only called `notesStore.fetchNotes()`; it now also calls `ideasStore.fetchIdeas()` when the captured type is `idea`.
+- **Ideas count badge didn't refresh after trash from non-Ideas views.** `notesStore.trashNote` now lazy-imports `ideasStore` and calls `fetchIdeas()` so any delete path (NoteListPanel context menu, editor trash button, Ideas list delete) keeps the count in sync.
+- **Opening an idea from `/ideas` leaked the three-pane view into "all notes" mode.** Added `/ideas/:id` route reusing `NotesView`; `NotesView.onMounted` / route watcher / `mobileShowEditor` detect `IdeaDetail` and scope `notesStore.filters.note_type = 'idea'` so the left pane stays ideas-only. `navigateToNote` inside the editor also routes back to `/ideas/:id` when navigating from an idea context. Trashing an idea from the editor toolbar now returns to `/ideas` instead of `/notes`.
+- **Merge picker search found no notes when typing partial titles or stop words.** Backend `GET /notes?search=` previously used `plainto_tsquery` on `content_tsv` only. Updated to `(n.title ILIKE %q% OR n.content_tsv @@ plainto_tsquery('english', q))` so title substrings (and single-word/stop-word queries) match.
+- **After merging, the source idea still appeared in cached notes lists.** `ideasStore.mergeIdea` now lazy-imports `notesStore` and triggers `fetchNotes()` so any list that included the source (All Notes, notebook views) refreshes to drop it.
+- **Editor had no way to promote/merge an idea in place.** Added `noteType` prop to `EditorToolbar` and new **Move to note** (`→`) + **💡 Promote** buttons that render only when `noteType === 'idea'`. `NotesView` hosts inline Teleported picker modals mirroring the ones in `IdeasView` (notebook picker for promote, debounced note search for merge). `notesStore.filters` now includes `note_type` and `clearFilters` resets it.
+
+**Manual QA walkthrough (2026-04-15, all passed in production):**
+1. Sidebar Ideas entry + count badge
+2. `Alt+I` capture pre-focused on Idea tab; scoped `/ideas/:id` editor with ideas-only left pane
+3. Multi-line idea capture + clean DB storage (no `💡 ` prefix, no blockquote)
+4. Promote from the Ideas list row
+5. Move-to-note from both the Ideas list row and the editor toolbar (with live search)
+6. Trash an idea + 💡 chip rendering in All Notes and Search
+7. Mobile 2x3 grid at `< 768px` + mobile Promote modal
 
 **Items deferred / scope changes:**
-- Editor modal (10.9): existing `/notes/:id` route is reused for opening an idea — no separate modal built since the editor already handles the case. Idea badge in the editor toolbar itself is not yet rendered (chip only appears in lists/search).
 - Reminders mobile slot (10.15): Reminders is currently a sidebar-launched panel, not a routed view. Mobile placeholder card is dimmed and inactive until Reminders gets a proper route or mobile sheet.
 - Drag-and-drop ideas → notes (was not in the original spec; can be added later for desktop power users).
+- Editor-level idea actions shipped as follow-up after initial deploy (originally deferred in 10.9 — the "no editor modal" decision was reversed once manual QA showed the UX gap).
 
 ---
 
@@ -588,7 +605,7 @@ All Phase 4 features tested and passing:
 - [x] Reminders panel — overdue (red), upcoming, empty state, badge count
 - [x] Reminders 60s background polling (deferred start)
 - [x] Drag-and-drop notes between notebooks with visual highlight
-- [x] Idea capture differentiation (💡 prefix + blockquote)
+- [x] ~~Idea capture differentiation (💡 prefix + blockquote)~~ — superseded by Phase 10 `note_type` column (2026-04-15)
 - [x] Mobile home screen (< 768px) — hero card, action grid, collapsible recent
 - [x] Mobile hamburger sidebar overlay
 - [x] Mobile full-screen editor with back + Source/Normal toggle
