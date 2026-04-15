@@ -382,6 +382,10 @@ function onMobileCapture() {
     <AppSidebar />
     <NoteListPanel v-if="!uiStore.noteListCollapsed" />
     <main class="editor-pane">
+      <div v-if="!notesStore.currentNote" class="no-note">
+        <FileText :size="48" />
+        <p>Select a note or create a new one</p>
+      </div>
       <template v-if="notesStore.currentNote">
         <EditorToolbar
           :noteTitle="noteTitle"
@@ -433,10 +437,6 @@ function onMobileCapture() {
         @save="onSaveTable"
         @cancel="tableEditor = { open: false, from: 0, to: 0, text: '' }"
       />
-      <div v-else class="no-note">
-        <FileText :size="48" />
-        <p>Select a note or create a new one</p>
-      </div>
     </main>
 
     <!-- Promote modal -->

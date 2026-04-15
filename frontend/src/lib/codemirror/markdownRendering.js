@@ -119,6 +119,49 @@ class ImageWidget extends WidgetType {
       document.addEventListener('mouseup', onUp);
     });
 
+    wrapper.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      document.querySelectorAll('.cm-image-context-menu').forEach((m) => m.remove());
+
+      const menu = document.createElement('div');
+      menu.classList.add('cm-image-context-menu');
+      menu.style.cssText = `position: fixed; left: ${e.clientX}px; top: ${e.clientY}px; background: #0f1e38; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 4px 0; z-index: 10000; box-shadow: 0 6px 24px rgba(0,0,0,0.5); font-family: Inter, sans-serif; font-size: 13px; color: var(--text-primary); min-width: 140px;`;
+
+      const item = document.createElement('div');
+      item.textContent = 'Delete image';
+      item.style.cssText = 'padding: 8px 14px; cursor: pointer;';
+      item.addEventListener('mouseenter', () => { item.style.background = 'rgba(58,134,255,0.18)'; });
+      item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
+      item.addEventListener('mousedown', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        let delFrom = this.from;
+        let delTo = this.to;
+        const docText = this.view.state.doc;
+        const line = docText.lineAt(delFrom);
+        const before = docText.sliceString(line.from, delFrom);
+        const after = docText.sliceString(delTo, line.to);
+        if (before.trim() === '' && after.trim() === '') {
+          delFrom = line.from;
+          delTo = Math.min(docText.length, line.to + 1);
+        }
+        this.view.dispatch({ changes: { from: delFrom, to: delTo, insert: '' } });
+        menu.remove();
+      });
+      menu.appendChild(item);
+
+      const close = (ev) => {
+        if (!menu.contains(ev.target)) {
+          menu.remove();
+          document.removeEventListener('mousedown', close, true);
+        }
+      };
+      document.addEventListener('mousedown', close, true);
+
+      document.body.appendChild(menu);
+    });
+
     wrapper.appendChild(img);
     wrapper.appendChild(handle);
     return wrapper;
@@ -131,7 +174,7 @@ class ImageWidget extends WidgetType {
 
   ignoreEvent(event) {
     // Let mouse events through so the resize handle can capture them
-    return event.type !== 'mousedown' && event.type !== 'mousemove' && event.type !== 'mouseup';
+    return event.type !== 'mousedown' && event.type !== 'mousemove' && event.type !== 'mouseup' && event.type !== 'contextmenu';
   }
 }
 

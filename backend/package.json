@@ -1,6 +1,6 @@
 {
   "name": "noted-backend",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Noted — Personal Knowledge & Task Management API",
   "main": "src/app.js",
   "scripts": {

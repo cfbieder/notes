@@ -166,6 +166,7 @@ The core editing experience is inspired by TypeDown:
 - **Tables:** Full Markdown table support with tab-navigation between cells.
 - **Code blocks:** Syntax highlighting via CodeMirror's language packages.
 - **Autosave:** Debounced autosave (500ms after last keystroke). Save indicator in toolbar.
+- **Collapsible panels / focus mode:** The desktop three-pane layout supports collapsing the middle note list (`Alt+[`) and the bottom backlinks/graph/attachments stack (`Alt+]`) independently, or both at once via focus mode (`Alt+\`). Toggles are available in the editor toolbar (per-panel, when a note is open) and as a persistent Focus button in the sidebar footer. Collapsed state is persisted to `localStorage`.
 
 ### 5.2 Notebooks & Stacks (Stage 1)
 
@@ -219,6 +220,21 @@ A GTD-inspired frictionless capture system:
 - **Keyboard-first:** Search triggered by `Ctrl+K` (command palette style). Results navigate with arrow keys.
 - **Soft-delete aware:** Search excludes trashed notes (`deleted_at IS NULL`), matching the rest of the app.
 - **Stage 3 — semantic search:** pgvector embeddings for "find notes similar to this concept" queries.
+
+### 5.6.2 Keyboard Shortcuts & Help
+
+All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette convention), documented in an in-app `HelpModal` reachable via `Alt+/` or the sidebar-footer **Help** button.
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+K` | Open search palette |
+| `Alt+N` | Quick capture — new note |
+| `Alt+I` | Quick capture — new idea |
+| `Alt+[` | Toggle note list panel |
+| `Alt+]` | Toggle backlinks / attachments panels |
+| `Alt+\` | Focus mode — collapse both panels |
+| `Alt+/` | Show keyboard shortcuts help |
+| `Esc` | Close active modal / palette |
 
 ### 5.6.1 Note Translation (Phase 8.11, implemented)
 
@@ -592,7 +608,8 @@ App.vue
 ├── GraphView.vue (D3.js)
 ├── InboxView.vue
 ├── TasksView.vue
-└── SearchView.vue
+├── SearchView.vue
+└── HelpModal.vue (keyboard shortcuts reference, Alt+/)
 ```
 
 ### State Management (Pinia)
@@ -605,7 +622,9 @@ useTasksStore       — tasks and inbox
 useSearchStore      — search query and results
 useGraphStore       — graph nodes and edges
 useAuthStore        — JWT tokens, user session
-useUIStore          — sidebar state, active view, editor mode (normal/source)
+useUIStore          — sidebar state, active view, editor mode (normal/source),
+                      noteListCollapsed / contextPanelsCollapsed (persisted to
+                      localStorage), focus-mode toggle, help-modal visibility
 ```
 
 ---
