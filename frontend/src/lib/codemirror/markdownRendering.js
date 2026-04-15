@@ -41,16 +41,20 @@ class CheckboxWidget extends WidgetType {
 
 // Widget for rendering inline images
 class ImageWidget extends WidgetType {
-  constructor(alt, src) {
+  constructor(alt, src, width, from, to, view) {
     super();
     this.alt = alt;
     this.src = src;
+    this.width = width;
+    this.from = from;
+    this.to = to;
+    this.view = view;
   }
 
   toDOM() {
     const wrapper = document.createElement('div');
     wrapper.classList.add('cm-image-wrapper');
-    wrapper.style.cssText = 'margin: 8px 0; max-width: 100%;';
+    wrapper.style.cssText = 'margin: 8px 0; max-width: 100%; position: relative; display: inline-block;';
 
     const img = document.createElement('img');
     // Append auth token for our API URLs
@@ -64,8 +68,11 @@ class ImageWidget extends WidgetType {
     img.src = imgSrc;
     img.alt = this.alt;
     img.title = this.alt;
-    img.style.cssText = 'max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);';
     img.loading = 'lazy';
+    const sizeCSS = this.width
+      ? `width: ${this.width}px; max-width: 100%; height: auto;`
+      : 'max-width: 100%; max-height: 400px;';
+    img.style.cssText = sizeCSS + ' border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); display: block;';
 
     img.onerror = () => {
       img.style.display = 'none';
@@ -75,16 +82,51 @@ class ImageWidget extends WidgetType {
       wrapper.appendChild(fallback);
     };
 
+    // Resize handle (bottom-right corner)
+    const handle = document.createElement('div');
+    handle.classList.add('cm-image-resize-handle');
+    handle.style.cssText = 'position: absolute; right: -2px; bottom: -2px; width: 14px; height: 14px; background: #4cc9f0; border: 2px solid #0b1220; border-radius: 50%; cursor: nwse-resize; opacity: 0; transition: opacity 0.15s; z-index: 2;';
+    wrapper.addEventListener('mouseenter', () => { handle.style.opacity = '1'; });
+    wrapper.addEventListener('mouseleave', () => { handle.style.opacity = '0'; });
+
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startWidth = img.getBoundingClientRect().width;
+      let pendingWidth = Math.round(startWidth);
+
+      const onMove = (ev) => {
+        pendingWidth = Math.max(40, Math.round(startWidth + (ev.clientX - startX)));
+        img.style.width = pendingWidth + 'px';
+        img.style.maxHeight = 'none';
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        const baseAlt = this.alt;
+        const newText = `![${baseAlt}|${pendingWidth}](${this.src})`;
+        this.view.dispatch({
+          changes: { from: this.from, to: this.to, insert: newText }
+        });
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
     wrapper.appendChild(img);
+    wrapper.appendChild(handle);
     return wrapper;
   }
 
   eq(other) {
-    return this.alt === other.alt && this.src === other.src;
+    return this.alt === other.alt && this.src === other.src
+      && this.width === other.width && this.from === other.from && this.to === other.to;
   }
 
-  ignoreEvent() {
-    return true;
+  ignoreEvent(event) {
+    // Let mouse events through so the resize handle can capture them
+    return event.type !== 'mousedown' && event.type !== 'mousemove' && event.type !== 'mouseup';
   }
 }
 
@@ -192,14 +234,26 @@ function buildImageDecorations(view) {
     while ((match = imageRegex.exec(text)) !== null) {
       const matchFrom = from + match.index;
       const matchTo = matchFrom + match[0].length;
-      const alt = match[1];
+      const rawAlt = match[1];
       const src = match[2];
+
+      // Parse Obsidian-style width: ![alt|300](src)
+      let alt = rawAlt;
+      let width = null;
+      const pipeIdx = rawAlt.lastIndexOf('|');
+      if (pipeIdx !== -1) {
+        const w = parseInt(rawAlt.slice(pipeIdx + 1), 10);
+        if (!isNaN(w) && w > 0) {
+          alt = rawAlt.slice(0, pipeIdx);
+          width = w;
+        }
+      }
 
       if (src.startsWith('/api/') || src.startsWith('http')) {
         const matchLine = doc.lineAt(matchFrom).number;
         if (matchLine !== cursorLine) {
           builder.add(matchFrom, matchTo, Decoration.replace({
-            widget: new ImageWidget(alt, src)
+            widget: new ImageWidget(alt, src, width, matchFrom, matchTo, view)
           }));
         }
       }

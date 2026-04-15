@@ -443,6 +443,7 @@ These items are out of scope for Stages 1–2 but documented for future planning
 - [x] ~~Reset checkboxes button~~ — completed 2026-04-13 (EditorToolbar shows Reset button when note contains `- [x]`; flips all checked task-list items to unchecked, using standard `ConfirmModal`)
 - [x] ~~Notebook count refresh bug~~ — fixed 2026-04-13 (notes store `createNote`/`updateNote`/`trashNote` now trigger `notebooksStore.fetchNotebooks()` so sidebar counts stay in sync; `updateNote` only refreshes when `notebook_id`/`is_inbox` changes to avoid hammering on autosave)
 - [ ] **[Security] Replace attachment query-string JWT with signed URLs.** `GET /api/v1/attachments/:id` currently accepts the JWT access token via `?token=` so `<img>`/`<iframe>` tags can render inline. This leaks the token into browser history, proxy logs, and referrer headers. Replace with short-lived signed attachment URLs: on note fetch, the backend mints an opaque HMAC token scoped to `(attachment_id, user_id, exp ~5min)`, distinct from the JWT; the attachments route validates the signed token instead of the bearer. Keep bearer-header path for the upload/delete routes.
+- [x] ~~Graph view missing labels on orphan notes~~ — fixed 2026-04-15 (`GraphView.vue` label selection previously filtered to `linkCount > 0 || type === 'tag'`, leaving unlinked note dots unlabeled; now labels all nodes).
 - [x] ~~[High] Search returned trashed notes~~ — fixed 2026-04-14 (`backend/src/routes/search.js` now filters `n.deleted_at IS NULL` alongside the user_id + tsv conditions, matching notes/graph/backlinks routes).
 - [ ] User settings page — email, display preferences
 - [ ] Multi-user workspaces (shared notebooks)
@@ -602,6 +603,8 @@ All Phase 4 features tested and passing:
 - [x] Inline image rendering in Normal Mode (regex-based, cursor-aware)
 - [x] Attachment reference cleanup on delete
 - [x] Token-based attachment access for `<img>` tags (`?token=` query param)
+- [x] Clipboard image paste (Win+Shift+S etc.) uploads as attachment + inserts markdown (2026-04-15)
+- [x] Inline image resize via drag handle; persists as Obsidian-style `![alt|width](src)` (2026-04-15)
 - [x] Reminders panel — overdue (red), upcoming, empty state, badge count
 - [x] Reminders 60s background polling (deferred start)
 - [x] Drag-and-drop notes between notebooks with visual highlight

@@ -160,7 +160,7 @@ function renderGraph() {
   // Labels for nodes with connections
   const label = g.append('g')
     .selectAll('text')
-    .data(nodeData.filter(d => d.linkCount > 0 || d.type === 'tag'))
+    .data(nodeData)
     .join('text')
     .text(d => d.title.length > 20 ? d.title.slice(0, 18) + '...' : d.title)
     .attr('font-size', d => d.type === 'tag' ? '9px' : '10px')
