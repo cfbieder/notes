@@ -444,6 +444,7 @@ These items are out of scope for Stages 1–2 but documented for future planning
 - [x] ~~Reset checkboxes button~~ — completed 2026-04-13 (EditorToolbar shows Reset button when note contains `- [x]`; flips all checked task-list items to unchecked, using standard `ConfirmModal`)
 - [x] ~~Notebook count refresh bug~~ — fixed 2026-04-13 (notes store `createNote`/`updateNote`/`trashNote` now trigger `notebooksStore.fetchNotebooks()` so sidebar counts stay in sync; `updateNote` only refreshes when `notebook_id`/`is_inbox` changes to avoid hammering on autosave)
 - [ ] **[Security] Replace attachment query-string JWT with signed URLs.** `GET /api/v1/attachments/:id` currently accepts the JWT access token via `?token=` so `<img>`/`<iframe>` tags can render inline. This leaks the token into browser history, proxy logs, and referrer headers. Replace with short-lived signed attachment URLs: on note fetch, the backend mints an opaque HMAC token scoped to `(attachment_id, user_id, exp ~5min)`, distinct from the JWT; the attachments route validates the signed token instead of the bearer. Keep bearer-header path for the upload/delete routes.
+- [x] ~~Focus mode / collapsible note list + context panels~~ — completed 2026-04-15. `uiStore` adds `noteListCollapsed` / `contextPanelsCollapsed` (persisted to localStorage) plus `toggleNoteList`, `toggleContextPanels`, `toggleFocusMode`, `toggleHelp`. `NotesView.vue` conditionally renders `NoteListPanel` and the `BacklinksPanel`/`LocalGraph`/`AttachmentZone` stack. `EditorToolbar.vue` gains two icon toggles (`PanelLeft`, `PanelBottom`). Keyboard: Alt+[ toggles note list, Alt+] toggles context panels, Alt+\ toggles focus mode (collapses both), Alt+/ opens `HelpModal.vue` (new) listing all shortcuts. `AppSidebar.vue` footer gains a "Help & shortcuts" button as a visible entry point.
 - [x] ~~Graph view missing labels on orphan notes~~ — fixed 2026-04-15 (`GraphView.vue` label selection previously filtered to `linkCount > 0 || type === 'tag'`, leaving unlinked note dots unlabeled; now labels all nodes).
 - [x] ~~[High] Search returned trashed notes~~ — fixed 2026-04-14 (`backend/src/routes/search.js` now filters `n.deleted_at IS NULL` alongside the user_id + tsv conditions, matching notes/graph/backlinks routes).
 - [ ] User settings page — email, display preferences
@@ -504,6 +505,10 @@ These items are out of scope for Stages 1–2 but documented for future planning
 ---
 
 ## 13. Infrastructure Notes
+
+> Historical reference material lives in `Documentation/Archive/`:
+> - `DEVELOPMENT_PRACTICES.md` — generic Node/Docker/Postgres project-setup template (scripts, env separation, dev/prod visual differentiation, backup tiers) that seeded Noter's infra conventions. Noter-specific details now live in `CLAUDE.md` and this file.
+> - `PHASE4_TESTING_GUIDE.md` — manual test checklist for Phase 4 (attachments, reminders, PWA, mobile home). Phase 4 is shipped; kept for reference only.
 
 ### Cron Jobs (Production)
 

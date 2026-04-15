@@ -6,9 +6,12 @@ import QuickCapture from './components/ui/QuickCapture.vue';
 import MobileFAB from './components/mobile/MobileFAB.vue';
 import InstallBanner from './components/ui/InstallBanner.vue';
 import OfflineStatus from './components/ui/OfflineStatus.vue';
+import HelpModal from './components/ui/HelpModal.vue';
 import { useAuthStore } from './stores/auth.js';
+import { useUIStore } from './stores/ui.js';
 
 const authStore = useAuthStore();
+const uiStore = useUIStore();
 const showSearch = ref(false);
 const showCapture = ref(false);
 const captureInitialType = ref('note');
@@ -42,6 +45,37 @@ function onKeydown(e) {
       showSearch.value = false;
     }
   }
+
+  if (!authStore.isAuthenticated) return;
+
+  // Alt+\ — Focus mode: toggle both side panels
+  if (e.altKey && e.key === '\\') {
+    e.preventDefault();
+    uiStore.toggleFocusMode();
+  }
+
+  // Alt+[ — Toggle note list panel
+  if (e.altKey && e.key === '[') {
+    e.preventDefault();
+    uiStore.toggleNoteList();
+  }
+
+  // Alt+] — Toggle context panels
+  if (e.altKey && e.key === ']') {
+    e.preventDefault();
+    uiStore.toggleContextPanels();
+  }
+
+  // Alt+/ — Help / keyboard shortcuts
+  if (e.altKey && e.key === '/') {
+    e.preventDefault();
+    uiStore.toggleHelp();
+  }
+
+  // Esc — close help
+  if (e.key === 'Escape' && uiStore.showHelp) {
+    uiStore.showHelp = false;
+  }
 }
 
 function onFABClick() {
@@ -67,6 +101,7 @@ onBeforeUnmount(() => {
   <MobileFAB v-if="authStore.isAuthenticated" @click="onFABClick" />
   <InstallBanner />
   <OfflineStatus v-if="authStore.isAuthenticated" />
+  <HelpModal v-if="uiStore.showHelp" @close="uiStore.showHelp = false" />
 </template>
 
 <style>

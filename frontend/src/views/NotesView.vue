@@ -380,7 +380,7 @@ function onMobileCapture() {
   <!-- Desktop: Three-pane layout -->
   <div v-else class="notes-layout">
     <AppSidebar />
-    <NoteListPanel />
+    <NoteListPanel v-if="!uiStore.noteListCollapsed" />
     <main class="editor-pane">
       <template v-if="notesStore.currentNote">
         <EditorToolbar
@@ -408,9 +408,11 @@ function onMobileCapture() {
             @edit-table="onEditTable"
           />
         </div>
-        <BacklinksPanel v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />
-        <LocalGraph v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />
-        <AttachmentZone @insert-image="onInsertImage" @remove-reference="onRemoveReference" />
+        <template v-if="!uiStore.contextPanelsCollapsed">
+          <BacklinksPanel v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />
+          <LocalGraph v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />
+          <AttachmentZone @insert-image="onInsertImage" @remove-reference="onRemoveReference" />
+        </template>
       </template>
       <ConfirmModal
         v-if="resetConfirm.open"

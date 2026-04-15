@@ -12,8 +12,11 @@ import RemindersPanel from '../ui/RemindersPanel.vue';
 import { useRemindersStore } from '../../stores/reminders.js';
 import {
   FileText, Inbox, CheckSquare, Search, Network, Trash2, Bell,
-  ChevronRight, ChevronDown, Plus, LogOut, FolderOpen, Tag, Settings
+  ChevronRight, ChevronDown, Plus, LogOut, FolderOpen, Tag, Settings, HelpCircle, Maximize2, Minimize2
 } from 'lucide-vue-next';
+import { useUIStore } from '../../stores/ui.js';
+
+const uiStore = useUIStore();
 
 const remindersStore = useRemindersStore();
 
@@ -509,14 +512,30 @@ async function deleteNotebook() {
     </div>
 
     <div class="sidebar-footer">
+      <div class="footer-actions">
+        <button
+          class="footer-btn"
+          :class="{ active: uiStore.noteListCollapsed && uiStore.contextPanelsCollapsed }"
+          @click="uiStore.toggleFocusMode()"
+          :title="(uiStore.noteListCollapsed && uiStore.contextPanelsCollapsed) ? 'Exit focus mode (Alt+\\)' : 'Focus mode — collapse panels (Alt+\\)'"
+        >
+          <Minimize2 v-if="!(uiStore.noteListCollapsed && uiStore.contextPanelsCollapsed)" :size="14" />
+          <Maximize2 v-else :size="14" />
+          <span>Focus</span>
+        </button>
+        <button class="footer-btn" @click="uiStore.toggleHelp()" title="Keyboard shortcuts (Alt+/)">
+          <HelpCircle :size="14" />
+          <span>Help</span>
+        </button>
+        <button class="footer-btn" @click="handleLogout" title="Sign out">
+          <LogOut :size="14" />
+          <span>Sign out</span>
+        </button>
+      </div>
       <div class="footer-user">
         <span class="user-name">{{ authStore.user?.username }}</span>
         <span class="version">v{{ version }}</span>
       </div>
-      <button class="logout-btn" @click="handleLogout" title="Sign out">
-        <LogOut :size="16" />
-        <span>Sign out</span>
-      </button>
     </div>
 
     <!-- Notebook context menu -->
@@ -941,17 +960,24 @@ async function deleteNotebook() {
 
 .sidebar-footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 8px;
   padding: 10px 12px;
   margin-top: 8px;
   border-top: 1px solid var(--border-subtle);
 }
 
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .footer-user {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 2px;
 }
 
 .user-name {
@@ -965,21 +991,27 @@ async function deleteNotebook() {
   color: var(--text-muted);
 }
 
-.logout-btn {
+.footer-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   background: none;
   border: 1px solid var(--border-subtle);
   color: var(--text-muted);
   cursor: pointer;
-  padding: 5px 10px;
+  padding: 5px 8px;
   border-radius: 6px;
   font-family: 'Inter', sans-serif;
   font-size: 11px;
+  white-space: nowrap;
 }
-.logout-btn:hover {
+.footer-btn:hover {
   color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.2);
+}
+.footer-btn.active {
+  background-color: rgba(58, 134, 255, 0.12);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 </style>

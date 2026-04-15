@@ -1,7 +1,7 @@
 <script setup>
 import { useUIStore } from '../../stores/ui.js';
 import { computed } from 'vue';
-import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table } from 'lucide-vue-next';
+import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
 import NoteNotebooks from './NoteNotebooks.vue';
 
@@ -42,6 +42,24 @@ function onTitleInput(e) {
         <Save :size="14" />
         <span>{{ uiStore.saveStatus === 'saving' ? 'Saving...' : uiStore.saveStatus === 'unsaved' ? 'Unsaved' : 'Saved' }}</span>
       </div>
+
+      <button
+        class="panel-toggle"
+        :class="{ active: uiStore.noteListCollapsed }"
+        @click="uiStore.toggleNoteList()"
+        title="Toggle note list panel (Alt+[)"
+      >
+        <PanelLeft :size="16" />
+      </button>
+
+      <button
+        class="panel-toggle"
+        :class="{ active: uiStore.contextPanelsCollapsed }"
+        @click="uiStore.toggleContextPanels()"
+        title="Toggle backlinks / attachments panels (Alt+])"
+      >
+        <PanelBottom :size="16" />
+      </button>
 
       <button
         class="mode-toggle"
@@ -269,5 +287,26 @@ function onTitleInput(e) {
 .trash-btn:hover {
   border-color: #ff6b6b;
   color: #ff6b6b;
+}
+
+.panel-toggle {
+  display: flex;
+  align-items: center;
+  padding: 5px 8px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.panel-toggle:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+.panel-toggle.active {
+  background-color: rgba(58, 134, 255, 0.12);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 </style>
