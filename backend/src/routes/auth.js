@@ -52,6 +52,10 @@ async function authRoutes(fastify) {
     return {
       data: {
         accessToken,
+        // Returned in the body for non-browser clients (e.g. the Chrome
+        // web clipper). The web app continues to use the httpOnly cookie
+        // set above and ignores this field.
+        refreshToken,
         user: { id: user.id, username: user.username, email: user.email }
       }
     };
@@ -59,7 +63,10 @@ async function authRoutes(fastify) {
 
   // POST /api/v1/auth/refresh
   fastify.post('/refresh', async (request, reply) => {
-    const token = request.cookies.refreshToken;
+    // Prefer the httpOnly cookie (web app). Fall back to a body-supplied
+    // token for clients that can't receive SameSite=Strict cookies — the
+    // Chrome clipper sends { refreshToken } in its request body.
+    const token = request.cookies.refreshToken || request.body?.refreshToken;
 
     if (!token) {
       return reply.code(401).send({
@@ -99,6 +106,9 @@ async function authRoutes(fastify) {
 
       return {
         accessToken,
+        // See /auth/login — returned in body so non-browser clients (Chrome
+        // clipper) can persist the new refresh token. Web app ignores this.
+        refreshToken: newRefreshToken,
         user: { id: user.id, username: user.username, email: user.email }
       };
     } catch {

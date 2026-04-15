@@ -331,6 +331,88 @@ Browser / PWA
 
 ---
 
+## 10.7. Phase 10 — Ideas Section ✅
+Completed: 2026-04-15
+
+**Goal:** Promote "Idea" from a Quick Capture type hack into a first-class section with a dedicated view, mobile entry point, and promotion/merge workflows.
+
+**Context:** Today, idea captures are stored as notes with a `💡 ` title prefix, a blockquote content wrapper, and `is_inbox=true` (see Phase 4.11). That workaround blocks a dedicated Ideas view, pollutes titles in search, and gives ideas no distinct home. This phase replaces the hack with a `note_type` column and builds the surfaces around it.
+
+**Design decisions (locked in 2026-04-15):**
+- **Data model:** flag on `notes` — new `note_type` enum column (`note` | `idea`), default `note`. Ideas reuse all existing notes infrastructure (search, tags, wikilinks, graph, attachments).
+- **Idea lifecycle:** ideas are notebook-less by default (`notebook_id IS NULL`, `is_inbox=false`); they live in the Ideas section until promoted or merged.
+- **Visibility:** ideas are first-class across the app — they appear in All Notes, Search, Graph, and Tag views, distinguished by a 💡 chip rendered from `note_type`. Title stays clean (no emoji in DB).
+- **Ideas view UX:** reverse-chronological card list (Inbox-style) with a top search box (client-side substring filter). Per-row actions: Open, Move to note, Promote to note, Delete.
+- **Move to note:** picker modal (same component as wikilink autocomplete) → append idea content to target note body. First line becomes a bullet (`- {first line}`), remaining lines indented as sub-text under it. Original idea soft-deleted to Trash.
+- **Promote to note:** notebook picker modal → flips `note_type` to `note`, sets `notebook_id`, redirects to editor. No rename step (user edits in place after).
+- **Desktop shortcut:** `Alt+I` opens Quick Capture pre-focused on the Idea tab (navigation to the Ideas view is sidebar-click only — triage isn't time-sensitive).
+- **Mobile layout:** MobileHome grid grows from 2x2 to 2x3 — row 1 Tasks/Inbox, row 2 Ideas/Search, row 3 Reminders/(reserved).
+
+| # | Task | Details |
+|---|------|---------|
+| 10.1 | Migration 009 — `note_type` column | Add `note_type` enum (`note`, `idea`) to `notes`, default `note`, indexed. |
+| 10.2 | Backfill legacy idea captures | In same migration: notes where `title LIKE '💡%'` → set `note_type='idea'`, strip leading `💡 ` from title, unwrap leading blockquote (`> `) from content, set `is_inbox=false`, `notebook_id=NULL`. |
+| 10.3 | Notes API — `note_type` filter + field | `GET /api/v1/notes?type=idea|note` filter; include `note_type` in all note response payloads; `POST /api/v1/notes` accepts `note_type` (default `note`). |
+| 10.4 | Promote endpoint | `POST /api/v1/notes/:id/promote` — body `{ notebook_id }`; flips `note_type` to `note`, sets `notebook_id`, returns updated note. 409 if not an idea. |
+| 10.5 | Merge (move-to-note) endpoint | `POST /api/v1/notes/:id/merge-into` — body `{ target_note_id }`; appends source content to target body as bullet (first line `- ...`, rest indented), soft-deletes source, returns updated target note. Validates both notes belong to user. |
+| 10.6 | Quick Capture rewire | `SidebarQuickCapture.vue` — Idea tab creates note with `note_type='idea'`, `is_inbox=false`, `notebook_id=null`. Drop the `💡 ` title prefix and blockquote wrapping. Idea modal now shows a 💡 badge in its header instead. |
+| 10.7 | Ideas Pinia store | `frontend/src/stores/ideas.js` — `fetchIdeas()`, `promoteIdea()`, `mergeIdea()`, `deleteIdea()`. Thin wrapper over notes API with `type=idea` filter. |
+| 10.8 | `IdeasView.vue` | Reverse-chron card list route `/ideas`. Top search box (client-side filter on title + content). Each card: 💡 badge, title, snippet, created-at, action row (Open, Move to note, Promote, Delete). Empty state with "No ideas yet — press Alt+I to capture one." |
+| 10.9 | Idea editor modal | Reuses existing editor component inside a modal/drawer when an idea card is opened. Autosave identical to notes. |
+| 10.10 | Notebook picker modal (Promote) | Reuse existing notebook picker used for "Move note to notebook"; wire to `promoteIdea()` action. |
+| 10.11 | Note picker modal (Merge) | Reuse wikilink autocomplete search component as a picker; on select, call `mergeIdea()`; redirect to target note on success. |
+| 10.12 | Sidebar nav entry | `AppSidebar.vue` — add "💡 Ideas" item below Tasks, above Search. Badge with idea count (from store). |
+| 10.13 | 💡 chip in note lists | `NoteListPanel.vue`, `SearchView.vue`, `AllNotesView.vue`, backlinks, graph node labels — render a small 💡 chip next to title when `note_type === 'idea'`. |
+| 10.14 | `Alt+I` shortcut | Global keybinding — opens Quick Capture with Idea tab preselected. Register alongside existing `Alt+N`. |
+| 10.15 | Mobile home layout | `MobileHome.vue` — expand action grid from 2x2 to 2x3: Tasks/Inbox, Ideas/Search, Reminders/(reserved). Ideas card routes to `/ideas`. Card shows idea count badge. |
+| 10.16 | Mobile Ideas view | Mobile-optimized variant of `IdeasView` via existing `MobileLayout` pattern. Full-width cards, tap-to-open in `MobileEditor`. |
+| 10.17 | Graph + wikilink support | Verify `[[Idea Title]]` resolves and graph includes idea nodes. Should work for free via Option 1 (flag model); add tests to confirm. |
+| 10.18 | E2E tests | Capture → lands in Ideas view (not Inbox). Promote → shows in target notebook with `note_type='note'`. Merge → target note gets bullet, source in Trash. Search finds ideas with 💡 chip. Mobile grid 2x3 renders. `Alt+I` opens correct modal. |
+
+**Acceptance criteria:**
+- New idea captures land in the Ideas view, not the Inbox; title has no emoji prefix in the DB but renders with a 💡 chip in the UI.
+- Ideas view lists all ideas reverse-chronologically with working search, Open, Move-to-note, Promote, and Delete actions.
+- Promote asks for a notebook, flips `note_type`, and opens the new note in the editor.
+- Move-to-note appends the idea's content to a chosen note as a bullet (first line), soft-deletes the idea.
+- Desktop `Alt+I` opens Quick Capture on the Idea tab; sidebar has a "💡 Ideas" entry below Tasks.
+- Mobile home shows a 2x3 action grid with Ideas positioned before Search; mobile Ideas view works in `MobileLayout`.
+- Existing `💡 `-prefixed captures are migrated cleanly — titles stripped, blockquotes unwrapped, `note_type='idea'`, still searchable.
+- Ideas appear in All Notes, Search, Graph, Tags, and backlinks alongside regular notes, distinguished only by the 💡 chip.
+
+**Open risks:**
+- Backfill regex for stripping the leading blockquote needs to handle multi-line blockquotes correctly — test with existing prod data before running migration 009.
+- Mobile 2x3 grid may push the collapsible recent-notes section below the fold on small devices; verify on ~360px wide viewports.
+- `note_type` filter needs to be applied consistently to every notes query (All Notes default could show both; Ideas view filters to `type=idea`) — easy to miss a route and leak ideas into an unexpected view.
+
+**Implementation summary (2026-04-15):**
+- **Migration 009** (`009_note_type_ideas.sql`): adds `note_type TEXT NOT NULL DEFAULT 'note' CHECK (note_type IN ('note','idea'))`, partial index `notes_user_type_idx ON (user_id, note_type) WHERE deleted_at IS NULL`, and backfills existing `💡 `-prefixed captures by stripping prefix + blockquote, clearing `is_inbox`, nulling `notebook_id`. Applied cleanly on dev (`npm run migrate:dev`).
+- **Backend routes** (`backend/src/routes/notes.js`):
+  - `GET /notes` accepts `note_type` query filter; SELECT now includes `note_type`.
+  - `POST /notes` accepts `note_type`; ideas are not auto-routed to default notebook.
+  - `PUT /notes/:id` accepts `note_type` (allows in-place flip).
+  - `POST /notes/:id/promote` (new): validates note is an idea, sets `note_type='note'` + `notebook_id`, 409 if not idea, 404 if missing notebook.
+  - `POST /notes/:id/merge-into` (new): appends source content to target as `- {first_line}\n  {indented_rest}`, soft-deletes source, re-syncs target wikilinks. 400 on self-merge, 404 on missing notes.
+  - `backend/src/routes/search.js` SELECT includes `note_type` so search results carry the chip flag.
+- **Frontend store** (`frontend/src/stores/ideas.js`): thin wrapper over `/notes?note_type=idea` — `fetchIdeas`, `createIdea`, `updateIdea`, `deleteIdea`, `promoteIdea`, `mergeIdea`, plus a `count` ref consumed by sidebar/mobile badges.
+- **Quick Capture rewire** (`QuickCapture.vue`): accepts `initialType` prop, Idea path now sends `note_type='idea'` + `is_inbox=false` and writes a clean title (no `💡 ` prefix, no `> 💡 **Idea**` blockquote). Tab button uses 💡 emoji glyph.
+- **Alt+I shortcut** (`App.vue`): opens Quick Capture pre-selected on the Idea tab. `Alt+N` still opens it on Note. Capture state carries `captureInitialType` ref.
+- **Ideas view** (`frontend/src/views/IdeasView.vue`, route `/ideas`): reverse-chronological card list, top search box (client-side substring), per-row actions Open/Move-to-note/Promote/Delete, two Teleported picker modals (notebook picker for Promote, note search picker for Merge — debounced `/notes?note_type=note&search=` query), mobile variant via `MobileLayout`.
+- **Sidebar nav** (`AppSidebar.vue`): "💡 Ideas" entry between Tasks and Search with idea-count badge (orange, matches accent-warn). Sidebar onMounted now also calls `ideasStore.fetchIdeas()`.
+- **Idea chip rendering**: `NoteListPanel.vue` shows 💡 next to title when `note.note_type === 'idea'`. `SearchView.vue` (mobile + desktop) replaces the FileText icon with 💡 for idea results.
+- **Mobile home** (`MobileHome.vue`): expanded action grid from 2x2 to 2x3. Order is Tasks/Inbox, Ideas/Search, (Reminders placeholder)/(reserved). Ideas card has 💡 icon and idea-count badge. Reminders + 6th slot rendered as dimmed placeholder cards (no nav wired yet — Reminders is still a global panel overlay).
+- **Router** (`router/index.js`): `/ideas` route added.
+- **Automated tests** (`backend/tests/phase10-ideas.test.js`): 26 assertions covering create-idea, list-by-type, default-list-includes-ideas, promote (success + 409 on non-idea), merge (bullet formatting, soft-delete, 404 on bad target), PUT note_type flip. All passing. Phase 4 (29) and Phase 7 (22) regression tests still green.
+- **Files touched:**
+  - Backend: `migrations/009_note_type_ideas.sql` (new), `routes/notes.js`, `routes/search.js`, `tests/phase10-ideas.test.js` (new)
+  - Frontend: `App.vue`, `router/index.js`, `stores/ideas.js` (new), `views/IdeasView.vue` (new), `components/ui/QuickCapture.vue`, `components/ui/NoteListPanel.vue`, `views/SearchView.vue`, `components/sidebar/AppSidebar.vue`, `components/mobile/MobileHome.vue`
+
+**Items deferred / scope changes:**
+- Editor modal (10.9): existing `/notes/:id` route is reused for opening an idea — no separate modal built since the editor already handles the case. Idea badge in the editor toolbar itself is not yet rendered (chip only appears in lists/search).
+- Reminders mobile slot (10.15): Reminders is currently a sidebar-launched panel, not a routed view. Mobile placeholder card is dimmed and inactive until Reminders gets a proper route or mobile sheet.
+- Drag-and-drop ideas → notes (was not in the original spec; can be added later for desktop power users).
+
+---
+
 ## 11. Backlog & Future (Stage 3)
 
 These items are out of scope for Stages 1–2 but documented for future planning:

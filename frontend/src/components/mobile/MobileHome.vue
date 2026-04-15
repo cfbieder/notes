@@ -4,13 +4,15 @@ import { useRouter } from 'vue-router';
 import { useNotesStore } from '../../stores/notes.js';
 import { useTasksStore } from '../../stores/tasks.js';
 import { useRemindersStore } from '../../stores/reminders.js';
-import { Plus, CheckSquare, Inbox, Search, ChevronDown, ChevronRight, Menu } from 'lucide-vue-next';
+import { useIdeasStore } from '../../stores/ideas.js';
+import { Plus, CheckSquare, Inbox, Search, ChevronDown, ChevronRight, Menu, Bell } from 'lucide-vue-next';
 
 const emit = defineEmits(['open-sidebar', 'open-capture']);
 const router = useRouter();
 const notesStore = useNotesStore();
 const tasksStore = useTasksStore();
 const remindersStore = useRemindersStore();
+const ideasStore = useIdeasStore();
 
 const recentExpanded = ref(false);
 const recentNotes = ref([]);
@@ -43,6 +45,10 @@ function goToInbox() {
 
 function goToSearch() {
   router.push('/search');
+}
+
+function goToIdeas() {
+  router.push('/ideas');
 }
 
 function openNote(note) {
@@ -81,6 +87,9 @@ onMounted(async () => {
     await notesStore.fetchNotes();
     recentNotes.value = notesStore.notes.slice(0, 5);
   } catch { /* ignore */ }
+  try {
+    await ideasStore.fetchIdeas();
+  } catch { /* ignore */ }
 });
 </script>
 
@@ -100,7 +109,7 @@ onMounted(async () => {
         <span class="card-label">Quick Note</span>
       </button>
 
-      <!-- Secondary cards -->
+      <!-- Secondary cards: 2x3 grid -->
       <div class="card-grid">
         <button class="card small-card" @click="goToTasks">
           <CheckSquare :size="22" />
@@ -112,11 +121,21 @@ onMounted(async () => {
           <span class="card-label">Inbox</span>
           <span v-if="inboxCount > 0" class="card-badge">{{ inboxCount }}</span>
         </button>
+        <button class="card small-card" @click="goToIdeas">
+          <span class="card-emoji">💡</span>
+          <span class="card-label">Ideas</span>
+          <span v-if="ideasStore.count > 0" class="card-badge">{{ ideasStore.count }}</span>
+        </button>
         <button class="card small-card" @click="goToSearch">
           <Search :size="22" />
           <span class="card-label">Search</span>
         </button>
-        <!-- 4th slot reserved for Reminders -->
+        <!-- Slots 5 (Reminders) + 6 reserved -->
+        <div class="card small-card placeholder-card" aria-hidden="true">
+          <Bell :size="22" />
+          <span class="card-label muted">Reminders</span>
+        </div>
+        <div class="card small-card placeholder-card" aria-hidden="true"></div>
       </div>
     </div>
 
@@ -231,6 +250,20 @@ onMounted(async () => {
   font-size: 14px;
   font-weight: 600;
 }
+
+.card-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.placeholder-card {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+.placeholder-card:hover { border-color: var(--border-subtle); }
+
+.muted { color: var(--text-muted); }
 
 .card-badge {
   position: absolute;

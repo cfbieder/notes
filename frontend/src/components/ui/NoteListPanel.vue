@@ -119,6 +119,7 @@ function getPreview(content) {
         @contextmenu="onContextMenu($event, note)"
       >
         <div class="note-title-row">
+          <span v-if="note.note_type === 'idea'" class="idea-chip" title="Idea">💡</span>
           <span class="note-title">{{ note.title }}</span>
           <Pin v-if="note.pinned" :size="12" class="pin-icon" />
         </div>
@@ -230,6 +231,7 @@ function getPreview(content) {
 }
 
 .pin-icon { color: var(--accent-warn); }
+.idea-chip { font-size: 13px; line-height: 1; }
 
 .note-preview {
   font-size: 12px;

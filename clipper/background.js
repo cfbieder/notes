@@ -1,7 +1,7 @@
 // Noted Web Clipper — background service worker.
 // Handles auth state, token refresh, API calls, and context-menu "Clip selection".
 
-const DEFAULT_API_BASE = 'http://localhost:3001/api/v1';
+const DEFAULT_API_BASE = 'https://noted.tail413695.ts.net/api/v1';
 
 async function getSettings() {
   const { apiBase, accessToken, refreshToken, tokenExpiresAt } =
@@ -48,11 +48,19 @@ async function refreshAccessToken() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken })
   });
-  if (!res.ok) throw new Error('Refresh failed — please log in again');
+  if (!res.ok) {
+    // Wipe stored tokens so the popup shows the "not logged in" view
+    // instead of looping on bad credentials.
+    await chrome.storage.local.remove(['accessToken', 'refreshToken', 'tokenExpiresAt']);
+    throw new Error('Refresh failed — please log in again');
+  }
   const json = await res.json();
+  // /auth/refresh returns a flat shape; /auth/login wraps in { data: ... }.
+  // Handle both so this helper is reusable if we ever unify them.
+  const body = json.data || json;
   await saveTokens({
-    accessToken: json?.data?.accessToken,
-    refreshToken: json?.data?.refreshToken || refreshToken
+    accessToken: body.accessToken,
+    refreshToken: body.refreshToken || refreshToken
   });
 }
 

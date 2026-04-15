@@ -11,6 +11,7 @@ import { useAuthStore } from './stores/auth.js';
 const authStore = useAuthStore();
 const showSearch = ref(false);
 const showCapture = ref(false);
+const captureInitialType = ref('note');
 
 function onKeydown(e) {
   // Ctrl+K — Search palette
@@ -22,11 +23,22 @@ function onKeydown(e) {
     }
   }
 
-  // Alt+N — Quick capture
+  // Alt+N — Quick capture (Note tab)
   if (e.altKey && e.key === 'n') {
     e.preventDefault();
     if (authStore.isAuthenticated) {
+      captureInitialType.value = 'note';
       showCapture.value = !showCapture.value;
+      showSearch.value = false;
+    }
+  }
+
+  // Alt+I — Quick capture (Idea tab)
+  if (e.altKey && e.key === 'i') {
+    e.preventDefault();
+    if (authStore.isAuthenticated) {
+      captureInitialType.value = 'idea';
+      showCapture.value = true;
       showSearch.value = false;
     }
   }
@@ -34,6 +46,7 @@ function onKeydown(e) {
 
 function onFABClick() {
   if (authStore.isAuthenticated) {
+    captureInitialType.value = 'note';
     showCapture.value = true;
   }
 }
@@ -50,7 +63,7 @@ onBeforeUnmount(() => {
 <template>
   <RouterView />
   <SearchPalette v-if="showSearch" @close="showSearch = false" />
-  <QuickCapture v-if="showCapture" @close="showCapture = false" />
+  <QuickCapture v-if="showCapture" :initial-type="captureInitialType" @close="showCapture = false" />
   <MobileFAB v-if="authStore.isAuthenticated" @click="onFABClick" />
   <InstallBanner />
   <OfflineStatus v-if="authStore.isAuthenticated" />

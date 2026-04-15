@@ -4,24 +4,34 @@ import { useNotesStore } from '../../stores/notes.js';
 import { useTasksStore } from '../../stores/tasks.js';
 import { api, OfflineError } from '../../api/client.js';
 import { enqueue, KIND_NOTE, KIND_TASK } from '../../lib/offlineOutbox.js';
-import { X, FileText, CheckSquare, Lightbulb } from 'lucide-vue-next';
+import { X, FileText, CheckSquare } from 'lucide-vue-next';
 
+const props = defineProps({
+  initialType: { type: String, default: 'note' }
+});
 const emit = defineEmits(['close']);
 const notesStore = useNotesStore();
 const tasksStore = useTasksStore();
 
 const content = ref('');
-const captureType = ref('note'); // 'note' | 'task' | 'idea'
+const captureType = ref(props.initialType); // 'note' | 'task' | 'idea'
 const loading = ref(false);
 const status = ref(null); // null | 'saved-offline'
 const inputRef = ref(null);
 
-function buildNotePayload(text, isIdea) {
+function buildNotePayload(text, type) {
   const title = text.split('\n')[0].slice(0, 80);
-  const noteContent = isIdea ? `> 💡 **Idea**\n\n${text}` : text;
+  if (type === 'idea') {
+    return {
+      title: title || 'Untitled idea',
+      content: text,
+      note_type: 'idea',
+      is_inbox: false
+    };
+  }
   return {
-    title: isIdea ? `💡 ${title}` : title,
-    content: noteContent,
+    title: title || 'Untitled',
+    content: text,
     is_inbox: true
   };
 }
@@ -36,7 +46,7 @@ async function handleCapture() {
   const isTask = captureType.value === 'task';
   const payload = isTask
     ? { content: text }
-    : buildNotePayload(text, captureType.value === 'idea');
+    : buildNotePayload(text, captureType.value);
   const kind = isTask ? KIND_TASK : KIND_NOTE;
 
   try {
@@ -94,7 +104,7 @@ async function handleCapture() {
           :class="{ active: captureType === 'idea' }"
           @click="captureType = 'idea'"
         >
-          <Lightbulb :size="14" /> Idea
+          <span class="idea-emoji">💡</span> Idea
         </button>
       </div>
 
@@ -184,6 +194,7 @@ async function handleCapture() {
   font-size: 12px;
   cursor: pointer;
 }
+.idea-emoji { font-size: 13px; line-height: 1; }
 .type-btn:hover { border-color: var(--accent-primary); }
 .type-btn.active {
   background: rgba(58, 134, 255, 0.12);

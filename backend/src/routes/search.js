@@ -66,7 +66,7 @@ async function searchRoutes(fastify) {
     // rank across the join and collapse per-note with GROUP BY.
     params.push(limit, offset);
     const result = await fastify.db.query(
-      `SELECT n.id, n.title, n.notebook_id, n.is_inbox, n.created_at, n.updated_at,
+      `SELECT n.id, n.title, n.notebook_id, n.is_inbox, n.note_type, n.created_at, n.updated_at,
               MAX(GREATEST(
                 ts_rank(n.content_tsv, websearch_to_tsquery('english', $2)),
                 ts_rank(COALESCE(a.ocr_tsv, ''::tsvector), websearch_to_tsquery('english', $2))

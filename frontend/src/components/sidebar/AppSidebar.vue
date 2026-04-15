@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useNotebooksStore } from '../../stores/notebooks.js';
 import { useNotesStore } from '../../stores/notes.js';
 import { useTagsStore } from '../../stores/tags.js';
+import { useIdeasStore } from '../../stores/ideas.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { api } from '../../api/client.js';
 import ConfirmModal from '../ui/ConfirmModal.vue';
@@ -21,6 +22,7 @@ const route = useRoute();
 const notebooksStore = useNotebooksStore();
 const notesStore = useNotesStore();
 const tagsStore = useTagsStore();
+const ideasStore = useIdeasStore();
 const authStore = useAuthStore();
 
 const version = import.meta.env.VITE_APP_VERSION || 'dev';
@@ -39,7 +41,8 @@ onMounted(async () => {
     notebooksStore.fetchNotebooks(),
     notebooksStore.fetchStacks(),
     tagsStore.fetchTags(),
-    remindersStore.fetchReminders()
+    remindersStore.fetchReminders(),
+    ideasStore.fetchIdeas()
   ]);
   remindersStore.startPolling(60000);
 });
@@ -71,6 +74,10 @@ function goToInbox() {
 
 function goToTasks() {
   router.push('/tasks');
+}
+
+function goToIdeas() {
+  router.push('/ideas');
 }
 
 function goToAllNotes() {
@@ -342,6 +349,11 @@ async function deleteNotebook() {
       <button class="nav-item" :class="{ active: route.path === '/tasks' }" @click="goToTasks">
         <CheckSquare :size="16" />
         <span>Tasks</span>
+      </button>
+      <button class="nav-item" :class="{ active: route.path === '/ideas' }" @click="goToIdeas">
+        <span class="nav-emoji">💡</span>
+        <span>Ideas</span>
+        <span v-if="ideasStore.count > 0" class="idea-badge">{{ ideasStore.count }}</span>
       </button>
       <button class="nav-item" :class="{ active: route.path === '/search' }" @click="goToSearch">
         <Search :size="16" />
@@ -893,6 +905,26 @@ async function deleteNotebook() {
   margin-left: auto;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.nav-emoji {
+  font-size: 14px;
+  width: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.idea-badge {
+  margin-left: auto;
+  background: rgba(255, 159, 28, 0.25);
+  color: var(--accent-warn);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
 }
 
 .reminder-badge {

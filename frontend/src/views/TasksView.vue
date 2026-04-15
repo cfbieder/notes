@@ -14,7 +14,7 @@ const router = useRouter();
 const tasksStore = useTasksStore();
 const notesStore = useNotesStore();
 
-const filter = ref('all'); // 'all' | 'open' | 'done'
+const filter = ref('open'); // 'all' | 'open' | 'done'
 const newTaskContent = ref('');
 const newTaskDue = ref('');
 const newTaskNoteId = ref('');

@@ -44,7 +44,11 @@ function openNote(id) {
       </div>
       <div v-else class="search-results">
         <button v-for="result in searchStore.results" :key="result.id" class="result-card" @click="openNote(result.id)">
-          <div class="result-header"><FileText :size="16" /><span class="result-title">{{ result.title }}</span></div>
+          <div class="result-header">
+            <span v-if="result.note_type === 'idea'" class="idea-chip" title="Idea">💡</span>
+            <FileText v-else :size="16" />
+            <span class="result-title">{{ result.title }}</span>
+          </div>
           <div class="result-snippet" v-html="result.snippet" />
         </button>
       </div>
@@ -85,7 +89,8 @@ function openNote(id) {
           @click="openNote(result.id)"
         >
           <div class="result-header">
-            <FileText :size="16" />
+            <span v-if="result.note_type === 'idea'" class="idea-chip" title="Idea">💡</span>
+            <FileText v-else :size="16" />
             <span class="result-title">{{ result.title }}</span>
           </div>
           <div class="result-snippet" v-html="result.snippet" />
@@ -181,6 +186,7 @@ function openNote(id) {
   font-size: 14px;
   font-weight: 500;
 }
+.idea-chip { font-size: 14px; line-height: 1; }
 
 .result-snippet {
   font-size: 12px;

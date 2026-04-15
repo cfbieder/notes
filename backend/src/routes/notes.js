@@ -48,6 +48,7 @@ async function noteRoutes(fastify) {
           notebook_id: { type: 'string', format: 'uuid' },
           tag_id: { type: 'string', format: 'uuid' },
           is_inbox: { type: 'string', enum: ['true', 'false'] },
+          note_type: { type: 'string', enum: ['note', 'idea'] },
           search: { type: 'string' },
           pinned: { type: 'string', enum: ['true', 'false'] },
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
@@ -56,7 +57,7 @@ async function noteRoutes(fastify) {
       }
     }
   }, async (request) => {
-    const { notebook_id, tag_id, is_inbox, search, pinned, limit = 50, offset = 0 } = request.query;
+    const { notebook_id, tag_id, is_inbox, note_type, search, pinned, limit = 50, offset = 0 } = request.query;
     const userId = request.user.id;
 
     const conditions = ['n.user_id = $1', 'n.deleted_at IS NULL'];
@@ -71,6 +72,11 @@ async function noteRoutes(fastify) {
     if (is_inbox !== undefined) {
       conditions.push(`n.is_inbox = $${paramIndex++}`);
       params.push(is_inbox === 'true');
+    }
+
+    if (note_type !== undefined) {
+      conditions.push(`n.note_type = $${paramIndex++}`);
+      params.push(note_type);
     }
 
     if (pinned !== undefined) {
@@ -99,7 +105,7 @@ async function noteRoutes(fastify) {
 
     params.push(limit, offset);
     const result = await fastify.db.query(
-      `SELECT DISTINCT n.id, n.title, n.content, n.notebook_id, n.is_inbox, n.pinned,
+      `SELECT DISTINCT n.id, n.title, n.content, n.notebook_id, n.is_inbox, n.note_type, n.pinned,
               n.created_at, n.updated_at
        FROM notes n ${joinClause}
        WHERE ${where}
@@ -160,13 +166,14 @@ async function noteRoutes(fastify) {
           content: { type: 'string' },
           notebook_id: { type: 'string', format: 'uuid' },
           is_inbox: { type: 'boolean' },
+          note_type: { type: 'string', enum: ['note', 'idea'] },
           client_id: { type: 'string', format: 'uuid' },
           tag_ids: { type: 'array', items: { type: 'string', format: 'uuid' } }
         }
       }
     }
   }, async (request, reply) => {
-    const { title, content, notebook_id, is_inbox, client_id, tag_ids } = request.body;
+    const { title, content, notebook_id, is_inbox, note_type, client_id, tag_ids } = request.body;
     const userId = request.user.id;
 
     // Idempotency: if this client_id already exists for the user, return existing row.
@@ -180,8 +187,10 @@ async function noteRoutes(fastify) {
       }
     }
 
+    const finalNoteType = note_type || 'note';
     let finalNotebookId = notebook_id;
-    if (!finalNotebookId && !is_inbox) {
+    // Ideas are notebook-less by default; only regular notes fall back to default notebook
+    if (!finalNotebookId && !is_inbox && finalNoteType !== 'idea') {
       const defaultNb = await fastify.db.query(
         'SELECT id FROM notebooks WHERE user_id = $1 AND is_default = TRUE LIMIT 1',
         [userId]
@@ -192,10 +201,10 @@ async function noteRoutes(fastify) {
     }
 
     const result = await fastify.db.query(
-      `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox, client_id)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox, note_type, client_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [userId, finalNotebookId || null, title || 'Untitled', content || '', is_inbox || false, client_id || null]
+      [userId, finalNotebookId || null, title || 'Untitled', content || '', is_inbox || false, finalNoteType, client_id || null]
     );
 
     const note = result.rows[0];
@@ -228,13 +237,14 @@ async function noteRoutes(fastify) {
           notebook_id: { type: 'string', format: 'uuid' },
           pinned: { type: 'boolean' },
           is_inbox: { type: 'boolean' },
+          note_type: { type: 'string', enum: ['note', 'idea'] },
           tag_ids: { type: 'array', items: { type: 'string', format: 'uuid' } }
         }
       }
     }
   }, async (request, reply) => {
     const { id } = request.params;
-    const { title, content, notebook_id, pinned, is_inbox, tag_ids } = request.body;
+    const { title, content, notebook_id, pinned, is_inbox, note_type, tag_ids } = request.body;
 
     const result = await fastify.db.query(
       `UPDATE notes
@@ -242,10 +252,11 @@ async function noteRoutes(fastify) {
            content = COALESCE($2, content),
            notebook_id = COALESCE($3, notebook_id),
            pinned = COALESCE($4, pinned),
-           is_inbox = COALESCE($5, is_inbox)
-       WHERE id = $6 AND user_id = $7 AND deleted_at IS NULL
+           is_inbox = COALESCE($5, is_inbox),
+           note_type = COALESCE($6, note_type)
+       WHERE id = $7 AND user_id = $8 AND deleted_at IS NULL
        RETURNING *`,
-      [title, content, notebook_id, pinned, is_inbox, id, request.user.id]
+      [title, content, notebook_id, pinned, is_inbox, note_type, id, request.user.id]
     );
 
     if (result.rows.length === 0) {
@@ -317,6 +328,117 @@ async function noteRoutes(fastify) {
       return reply.code(404).send({ error: 'Not Found', message: 'Note not in trash', statusCode: 404 });
     }
     return reply.code(204).send();
+  });
+
+  // POST /api/v1/notes/:id/promote — promote an idea to a regular note
+  fastify.post('/:id/promote', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['notebook_id'],
+        properties: {
+          notebook_id: { type: 'string', format: 'uuid' }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { notebook_id } = request.body;
+    const userId = request.user.id;
+
+    const existing = await fastify.db.query(
+      `SELECT note_type FROM notes WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [id, userId]
+    );
+    if (existing.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Note not found', statusCode: 404 });
+    }
+    if (existing.rows[0].note_type !== 'idea') {
+      return reply.code(409).send({ error: 'Conflict', message: 'Note is not an idea', statusCode: 409 });
+    }
+
+    const nb = await fastify.db.query(
+      `SELECT id FROM notebooks WHERE id = $1 AND user_id = $2`,
+      [notebook_id, userId]
+    );
+    if (nb.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Notebook not found', statusCode: 404 });
+    }
+
+    const result = await fastify.db.query(
+      `UPDATE notes
+       SET note_type = 'note', notebook_id = $1, is_inbox = FALSE
+       WHERE id = $2 AND user_id = $3
+       RETURNING *`,
+      [notebook_id, id, userId]
+    );
+    return { data: result.rows[0] };
+  });
+
+  // POST /api/v1/notes/:id/merge-into — merge an idea's content into a target note as a bullet
+  fastify.post('/:id/merge-into', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['target_note_id'],
+        properties: {
+          target_note_id: { type: 'string', format: 'uuid' }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { target_note_id } = request.body;
+    const userId = request.user.id;
+
+    if (id === target_note_id) {
+      return reply.code(400).send({ error: 'Bad Request', message: 'Cannot merge a note into itself', statusCode: 400 });
+    }
+
+    const source = await fastify.db.query(
+      `SELECT id, content FROM notes WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [id, userId]
+    );
+    if (source.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Source note not found', statusCode: 404 });
+    }
+
+    const target = await fastify.db.query(
+      `SELECT id, content FROM notes WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [target_note_id, userId]
+    );
+    if (target.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Target note not found', statusCode: 404 });
+    }
+
+    const sourceContent = (source.rows[0].content || '').trim();
+    const lines = sourceContent.split('\n');
+    const firstLine = lines[0] || '';
+    const restLines = lines.slice(1);
+    // First line becomes a bullet; remaining lines indented under it
+    const bullet = restLines.length > 0
+      ? `- ${firstLine}\n${restLines.map(l => `  ${l}`).join('\n')}`
+      : `- ${firstLine}`;
+
+    const targetContent = target.rows[0].content || '';
+    const separator = targetContent.length > 0 && !targetContent.endsWith('\n') ? '\n' : '';
+    const newContent = `${targetContent}${separator}${bullet}\n`;
+
+    const updated = await fastify.db.query(
+      `UPDATE notes SET content = $1 WHERE id = $2 AND user_id = $3 RETURNING *`,
+      [newContent, target_note_id, userId]
+    );
+
+    // Soft-delete source
+    await fastify.db.query(
+      `UPDATE notes SET deleted_at = NOW() WHERE id = $1 AND user_id = $2`,
+      [id, userId]
+    );
+
+    // Re-sync wikilinks for the target since its content changed
+    await syncWikilinks(fastify, target_note_id, userId, newContent);
+
+    return { data: updated.rows[0] };
   });
 
   // DELETE /api/v1/notes/trash/empty — empty entire trash

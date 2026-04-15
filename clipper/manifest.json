@@ -11,6 +11,7 @@
   ],
   "host_permissions": [
     "http://localhost:3001/*",
+    "http://100.119.240.123:3001/*",
     "https://noted.tail413695.ts.net/*"
   ],
   "background": {

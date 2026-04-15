@@ -111,7 +111,9 @@ async function clipRoutes(fastify) {
     if (mode === 'link') {
       noteContent = header;
     } else if (mode === 'screenshot') {
-      noteContent = header + (content || '_Screenshot attached._');
+      // The image markdown is appended after the attachment is created below
+      // (we need the attachment id to build the URL).
+      noteContent = header + (content || '');
     } else {
       noteContent = header + (content || '');
     }
@@ -168,6 +170,17 @@ async function clipRoutes(fastify) {
         [note.id, userId, filename, parsed.mimeType, parsed.buffer.length, storagePath]
       );
       attachmentId = attRes.rows[0].id;
+
+      // Embed the screenshot inline in the note body using the same markdown
+      // format the editor emits when a user drag-drops an image. The frontend
+      // renderer appends the auth token at display time.
+      const imageMarkdown = `\n![${filename}](/api/v1/attachments/${attachmentId})\n`;
+      const updatedContent = (note.content || '') + imageMarkdown;
+      await fastify.db.query(
+        'UPDATE notes SET content = $1 WHERE id = $2',
+        [updatedContent, note.id]
+      );
+      note.content = updatedContent;
 
       // Fire-and-forget OCR — same pattern as the upload route.
       if (llmService.isEnabled() && llmService.isOcrCandidate(parsed.mimeType)) {
