@@ -219,6 +219,15 @@ A GTD-inspired frictionless capture system:
 - **Soft-delete aware:** Search excludes trashed notes (`deleted_at IS NULL`), matching the rest of the app.
 - **Stage 3 — semantic search:** pgvector embeddings for "find notes similar to this concept" queries.
 
+### 5.6.1 Note Translation (Phase 8.11, implemented)
+
+- **Action:** Toolbar button on the note editor → modal with "From" and "To" language selectors (28 common languages) → calls `POST /api/v1/notes/:id/translate`.
+- **Pipeline:** Backend reads the note content, calls `llmService.translateText` → LLM gateway `POST /translate` → appends the translation below the original under a `---` divider and `**Translated (xx → yy):**` header. Both the original and the translation remain in the note body and are full-text-searchable.
+- **Truncation:** Long notes are truncated at `LLM_TRANSLATE_MAX_CHARS` (default 8000) because local LLM throughput can't generate a full Wikipedia article before the request times out. The resulting note shows a visible `_(translation truncated at N characters…)_` marker.
+- **Timeouts:** nginx proxy timeouts bumped to 180s, backend `LLM_TRANSLATE_TIMEOUT_MS` 150s — both comfortably above typical translation time for the truncated payload.
+- **Failure modes:** Gateway unreachable → HTTP 502 with a helpful message (note is untouched). `LLM_ENABLED=false` → HTTP 503. Empty-content note → HTTP 400.
+- **Replaces earlier "translate on clip":** The web clipper originally had a translate checkbox in v0.2.0, but long-article translations exceeded the sync request window. The feature was moved to the main app in clipper v0.3.0 and backend Phase 8.11 above.
+
 ### 5.7 File Attachments (Stage 1)
 
 - **Supported types:** Images (PNG, JPG, GIF, WebP), PDFs, and common document types (DOCX, XLSX, TXT).
@@ -252,6 +261,7 @@ A GTD-inspired frictionless capture system:
 - **API:** `POST /api/v1/clips` creates the note (with `source_url` tracked via migration 008). Screenshot clips also create an attachment, which automatically flows through the existing OCR pipeline (§5.7) so screenshotted text is searchable.
 - **Destination:** Notebook picker, comma-separated tag input (tags upserted on the fly), and a "send to inbox" toggle. Selecting no notebook defaults to inbox.
 - **Context menu:** Right-click a selection → "Clip selection to Noted" posts a selection clip directly without opening the popup.
+- **Translate** is **not** part of the clipper anymore (removed in v0.3.0). It lives on the main app as a per-note toolbar action — see §5.6.1 below.
 - **CORS:** Backend allows `chrome-extension://<id>` origins in addition to the configured web origin.
 - **Tests:** `backend/tests/phase7-clips.test.js` covers all four modes, validation errors, auth, and search integration.
 
@@ -634,6 +644,7 @@ useUIStore          — sidebar state, active view, editor mode (normal/source)
 - [x] OCR text included in full-text search index (migration 007)
 - [x] Google Drive import integration (OAuth, polling, manual scan)
 - [x] Web clipper browser extension (Chrome MV3) — article / selection / screenshot / link modes, Phase 7.1–7.3
+- [x] Note translation (Phase 8.11) — toolbar action, appends translated block, 28 languages via LLM gateway
 
 ### Backlog / Known Issues
 
@@ -648,9 +659,9 @@ Deliverables:
 
 - [ ] Multi-user workspaces (shared notebooks)
 - [ ] Role-based access control (viewer / editor / admin)
-- [ ] pgvector semantic search (embedding model via Python microservice)
-- [ ] AI summarization of notes (Claude API integration)
-- [ ] Smart tag suggestions
+- [ ] pgvector semantic search (local embeddings via LLM gateway — Phase 8.2/8.3)
+- [ ] AI summarization of notes (local LLM via gateway — Phase 8.7)
+- [ ] Smart tag suggestions (Phase 8.5)
 - [ ] Electron desktop app wrapper
 - [ ] React Native mobile app (iOS first)
 
@@ -805,7 +816,7 @@ The following are explicitly out of scope and will not be built:
 ---
 
 *Last updated: 2026-04-14*
-*Status: Stages 1–2 shipped and deployed to production. Phase 7 (Web Clipper & OCR) complete except 7.7 (translate-on-clip). Next up: Phase 8 (LLM-powered intelligence).*
+*Status: Stages 1–2 shipped and deployed to production. Phase 7 (Web Clipper & OCR) complete; Phase 7.7 rescoped to the note-level translate action (Phase 8.11, also complete). Next up: remaining Phase 8 tasks (pgvector, semantic search, summarization, task extraction, "ask my notes", audio capture).*
 
 ---
 

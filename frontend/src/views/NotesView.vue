@@ -2,7 +2,9 @@
 import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useNotesStore } from '../stores/notes.js';
+import { useIdeasStore } from '../stores/ideas.js';
 import { useUIStore } from '../stores/ui.js';
+import { api } from '../api/client.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import NoteListPanel from '../components/ui/NoteListPanel.vue';
 import EditorToolbar from '../components/editor/EditorToolbar.vue';
@@ -14,7 +16,7 @@ import MobileHome from '../components/mobile/MobileHome.vue';
 import MobileEditor from '../components/mobile/MobileEditor.vue';
 import MobileFAB from '../components/mobile/MobileFAB.vue';
 import ConfirmModal from '../components/ui/ConfirmModal.vue';
-import { FileText } from 'lucide-vue-next';
+import { FileText, X, Search } from 'lucide-vue-next';
 import { useAttachmentsStore } from '../stores/attachments.js';
 import { useNotebooksStore } from '../stores/notebooks.js';
 import { useGraphStore } from '../stores/graph.js';
@@ -26,7 +28,108 @@ const graphStore = useGraphStore();
 const route = useRoute();
 const router = useRouter();
 const notesStore = useNotesStore();
+const ideasStore = useIdeasStore();
 const uiStore = useUIStore();
+
+// Idea toolbar actions: promote + merge modals
+const promoteModal = ref({ show: false });
+const mergeModal = ref({ show: false, query: '', results: [], loading: false });
+
+// Translate modal (Phase 8.11) — calls POST /notes/:id/translate, which
+// appends a translated block to the note content.
+const TRANSLATE_LANGS = [
+  ['en', 'English'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'],
+  ['it', 'Italian'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['pl', 'Polish'],
+  ['ru', 'Russian'], ['uk', 'Ukrainian'], ['zh', 'Chinese'], ['ja', 'Japanese'],
+  ['ko', 'Korean'], ['ar', 'Arabic'], ['hi', 'Hindi'], ['tr', 'Turkish'],
+  ['sv', 'Swedish'], ['da', 'Danish'], ['no', 'Norwegian'], ['fi', 'Finnish'],
+  ['cs', 'Czech'], ['el', 'Greek'], ['he', 'Hebrew'], ['id', 'Indonesian'],
+  ['th', 'Thai'], ['vi', 'Vietnamese'], ['ro', 'Romanian'], ['hu', 'Hungarian']
+];
+const translateModal = ref({
+  show: false,
+  sourceLang: 'en',
+  targetLang: 'es',
+  loading: false,
+  error: ''
+});
+
+function openPromoteModal() { promoteModal.value = { show: true }; }
+function openMergeModal() { mergeModal.value = { show: true, query: '', results: [], loading: false }; }
+function openTranslateModal() {
+  translateModal.value = {
+    show: true, sourceLang: 'en', targetLang: 'es', loading: false, error: ''
+  };
+}
+
+async function confirmTranslate() {
+  if (!notesStore.currentNote) return;
+  const { sourceLang, targetLang } = translateModal.value;
+  if (sourceLang === targetLang) {
+    translateModal.value.error = 'Source and target language must differ';
+    return;
+  }
+  translateModal.value.loading = true;
+  translateModal.value.error = '';
+  try {
+    const id = notesStore.currentNote.id;
+    const res = await api.post(`/notes/${id}/translate`, {
+      source_lang: sourceLang,
+      target_lang: targetLang
+    });
+    // Backend returns the updated note. Refresh local state.
+    if (res.data?.content !== undefined) {
+      editorContent.value = res.data.content;
+      notesStore.currentNote.content = res.data.content;
+      uiStore.setSaveStatus('saved');
+    }
+    translateModal.value.show = false;
+  } catch (err) {
+    translateModal.value.error = err?.message || 'Translation failed';
+  } finally {
+    translateModal.value.loading = false;
+  }
+}
+
+async function confirmPromote(notebookId) {
+  if (!notesStore.currentNote) return;
+  const id = notesStore.currentNote.id;
+  promoteModal.value.show = false;
+  await ideasStore.promoteIdea(id, notebookId);
+  await notesStore.fetchNote(id);
+  router.push(`/notes/${id}`);
+}
+
+let mergeSearchTimer = null;
+function onMergeSearchInput() {
+  clearTimeout(mergeSearchTimer);
+  mergeSearchTimer = setTimeout(async () => {
+    const q = mergeModal.value.query.trim();
+    if (!q) { mergeModal.value.results = []; return; }
+    mergeModal.value.loading = true;
+    try {
+      const res = await api.get(`/notes?note_type=note&search=${encodeURIComponent(q)}&limit=20`);
+      mergeModal.value.results = res.data;
+    } catch {
+      mergeModal.value.results = [];
+    } finally {
+      mergeModal.value.loading = false;
+    }
+  }, 200);
+}
+
+async function confirmMerge(targetNoteId) {
+  if (!notesStore.currentNote) return;
+  const id = notesStore.currentNote.id;
+  mergeModal.value.show = false;
+  await ideasStore.mergeIdea(id, targetNoteId);
+  router.push(`/notes/${targetNoteId}`);
+}
+
+function getMergePreview(content) {
+  if (!content) return '';
+  return content.replace(/\n/g, ' ').slice(0, 80);
+}
 
 const editorContent = ref('');
 const noteTitle = ref('');
@@ -49,7 +152,11 @@ const noteMap = computed(() => {
 });
 
 function navigateToNote(noteId) {
-  router.push(`/notes/${noteId}`);
+  if (route.name === 'IdeaDetail') {
+    router.push(`/ideas/${noteId}`);
+  } else {
+    router.push(`/notes/${noteId}`);
+  }
 }
 
 // Mobile detection
@@ -65,8 +172,12 @@ function onResize() {
 onMounted(async () => {
   window.addEventListener('resize', onResize);
 
-  // Load notes if not already loaded
-  if (notesStore.notes.length === 0) {
+  // For idea routes, scope the left list to ideas only
+  if (route.name === 'IdeaDetail' || route.name === 'Ideas') {
+    notesStore.clearFilters();
+    notesStore.setFilter('note_type', 'idea');
+    await notesStore.fetchNotes();
+  } else if (notesStore.notes.length === 0) {
     if (route.params.id && route.name === 'NotebookNotes') {
       notesStore.setFilter('notebook_id', route.params.id);
     }
@@ -74,7 +185,7 @@ onMounted(async () => {
   }
 
   // Load specific note if routed to one
-  if (route.params.id && route.name === 'NoteDetail') {
+  if (route.params.id && (route.name === 'NoteDetail' || route.name === 'IdeaDetail')) {
     await loadNote(route.params.id);
   }
 });
@@ -86,7 +197,7 @@ onBeforeUnmount(() => {
 
 // Watch route changes to load notes
 watch(() => route.params.id, async (newId) => {
-  if (newId && route.name === 'NoteDetail') {
+  if (newId && (route.name === 'NoteDetail' || route.name === 'IdeaDetail')) {
     if (saveTimer) {
       clearTimeout(saveTimer);
       await saveNote();
@@ -97,7 +208,7 @@ watch(() => route.params.id, async (newId) => {
 
 // Mobile: detect if we're viewing a specific note
 const mobileShowEditor = computed(() => {
-  return isMobile.value && route.params.id && route.name === 'NoteDetail';
+  return isMobile.value && route.params.id && (route.name === 'NoteDetail' || route.name === 'IdeaDetail');
 });
 
 async function loadNote(id) {
@@ -172,9 +283,10 @@ function onRemoveReference(attachmentId) {
 async function trashCurrentNote() {
   if (!notesStore.currentNote) return;
   if (saveTimer) clearTimeout(saveTimer);
+  const wasIdea = notesStore.currentNote.note_type === 'idea';
   await notesStore.trashNote(notesStore.currentNote.id);
   await notebooksStore.fetchNotebooks();
-  router.push('/notes');
+  router.push(wasIdea ? '/ideas' : '/notes');
 }
 
 function onMobileCapture() {
@@ -217,9 +329,13 @@ function onMobileCapture() {
         <EditorToolbar
           :noteTitle="noteTitle"
           :noteContent="editorContent"
+          :noteType="notesStore.currentNote?.note_type"
           @update:noteTitle="onTitleChange"
           @trash="trashCurrentNote"
           @reset-checkboxes="resetCheckboxes"
+          @promote="openPromoteModal"
+          @merge="openMergeModal"
+          @translate="openTranslateModal"
         />
         <div class="editor-body">
           <CodeMirrorEditor
@@ -248,6 +364,109 @@ function onMobileCapture() {
         <p>Select a note or create a new one</p>
       </div>
     </main>
+
+    <!-- Promote modal -->
+    <Teleport to="body">
+      <div v-if="promoteModal.show" class="modal-overlay" @click.self="promoteModal.show = false">
+        <div class="picker-modal">
+          <div class="picker-header">
+            <span>Promote idea — pick a notebook</span>
+            <button class="picker-close" @click="promoteModal.show = false"><X :size="16" /></button>
+          </div>
+          <div class="picker-list">
+            <button
+              v-for="nb in notebooksStore.notebooks"
+              :key="nb.id"
+              class="picker-item"
+              @click="confirmPromote(nb.id)"
+            >
+              {{ nb.name }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Merge modal -->
+    <Teleport to="body">
+      <div v-if="mergeModal.show" class="modal-overlay" @click.self="mergeModal.show = false">
+        <div class="picker-modal">
+          <div class="picker-header">
+            <span>Move idea to note — pick target</span>
+            <button class="picker-close" @click="mergeModal.show = false"><X :size="16" /></button>
+          </div>
+          <div class="picker-search">
+            <Search :size="14" />
+            <input
+              v-model="mergeModal.query"
+              class="picker-search-input"
+              type="text"
+              placeholder="Search notes..."
+              autofocus
+              @input="onMergeSearchInput"
+            />
+          </div>
+          <div class="picker-list">
+            <div v-if="mergeModal.loading" class="picker-empty">Searching...</div>
+            <button
+              v-for="note in mergeModal.results"
+              :key="note.id"
+              class="picker-item"
+              @click="confirmMerge(note.id)"
+            >
+              <div class="picker-item-title">{{ note.title }}</div>
+              <div class="picker-item-preview">{{ getMergePreview(note.content) }}</div>
+            </button>
+            <div v-if="!mergeModal.loading && mergeModal.query && mergeModal.results.length === 0" class="picker-empty">No notes match</div>
+            <div v-if="!mergeModal.query" class="picker-empty">Type to search notes</div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Translate modal -->
+    <Teleport to="body">
+      <div v-if="translateModal.show" class="modal-overlay" @click.self="!translateModal.loading && (translateModal.show = false)">
+        <div class="picker-modal translate-modal">
+          <div class="picker-header">
+            <span>Translate note</span>
+            <button class="picker-close" @click="translateModal.show = false" :disabled="translateModal.loading">
+              <X :size="16" />
+            </button>
+          </div>
+          <div class="translate-body">
+            <div class="translate-row">
+              <label>
+                <span>From</span>
+                <select v-model="translateModal.sourceLang" :disabled="translateModal.loading">
+                  <option v-for="[code, name] in TRANSLATE_LANGS" :key="'s' + code" :value="code">{{ name }}</option>
+                </select>
+              </label>
+              <label>
+                <span>To</span>
+                <select v-model="translateModal.targetLang" :disabled="translateModal.loading">
+                  <option v-for="[code, name] in TRANSLATE_LANGS" :key="'t' + code" :value="code">{{ name }}</option>
+                </select>
+              </label>
+            </div>
+            <p class="translate-hint">
+              The translated text will be appended below the original content.
+              Long notes are truncated at 8000 characters. Translation runs on the
+              local LLM gateway and may take 15–60 seconds.
+            </p>
+            <div v-if="translateModal.error" class="translate-error">{{ translateModal.error }}</div>
+            <div class="translate-actions">
+              <button class="translate-cancel" @click="translateModal.show = false" :disabled="translateModal.loading">
+                Cancel
+              </button>
+              <button class="translate-confirm" @click="confirmTranslate" :disabled="translateModal.loading">
+                {{ translateModal.loading ? 'Translating…' : 'Translate' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -286,6 +505,185 @@ function onMobileCapture() {
 </style>
 
 <style>
+/* Picker modals (Promote / Merge) — unscoped for Teleport */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  padding-top: 15vh;
+  z-index: 1500;
+}
+.picker-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  width: 480px;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+.picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.picker-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+}
+.picker-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+.picker-search-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+}
+.picker-list {
+  overflow-y: auto;
+  padding: 4px;
+  flex: 1;
+}
+.picker-item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.picker-item:hover {
+  background: rgba(58, 134, 255, 0.1);
+  color: var(--text-primary);
+}
+.picker-item-title { font-weight: 500; color: var(--text-primary); }
+.picker-item-preview {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker-empty {
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Translate modal — unscoped for Teleport */
+.translate-modal {
+  max-height: none !important;
+  width: 440px !important;
+}
+.translate-modal .translate-body {
+  padding: 18px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.translate-modal .translate-row {
+  display: flex;
+  gap: 14px;
+}
+.translate-modal .translate-row label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.translate-modal .translate-row span {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+.translate-modal select {
+  background: var(--bg-main);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.translate-modal .translate-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.translate-modal .translate-error {
+  background: rgba(255, 90, 90, 0.12);
+  border: 1px solid rgba(255, 90, 90, 0.4);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #ff7a7a;
+  font-size: 12px;
+}
+.translate-modal .translate-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+.translate-modal .translate-cancel,
+.translate-modal .translate-confirm {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid var(--border-subtle);
+  font-family: inherit;
+}
+.translate-modal .translate-cancel {
+  background: none;
+  color: var(--text-secondary);
+}
+.translate-modal .translate-cancel:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+.translate-modal .translate-confirm {
+  background: var(--accent-primary);
+  color: #fff;
+  border-color: var(--accent-primary);
+}
+.translate-modal .translate-confirm:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.translate-modal button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
 /* Mobile sidebar overlay — unscoped for Teleport */
 .mobile-sidebar-overlay {
   position: fixed;

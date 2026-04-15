@@ -1,4 +1,5 @@
 const { extractWikilinks, resolveWikilinks } = require('../services/wikilinkParser');
+const llmService = require('../services/llmService');
 
 async function syncWikilinks(fastify, noteId, userId, content) {
   const extracted = extractWikilinks(content);
@@ -85,8 +86,10 @@ async function noteRoutes(fastify) {
     }
 
     if (search) {
-      conditions.push(`n.content_tsv @@ plainto_tsquery('english', $${paramIndex++})`);
-      params.push(search);
+      // Match title substring (case-insensitive) OR content full-text
+      conditions.push(`(n.title ILIKE $${paramIndex} OR n.content_tsv @@ plainto_tsquery('english', $${paramIndex + 1}))`);
+      params.push(`%${search}%`, search);
+      paramIndex += 2;
     }
 
     let joinClause = '';
@@ -438,6 +441,94 @@ async function noteRoutes(fastify) {
     // Re-sync wikilinks for the target since its content changed
     await syncWikilinks(fastify, target_note_id, userId, newContent);
 
+    return { data: updated.rows[0] };
+  });
+
+  // POST /api/v1/notes/:id/translate — translate note content via the LLM
+  // gateway and append the translated block below the original (preserves
+  // both versions for search). Long content is truncated by llmService.
+  fastify.post('/:id/translate', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['source_lang', 'target_lang'],
+        properties: {
+          source_lang: { type: 'string', minLength: 2, maxLength: 8 },
+          target_lang: { type: 'string', minLength: 2, maxLength: 8 }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const userId = request.user.id;
+    const { source_lang, target_lang } = request.body;
+
+    if (source_lang === target_lang) {
+      return reply.code(400).send({
+        error: 'Bad Request',
+        message: 'source_lang and target_lang must differ',
+        statusCode: 400
+      });
+    }
+
+    if (!llmService.isEnabled()) {
+      return reply.code(503).send({
+        error: 'Service Unavailable',
+        message: 'Translation is disabled (LLM_ENABLED=false)',
+        statusCode: 503
+      });
+    }
+
+    const noteRes = await fastify.db.query(
+      'SELECT id, user_id, content FROM notes WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+      [id, userId]
+    );
+    if (noteRes.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Note not found', statusCode: 404 });
+    }
+    const note = noteRes.rows[0];
+
+    if (!note.content || note.content.trim().length === 0) {
+      return reply.code(400).send({
+        error: 'Bad Request',
+        message: 'Note has no content to translate',
+        statusCode: 400
+      });
+    }
+
+    let translated;
+    try {
+      translated = await llmService.translateText({
+        text: note.content,
+        sourceLang: source_lang,
+        targetLang: target_lang
+      });
+    } catch (err) {
+      fastify.log.warn({ err, noteId: id }, 'translate failed');
+      return reply.code(502).send({
+        error: 'Bad Gateway',
+        message: 'Translation failed: ' + (err.message || 'unknown error'),
+        statusCode: 502
+      });
+    }
+
+    if (!translated) {
+      return reply.code(502).send({
+        error: 'Bad Gateway',
+        message: 'Translation returned no content',
+        statusCode: 502
+      });
+    }
+
+    const updatedContent =
+      note.content +
+      `\n\n---\n\n**Translated (${source_lang} → ${target_lang}):**\n\n` +
+      translated;
+
+    const updated = await fastify.db.query(
+      `UPDATE notes SET content = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING *`,
+      [updatedContent, id, userId]
+    );
     return { data: updated.rows[0] };
   });
 

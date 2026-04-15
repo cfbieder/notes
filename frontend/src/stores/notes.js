@@ -14,6 +14,7 @@ export const useNotesStore = defineStore('notes', () => {
     notebook_id: null,
     tag_id: null,
     is_inbox: null,
+    note_type: null,
     search: null
   });
 
@@ -24,6 +25,7 @@ export const useNotesStore = defineStore('notes', () => {
       if (filters.value.notebook_id) params.set('notebook_id', filters.value.notebook_id);
       if (filters.value.tag_id) params.set('tag_id', filters.value.tag_id);
       if (filters.value.is_inbox !== null) params.set('is_inbox', filters.value.is_inbox);
+      if (filters.value.note_type) params.set('note_type', filters.value.note_type);
       if (filters.value.search) params.set('search', filters.value.search);
 
       const query = params.toString();
@@ -74,6 +76,9 @@ export const useNotesStore = defineStore('notes', () => {
     }
     await fetchNotes();
     useNotebooksStore().fetchNotebooks();
+    // Refresh ideas store too — if the trashed note was an idea, the count must drop.
+    // Lazy import to avoid circular dependency at module load.
+    import('./ideas.js').then(m => m.useIdeasStore().fetchIdeas().catch(() => {}));
   }
 
   // Trash management
@@ -104,7 +109,7 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   function clearFilters() {
-    filters.value = { notebook_id: null, tag_id: null, is_inbox: null, search: null };
+    filters.value = { notebook_id: null, tag_id: null, is_inbox: null, note_type: null, search: null };
   }
 
   return {

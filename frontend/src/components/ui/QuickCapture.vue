@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { useNotesStore } from '../../stores/notes.js';
 import { useTasksStore } from '../../stores/tasks.js';
+import { useIdeasStore } from '../../stores/ideas.js';
 import { api, OfflineError } from '../../api/client.js';
 import { enqueue, KIND_NOTE, KIND_TASK } from '../../lib/offlineOutbox.js';
 import { X, FileText, CheckSquare } from 'lucide-vue-next';
@@ -12,6 +13,7 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 const notesStore = useNotesStore();
 const tasksStore = useTasksStore();
+const ideasStore = useIdeasStore();
 
 const content = ref('');
 const captureType = ref(props.initialType); // 'note' | 'task' | 'idea'
@@ -55,7 +57,11 @@ async function handleCapture() {
         await tasksStore.createTask(payload);
       } else {
         await api.post('/notes', payload);
-        notesStore.fetchNotes?.().catch(() => {});
+        if (captureType.value === 'idea') {
+          ideasStore.fetchIdeas?.().catch(() => {});
+        } else {
+          notesStore.fetchNotes?.().catch(() => {});
+        }
       }
     } catch (err) {
       if (!(err instanceof OfflineError)) throw err;

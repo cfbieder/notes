@@ -51,4 +51,7 @@ els.logoutBtn.addEventListener('click', async () => {
   refreshView();
 });
 
+const versionEl = document.getElementById('version');
+if (versionEl) versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+
 refreshView();

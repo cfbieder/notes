@@ -260,7 +260,7 @@ Browser / PWA
 | 7.4 | ✅ OCR integration | `backend/src/services/llmService.js` — HTTP client for LLM gateway `POST /ocr`. Env: `LLM_GATEWAY_URL`, `LLM_ENABLED`, `LLM_OCR_TIMEOUT_MS`. Degrades gracefully when gateway unreachable. |
 | 7.5 | ✅ OCR text storage | Attachment upload route fires OCR asynchronously after save; image/PDF attachments populate `attachments.ocr_text` without blocking the upload response. |
 | 7.6 | ✅ OCR in search index | Migration `007_attachment_ocr_search.sql` adds generated `attachments.ocr_tsv` + GIN index. `/api/v1/search` left-joins attachments and matches either `notes.content_tsv` or `attachments.ocr_tsv`; results collapsed per note with `GROUP BY`, rank is max across body/OCR. |
-| 7.7 | OCR + translate on clip | Optional translation of clipped/OCR'd content via gateway `POST /ocr/translate` — useful for foreign-language documents |
+| 7.7 | ⏭️ OCR + translate on clip — **rescoped to Phase 8.11** | Originally built as a checkbox in the clipper popup, but long-article translations exceeded the sync request window (nginx 60s, LLM 150s+ for full Wikipedia pages). Removed from the clipper in v0.3.0 and implemented as a note-level action — see Phase 8.11 below. |
 
 **Acceptance criteria:**
 - Browser extension can clip pages to the app with notebook/tag selection
@@ -287,7 +287,7 @@ Browser / PWA
 | 8.8 | Task extraction | "Extract tasks" button in editor toolbar. Sends note content to gateway (phi4:14b) with prompt to identify action items. Returns proposed tasks in a review modal — user can accept/edit/dismiss each before creation. `POST /api/v1/notes/:id/extract-tasks`. |
 | 8.9 | Natural language note query | "Ask my notes" mode in search palette. User types a question → backend embeds query → pgvector retrieves top-N relevant notes → sends to gateway with context for synthesis → returns answer with note citations (clickable links). `POST /api/v1/search/ask`. |
 | 8.10 | Audio note capture | Record audio in quick capture modal (MediaRecorder API) or upload audio file. Backend sends to gateway `POST /transcribe` (Whisper). Transcribed text becomes note content. Mobile FAB gets microphone option. Supports OGG, MP3, WAV, M4A. |
-| 8.11 | Note translation | Translate note content via gateway `POST /translate`. UI: toolbar button → language picker → side-by-side or in-place translation. `POST /api/v1/notes/:id/translate`. Supports ~40 languages via LLM-based translation. |
+| 8.11 | ✅ Note translation | `POST /api/v1/notes/:id/translate` — accepts `{source_lang, target_lang}`, calls `llmService.translateText` → gateway `POST /translate`, appends the translated block below the original content (divider + labeled header) so both versions stay searchable. Frontend toolbar button on the note editor opens a modal with 28 hardcoded languages. Nginx proxy timeouts bumped to 180s for LLM endpoints. Long content is truncated at `LLM_TRANSLATE_MAX_CHARS` (default 8000). Tests: `backend/tests/phase8-translate.test.js` (11 assertions). |
 
 **Acceptance criteria:**
 - `Ctrl+K` search supports semantic mode — finds conceptually related notes even without keyword matches
@@ -613,7 +613,22 @@ Bugs fixed during E2E testing:
 Completed: 2026-04-11
 Notes: Bidirectional wikilinks (`[[Note Title]]` and `[[Title|display]]`), backlinks API + panel, unlinked mentions, broken link detection (red dashed underline), full D3.js knowledge graph with tag nodes, local graph per note. Backend: `wikilinkParser.js` service, `links.js` + `graph.js` routes, migration 005 (indexes). Frontend: `wikilinkAutocomplete.js` + `wikilinkRendering.js` CodeMirror extensions, `graph.js` Pinia store, `BacklinksPanel.vue`, `LocalGraph.vue`, full `GraphView.vue` with D3 force simulation, zoom/pan/drag, filter toggles (tags, orphans), search highlight. All automated API tests passing.
 
-**Next up:** Phase 7 (Web Clipper & OCR).
+### Phase 7 — Web Clipper & OCR ✅
+Completed: 2026-04-15
+- **Backend OCR (7.4–7.6):** `llmService.js` HTTP client, async OCR on attachment upload, migration `007_attachment_ocr_search.sql` adds `attachments.ocr_tsv` + GIN index, `/api/v1/search` joins attachments and matches body OR OCR.
+- **Web clipper (7.1–7.3):** Chrome MV3 extension in `clipper/` — article (Readability + Turndown), selection (popup + context menu), screenshot (captureVisibleTab → attachment → OCR), link-only. `POST /api/v1/clips` with migration `008_clipper_source_url.sql`. CORS updated for `chrome-extension://`. `auth/login` and `auth/refresh` now return `refreshToken` in the body so non-browser clients can persist it. Clipper screenshots are embedded inline in the note body via the same markdown `![](/api/v1/attachments/:id)` format the editor uses.
+- **7.7 rescoped to 8.11:** Translate-on-clip removed in clipper v0.3.0; replaced by a note-level translate action in the main app (see Phase 8.11).
+- **Tests:** `backend/tests/phase7-clips.test.js` (22 assertions), all passing.
+
+### Phase 8.11 — Note Translation ✅
+Completed: 2026-04-15
+- **Endpoint:** `POST /api/v1/notes/:id/translate` — reads note, translates via gateway `POST /translate`, appends labeled block (`---` divider + `**Translated (xx → yy):**`) below the original. Both versions remain full-text searchable.
+- **UI:** Translate toolbar button on note editor → modal with 28 hardcoded languages, loading/error states. Save indicator flips after the in-place update.
+- **Ops:** Nginx proxy timeouts bumped 60s → 180s for LLM endpoints. `LLM_TRANSLATE_TIMEOUT_MS` (150s) and `LLM_TRANSLATE_MAX_CHARS` (8000) — long content is truncated with a visible marker so local LLM throughput never exceeds the sync window.
+- **Failure modes:** Gateway unreachable → 502, `LLM_ENABLED=false` → 503, empty-content note → 400, same source/target lang → 400.
+- **Tests:** `backend/tests/phase8-translate.test.js` (11 assertions), all passing against the real LLM gateway.
+
+**Next up:** Remaining Phase 8 tasks — pgvector + embeddings (8.1–8.2), semantic/hybrid search (8.3), related notes panel (8.4), smart tag suggestions (8.5), auto-title (8.6), summarization (8.7), task extraction (8.8), "Ask my notes" (8.9), audio capture (8.10).
 
 ### Phase 4 — Attachments, Reminders & PWA ✅
 Completed: 2026-04-06
@@ -653,9 +668,9 @@ Features:
 |-------|-------|--------|
 | ~~Phase 4~~ | ~~Attachments, Reminders, PWA, Mobile~~ | ✅ Complete |
 | ~~Phase 5~~ | ~~Production launch — Docker prod stack, Nginx, TLS, deploy script, backups, cron~~ | ✅ Complete |
-| **Phase 6** | **Knowledge Graph** — wikilinks, backlinks, D3.js graph (Stage 2) | Next |
-| Phase 7 | Web Clipper & OCR — uses LLM gateway OCR (Gemini Flash → Claude vision) instead of Tesseract (Stage 2) | Future |
-| Phase 8 | LLM Intelligence — semantic search (pgvector), related notes, smart tags, summarization, task extraction, audio capture, natural language queries (Stage 2) | Future |
+| ~~Phase 6~~ | ~~Knowledge Graph — wikilinks, backlinks, D3.js graph~~ | ✅ Complete |
+| ~~Phase 7~~ | ~~Web Clipper & OCR — LLM gateway OCR, Chrome MV3 extension~~ | ✅ Complete |
+| Phase 8 | LLM Intelligence — pgvector, semantic search, related notes, smart tags, summarization, task extraction, audio capture, natural language queries. **Note translate (8.11) already shipped.** | Next |
 
 ---
 

@@ -132,6 +132,11 @@ els.openOptions.addEventListener('click', (e) => {
 });
 els.openOptionsBtn?.addEventListener('click', () => chrome.runtime.openOptionsPage());
 
+// Show the installed extension version so it's obvious when a reload picks
+// up a new build.
+const versionEl = document.getElementById('version');
+if (versionEl) versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+
 els.clipBtn.addEventListener('click', async () => {
   els.clipBtn.disabled = true;
   setStatus('Clipping...', '');

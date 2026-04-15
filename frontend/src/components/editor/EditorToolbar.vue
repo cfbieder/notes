@@ -1,7 +1,7 @@
 <script setup>
 import { useUIStore } from '../../stores/ui.js';
 import { computed } from 'vue';
-import { Code, Eye, Save, Trash2, RotateCcw } from 'lucide-vue-next';
+import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
 import NoteNotebooks from './NoteNotebooks.vue';
 
@@ -9,10 +9,13 @@ const uiStore = useUIStore();
 
 const props = defineProps({
   noteTitle: { type: String, default: '' },
-  noteContent: { type: String, default: '' }
+  noteContent: { type: String, default: '' },
+  noteType: { type: String, default: 'note' }
 });
 
-const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes']);
+const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'translate']);
+
+const isIdea = computed(() => props.noteType === 'idea');
 
 const hasCheckedBoxes = computed(() => /- \[x\]/i.test(props.noteContent));
 
@@ -52,6 +55,25 @@ function onTitleInput(e) {
       </button>
 
       <button
+        v-if="isIdea"
+        class="idea-btn"
+        @click="$emit('merge')"
+        title="Move idea content to another note"
+      >
+        <ArrowRight :size="14" />
+        <span>Move to note</span>
+      </button>
+
+      <button
+        v-if="isIdea"
+        class="idea-btn promote-btn"
+        @click="$emit('promote')"
+        title="Promote to a regular note in a notebook"
+      >
+        <span>💡 Promote</span>
+      </button>
+
+      <button
         v-if="hasCheckedBoxes"
         class="reset-btn"
         @click="$emit('reset-checkboxes')"
@@ -59,6 +81,15 @@ function onTitleInput(e) {
       >
         <RotateCcw :size="14" />
         <span>Reset</span>
+      </button>
+
+      <button
+        class="translate-btn"
+        @click="$emit('translate')"
+        title="Translate this note"
+      >
+        <Languages :size="14" />
+        <span>Translate</span>
       </button>
 
       <button
@@ -138,6 +169,26 @@ function onTitleInput(e) {
   color: var(--accent-primary);
 }
 
+.idea-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.idea-btn:hover {
+  border-color: var(--accent-warn);
+  color: var(--accent-warn);
+}
+.promote-btn:hover { color: var(--accent-warn); }
+
 .reset-btn {
   display: flex;
   align-items: center;
@@ -153,6 +204,25 @@ function onTitleInput(e) {
   transition: all 0.1s;
 }
 .reset-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.translate-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.translate-btn:hover {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
 }

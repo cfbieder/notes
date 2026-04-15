@@ -54,6 +54,9 @@ export const useIdeasStore = defineStore('ideas', () => {
     const res = await api.post(`/notes/${id}/merge-into`, { target_note_id: targetNoteId });
     ideas.value = ideas.value.filter(n => n.id !== id);
     count.value = Math.max(0, count.value - 1);
+    // Refresh notes list since the source idea is now soft-deleted and target content changed.
+    // Lazy import to avoid circular dependency.
+    import('./notes.js').then(m => m.useNotesStore().fetchNotes().catch(() => {}));
     return res.data;
   }
 

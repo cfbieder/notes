@@ -37,7 +37,7 @@ const filteredIdeas = computed(() => {
 });
 
 function openIdea(id) {
-  router.push(`/notes/${id}`);
+  router.push(`/ideas/${id}`);
 }
 
 async function discardIdea(id) {

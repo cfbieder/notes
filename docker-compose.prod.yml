@@ -50,6 +50,8 @@ services:
       LLM_GATEWAY_URL: ${LLM_GATEWAY_URL:-http://100.66.213.40:8080}
       LLM_ENABLED: ${LLM_ENABLED:-true}
       LLM_OCR_TIMEOUT_MS: ${LLM_OCR_TIMEOUT_MS:-120000}
+      LLM_TRANSLATE_TIMEOUT_MS: ${LLM_TRANSLATE_TIMEOUT_MS:-150000}
+      LLM_TRANSLATE_MAX_CHARS: ${LLM_TRANSLATE_MAX_CHARS:-8000}
     volumes:
       - noted_uploads:/app/uploads
       - noted_logs:/app/logs
