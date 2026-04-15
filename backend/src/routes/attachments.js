@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
 const { pipeline } = require('stream/promises');
+const llmService = require('../services/llmService');
 
 const ALLOWED_MIME_TYPES = new Set([
   'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml',
@@ -113,7 +114,25 @@ async function attachmentRoutes(fastify) {
       [noteId, userId, data.filename, mimeType, sizeBytes, storagePath]
     );
 
-    return reply.code(201).send({ data: result.rows[0] });
+    const attachment = result.rows[0];
+
+    if (llmService.isEnabled() && llmService.isOcrCandidate(mimeType)) {
+      const absPath = filePath;
+      llmService.ocrFile({ filePath: absPath, filename: data.filename, mimeType })
+        .then(async (text) => {
+          if (!text) return;
+          await fastify.db.query(
+            'UPDATE attachments SET ocr_text = $1 WHERE id = $2',
+            [text, attachment.id]
+          );
+          fastify.log.info({ attachmentId: attachment.id, chars: text.length }, 'ocr complete');
+        })
+        .catch((err) => {
+          fastify.log.warn({ err, attachmentId: attachment.id }, 'ocr failed');
+        });
+    }
+
+    return reply.code(201).send({ data: attachment });
   });
 
   // GET /api/v1/attachments/:id — stream file (supports ?token= for inline rendering)

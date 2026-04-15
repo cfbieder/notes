@@ -7,7 +7,6 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
-      devOptions: { enabled: true, type: 'module' },
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         id: '/',
@@ -71,21 +70,16 @@ export default defineConfig({
           {
             urlPattern: /^\/api\/v1\/attachments\/.*/i,
             handler: 'CacheFirst',
+            method: 'GET',
             options: {
               cacheName: 'attachment-cache',
               expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 }
             }
-          },
-          {
-            urlPattern: /^\/api\/v1\/.*/i,
-            handler: 'NetworkFirst',
-            method: 'GET',
-            options: {
-              cacheName: 'api-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 },
-              networkTimeoutSeconds: 10
-            }
           }
+          // Note: no runtime cache for other /api/v1/ routes. Having a
+          // NetworkFirst handler was delaying POST responses by ~10s under the
+          // service worker on mobile, even with a GET method filter. Simpler to
+          // let the browser handle API requests directly.
         ]
       }
     })

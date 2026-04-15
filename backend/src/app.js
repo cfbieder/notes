@@ -16,7 +16,16 @@ const fastify = require('fastify')({
 // Register plugins
 const registerPlugins = async () => {
   await fastify.register(require('@fastify/cors'), {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    // Allow the configured web origin plus any chrome-extension:// origin
+    // (Noted Web Clipper). Extensions always present a chrome-extension://<id>
+    // Origin header, so a single string isn't enough.
+    origin: (origin, cb) => {
+      const configured = process.env.CORS_ORIGIN || 'http://localhost:5173';
+      if (!origin) return cb(null, true); // same-origin or server-to-server
+      if (origin === configured) return cb(null, true);
+      if (origin.startsWith('chrome-extension://')) return cb(null, true);
+      return cb(null, false);
+    },
     credentials: true
   });
 
@@ -57,6 +66,7 @@ const registerRoutes = async () => {
   await fastify.register(require('./routes/integrations'), { prefix: '/api/v1/integrations' });
   await fastify.register(require('./routes/links'), { prefix: '/api/v1/notes' });
   await fastify.register(require('./routes/graph'), { prefix: '/api/v1/graph' });
+  await fastify.register(require('./routes/clips'), { prefix: '/api/v1/clips' });
 };
 
 // Health check

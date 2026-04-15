@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Clip to Noted</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Clip to Noted</h1>
+      <a id="openOptions" href="#">Settings</a>
+    </header>
+
+    <div id="notLoggedIn" class="hidden">
+      <p>Not logged in. Open settings to configure your server and sign in.</p>
+      <button id="openOptionsBtn">Open settings</button>
+    </div>
+
+    <div id="main" class="hidden">
+      <label class="field">
+        <span>Mode</span>
+        <select id="mode">
+          <option value="article">Article (Readability)</option>
+          <option value="selection">Selection</option>
+          <option value="screenshot">Screenshot</option>
+          <option value="link">Link only</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Title</span>
+        <input id="title" type="text" />
+      </label>
+
+      <label class="field">
+        <span>Notebook</span>
+        <select id="notebook">
+          <option value="">— Inbox —</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Tags (comma-separated)</span>
+        <input id="tags" type="text" placeholder="e.g. research, python" />
+      </label>
+
+      <label class="check">
+        <input type="checkbox" id="sendToInbox" checked />
+        <span>Send to inbox</span>
+      </label>
+
+      <div id="preview" class="preview hidden"></div>
+
+      <div class="actions">
+        <button id="clipBtn" class="primary">Clip</button>
+        <span id="status"></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

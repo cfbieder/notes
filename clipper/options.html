@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Noted Clipper Settings</title>
+  <link rel="stylesheet" href="popup.css" />
+  <style>
+    body { width: 420px; }
+    .row { margin-bottom: 12px; }
+    .small { color: var(--text-muted); font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1 style="margin: 0 0 14px; font-size: 15px;">Noted Clipper Settings</h1>
+
+    <label class="field">
+      <span>API Base URL</span>
+      <input id="apiBase" type="text" placeholder="http://localhost:3001/api/v1" />
+    </label>
+    <div class="small row">
+      Dev default: <code>http://localhost:3001/api/v1</code><br />
+      Prod: <code>https://noted.tail413695.ts.net/api/v1</code>
+    </div>
+
+    <label class="field">
+      <span>Username</span>
+      <input id="username" type="text" />
+    </label>
+
+    <label class="field">
+      <span>Password</span>
+      <input id="password" type="password" />
+    </label>
+
+    <div class="actions">
+      <button id="loginBtn" class="primary">Log in</button>
+      <button id="logoutBtn">Log out</button>
+      <span id="status"></span>
+    </div>
+
+    <p id="loggedInAs" class="small row" style="margin-top: 12px;"></p>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

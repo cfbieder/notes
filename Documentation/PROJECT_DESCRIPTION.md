@@ -93,10 +93,11 @@ Single-user now, but auth, data model, and API are architected for multi-user fr
 
 | Layer        | Choice             | Rationale                                          |
 | ------------ | ------------------ | -------------------------------------------------- |
-| Primary DB   | PostgreSQL         | Relational model suits graph queries (tags, links) |
-| Note content | JSONB column       | Flexible schema for evolving note structure        |
+| Primary DB   | PostgreSQL 16      | Relational model suits graph queries (tags, links) |
+| Note content | TEXT column (raw Markdown) | Markdown-first, no proprietary encoding     |
+| Full-text    | `tsvector` generated columns on notes and attachments | Native Postgres FTS, no extra service |
 | Future AI    | pgvector extension | Semantic search without a separate vector DB       |
-| Migrations   | node-pg-migrate    | Version-controlled schema evolution                |
+| Migrations   | Forward-only numbered SQL files in `backend/migrations/` (custom runner in `backend/src/utils/migrate.js`) | Simple, auditable, no ORM coupling |
 
 ### Infrastructure
 
@@ -118,29 +119,32 @@ Browser / PWA
      ▼
   Vue.js 3 SPA  ──── CodeMirror 6 (editor)
      │                D3.js (graph view)
+     │                Offline outbox (IndexedDB) for quick capture
      │ HTTP/REST
      ▼
   Fastify API (Node.js)
      │
-     ├── Auth module (JWT)
-     ├── Notes module
+     ├── Auth module (JWT + refresh)
+     ├── Notes module (+ soft delete / trash)
      ├── Notebooks module
      ├── Tags module
      ├── Links module (wikilinks graph)
      ├── Tasks / Inbox module
-     ├── Search module
-     ├── Attachments module
-     └── Reminders module
+     ├── Search module (notes + attachment OCR)
+     ├── Attachments module (+ OCR via LLM gateway)
+     ├── Reminders module
+     └── Integrations module (Google Drive import)
      │
      ▼
   PostgreSQL
-     ├── notes (JSONB content)
+     ├── notes (TEXT content, tsvector, deleted_at, client_id)
      ├── notebooks
      ├── tags
      ├── note_tags (junction)
      ├── note_links (bidirectional)
      ├── tasks (inbox + allocated)
-     ├── attachments
+     ├── attachments (+ ocr_text, ocr_tsv)
+     ├── integrations + import_history (OAuth config + Drive import log)
      └── users
 ```
 
@@ -209,9 +213,10 @@ A GTD-inspired frictionless capture system:
 ### 5.6 Search (Stage 1)
 
 - **Full-text search:** PostgreSQL `tsvector` full-text search across note titles and content.
+- **Attachment OCR search (implemented):** Attachments have an `ocr_text` / `ocr_tsv` column; a note matches if either the note body or any of its attachments' OCR text matches the query. OCR is produced via the local LLM/OCR gateway on upload (see migration `007_attachment_ocr_search.sql`).
 - **Filters:** Search results can be filtered by notebook, tag, date range, or attachment type.
 - **Keyboard-first:** Search triggered by `Ctrl+K` (command palette style). Results navigate with arrow keys.
-- **Stage 2 — PDF/image search:** OCR extracted text stored alongside attachments, included in full-text index.
+- **Soft-delete aware:** Search excludes trashed notes (`deleted_at IS NULL`), matching the rest of the app.
 - **Stage 3 — semantic search:** pgvector embeddings for "find notes similar to this concept" queries.
 
 ### 5.7 File Attachments (Stage 1)
@@ -239,12 +244,16 @@ A GTD-inspired frictionless capture system:
 - **Filters:** Toggle visibility of tag nodes, orphan notes, or specific notebooks.
 - **Local graph:** Each note view has a miniature local graph showing only that note's direct connections (1 degree).
 
-### 5.10 Web Clipper (Stage 2)
+### 5.10 Web Clipper (Stage 2, implemented)
 
-- **Browser extension:** Chrome/Firefox extension captures the current page.
-- **Clip modes:** Full page, article text only, selected text, or screenshot.
-- **Destination:** Choose notebook and tags at clip time, or send to inbox for later processing.
-- **Content:** Stores original URL, clip timestamp, and cleaned article content (using Readability.js).
+- **Browser extension:** Chrome Manifest V3 extension lives in `clipper/`. Unpacked-loadable for dev pointing at `http://localhost:3001/api/v1`; same bundle works against the production Tailscale host by changing the API base URL in the options page.
+- **Clip modes:** `article` (Readability.js → Turndown Markdown), `selection` (selection HTML → Markdown, falls back to plain text), `screenshot` (`chrome.tabs.captureVisibleTab` → PNG data URL → attachment), and `link` (URL + title only).
+- **Auth:** Username/password in the options page; extension stores `accessToken` + `refreshToken` in `chrome.storage.local` and auto-refreshes on 401. Future work (Phase 8) replaces this with personal API tokens.
+- **API:** `POST /api/v1/clips` creates the note (with `source_url` tracked via migration 008). Screenshot clips also create an attachment, which automatically flows through the existing OCR pipeline (§5.7) so screenshotted text is searchable.
+- **Destination:** Notebook picker, comma-separated tag input (tags upserted on the fly), and a "send to inbox" toggle. Selecting no notebook defaults to inbox.
+- **Context menu:** Right-click a selection → "Clip selection to Noted" posts a selection clip directly without opening the popup.
+- **CORS:** Backend allows `chrome-extension://<id>` origins in addition to the configured web origin.
+- **Tests:** `backend/tests/phase7-clips.test.js` covers all four modes, validation errors, auth, and search integration.
 
 ### 5.11 Authentication (Stage 1)
 
@@ -252,6 +261,32 @@ A GTD-inspired frictionless capture system:
 - **Login page:** Username + password. bcrypt password hashing.
 - **Protected routes:** All API endpoints require valid JWT. Frontend redirects to login on 401.
 - **Multi-user ready:** `users` table exists from day one. All data rows include `user_id` foreign key.
+
+### 5.12 Trash / Soft Delete (implemented)
+
+- **Soft delete:** `DELETE /api/v1/notes/:id` sets `deleted_at` rather than removing the row (see `backend/migrations/002_soft_delete.sql`).
+- **Trash view:** `/trash` route lists soft-deleted notes with restore and permanent-delete actions.
+- **Exclusion from app surfaces:** Notes list, graph, backlinks, link resolution, and search all filter on `deleted_at IS NULL`. Trashed notes appear as broken links in wikilink resolution.
+- **Restore:** Clears `deleted_at`. Permanent delete hard-removes the row and its attachments on disk.
+
+### 5.13 Google Drive Import (implemented)
+
+- **OAuth integration:** User authorizes Google Drive via the Settings page. Credentials are stored server-side.
+- **Folder targeting:** User selects one or more Drive folders; markdown and supported file types are imported as notes/attachments.
+- **Polling:** `drivePoller` runs on an interval and imports new/changed files idempotently.
+- **Manual scan:** A "Scan now" action in Settings triggers an immediate sync.
+- **Code:** `backend/src/services/driveImporter.js`, `backend/src/services/drivePoller.js`, `backend/src/routes/integrations.js`, `frontend/src/views/SettingsView.vue`.
+
+### 5.14 Offline Quick Capture (implemented)
+
+- **IndexedDB outbox:** Quick-capture submissions while offline (or mid-request failure) are enqueued in an IndexedDB outbox (`frontend/src/lib/offlineOutbox.js`) and replayed when the network returns.
+- **Idempotent replay:** Each outbox entry carries a client-generated UUID (`client_id`). The backend `notes` table has a unique index on `(user_id, client_id)` (migration `006_offline_client_id.sql`) so replayed captures cannot create duplicates.
+- **UX:** Quick capture modal surfaces pending-outbox state and replay progress.
+- **PWA status:** Works reliably in a Chrome tab; installed Android PWA support is degraded and de-prioritized.
+
+### 5.15 Settings (implemented)
+
+- **Settings view (`/settings`):** Password change, Google Drive integration config/scan, and account-level preferences.
 
 ---
 
@@ -289,7 +324,7 @@ CREATE TABLE stacks (
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Notes
+-- Notes (migrations 001, 002 soft-delete, 006 offline client_id, 008 clipper source_url)
 CREATE TABLE notes (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -301,10 +336,15 @@ CREATE TABLE notes (
               ) STORED,                           -- Full-text search index
   is_inbox    BOOLEAN DEFAULT FALSE,              -- Quick capture items
   pinned      BOOLEAN DEFAULT FALSE,
+  client_id   UUID,                               -- Idempotency for offline outbox replay
+  source_url  TEXT,                               -- Origin URL for web-clipper notes (migration 008)
+  deleted_at  TIMESTAMPTZ,                        -- Soft delete / trash (NULL = live)
   created_at  TIMESTAMPTZ DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ DEFAULT NOW()
+  updated_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, client_id)
 );
 CREATE INDEX notes_tsv_idx ON notes USING GIN(content_tsv);
+CREATE INDEX notes_user_live_idx ON notes(user_id) WHERE deleted_at IS NULL;
 
 -- Tags
 CREATE TABLE tags (
@@ -345,18 +385,55 @@ CREATE TABLE tasks (
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- File attachments
+-- File attachments (migration 007 adds OCR search columns)
 CREATE TABLE attachments (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  note_id     UUID REFERENCES notes(id) ON DELETE CASCADE,
-  user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
-  filename    TEXT NOT NULL,
-  mime_type   TEXT NOT NULL,
-  size_bytes  INTEGER NOT NULL,
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  note_id      UUID REFERENCES notes(id) ON DELETE CASCADE,
+  user_id      UUID REFERENCES users(id) ON DELETE CASCADE,
+  filename     TEXT NOT NULL,
+  mime_type    TEXT NOT NULL,
+  size_bytes   INTEGER NOT NULL,
   storage_path TEXT NOT NULL,                     -- Relative path on filesystem
-  ocr_text    TEXT,                              -- Stage 2: extracted text for search
-  created_at  TIMESTAMPTZ DEFAULT NOW()
+  ocr_text     TEXT,                              -- Extracted text (images, PDFs) via LLM/OCR gateway
+  ocr_tsv      TSVECTOR,                          -- Generated FTS index over ocr_text (migration 007)
+  created_at   TIMESTAMPTZ DEFAULT NOW()
 );
+CREATE INDEX attachments_ocr_tsv_idx ON attachments USING GIN(ocr_tsv);
+
+-- Integrations (migration 004) — generic per-provider OAuth/config store.
+-- Currently used by Google Drive; schema is provider-agnostic so future
+-- integrations (e.g. Dropbox, Notion import) can reuse it.
+CREATE TABLE integrations (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider       TEXT NOT NULL,                  -- e.g. 'google_drive'
+  access_token   TEXT,
+  refresh_token  TEXT,
+  token_expiry   TIMESTAMPTZ,
+  config         JSONB NOT NULL DEFAULT '{}',    -- folder IDs, target notebook, poll interval
+  enabled        BOOLEAN DEFAULT TRUE,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, provider)
+);
+
+-- Per-file import log — provides idempotency for the Drive poller
+-- (drive_file_id is checked before creating a note) and a user-facing history.
+CREATE TABLE import_history (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  integration_id  UUID NOT NULL REFERENCES integrations(id) ON DELETE CASCADE,
+  drive_file_id   TEXT NOT NULL,
+  drive_file_name TEXT NOT NULL,
+  mime_type       TEXT,
+  note_id         UUID REFERENCES notes(id) ON DELETE SET NULL,
+  status          TEXT NOT NULL DEFAULT 'success',
+  error_message   TEXT,
+  imported_at     TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX import_history_user_idx       ON import_history(user_id);
+CREATE INDEX import_history_drive_file_idx ON import_history(drive_file_id);
+CREATE INDEX import_history_imported_at_idx ON import_history(imported_at DESC);
 ```
 
 ---
@@ -376,14 +453,19 @@ POST   /api/v1/auth/logout
 ### Notes
 
 ```
-GET    /api/v1/notes                Query: notebook_id, tag_id, search, is_inbox, limit, offset
-POST   /api/v1/notes                Body: { title, content, notebook_id, tag_ids }
+GET    /api/v1/notes                Query: notebook_id, tag_id, search, is_inbox, limit, offset (excludes trashed)
+POST   /api/v1/notes                Body: { title, content, notebook_id, tag_ids, client_id? }
 GET    /api/v1/notes/:id
 PUT    /api/v1/notes/:id            Body: { title, content, notebook_id, tag_ids, pinned }
-DELETE /api/v1/notes/:id
+DELETE /api/v1/notes/:id            Soft delete — sets deleted_at
+GET    /api/v1/notes/trash          Lists soft-deleted notes for the user
+POST   /api/v1/notes/:id/restore    Clears deleted_at
+DELETE /api/v1/notes/:id?hard=true  Permanent delete (removes row + attachments on disk)
 GET    /api/v1/notes/:id/backlinks  Returns notes linking to this note
 GET    /api/v1/notes/:id/graph      Returns local graph data (nodes + edges, 1 degree)
 ```
+
+`client_id` on `POST /notes` supports the offline outbox: replays with the same `(user_id, client_id)` resolve to the existing note instead of creating a duplicate.
 
 ### Notebooks & Stacks
 
@@ -426,15 +508,40 @@ GET    /api/v1/graph                Full graph: all notes, tags, and edges for u
 ### Attachments
 
 ```
-POST   /api/v1/notes/:id/attachments  Multipart form upload
-GET    /api/v1/attachments/:id        Streams file
+POST   /api/v1/notes/:id/attachments  Multipart form upload (triggers async OCR)
+GET    /api/v1/attachments/:id        Streams file (accepts bearer token via ?token= for inline rendering)
 DELETE /api/v1/attachments/:id
 ```
+
+> **Security note:** `GET /attachments/:id` currently accepts the JWT access token as a query-string parameter so `<img>` / `<iframe>` tags can render attachments inline without custom headers. This leaks the token into browser history, proxy logs, referrer headers, and any screenshot of the URL bar. This should either be replaced with short-lived signed attachment URLs (opaque token distinct from the JWT) or with cookie-based auth for this endpoint. *(Open issue — see §9 Backlog.)*
 
 ### Search
 
 ```
 GET    /api/v1/search               Query: q, notebook_id, tag_id, from, to
+                                    Matches on notes.content_tsv OR attachments.ocr_tsv
+                                    Filters deleted_at IS NULL
+```
+
+### Web Clipper (Phase 7)
+
+```
+POST   /api/v1/clips                Body: { url, title?, content?, mode, notebook_id?,
+                                             tag_names?, send_to_inbox?, screenshot_data_url? }
+                                    mode ∈ { article, selection, screenshot, link }
+                                    Creates a note with source_url set. In screenshot mode,
+                                    also attaches the image and queues OCR automatically.
+```
+
+### Integrations — Google Drive
+
+```
+GET    /api/v1/integrations/drive/auth      Start OAuth flow
+GET    /api/v1/integrations/drive/callback  OAuth callback
+GET    /api/v1/integrations/drive/config    Current folder selection + status
+PUT    /api/v1/integrations/drive/config    Update selected folders / target notebook
+POST   /api/v1/integrations/drive/scan      Trigger immediate import scan
+DELETE /api/v1/integrations/drive           Disconnect integration
 ```
 
 ---
@@ -453,6 +560,8 @@ GET    /api/v1/search               Query: q, notebook_id, tag_id, from, to
 - `/notebooks/:id` → Notes filtered by notebook
 - `/graph` → Full graph view
 - `/search` → Search results
+- `/trash` → Soft-deleted notes (restore / permanent delete)
+- `/settings` → Password change, Google Drive integration, account preferences
 
 ### Component Hierarchy
 
@@ -492,43 +601,44 @@ useUIStore          — sidebar state, active view, editor mode (normal/source)
 
 ## 9. Development Stages
 
-### Stage 1 — Web App MVP (Target: Weeks 1–10)
+> **Note:** See `Documentation/DEVELOPMENT_PLAN.md` for the authoritative, in-progress tracker. This section is a high-level snapshot.
 
-**Goal:** A fully functional personal note-taking app accessible via browser and PWA.
+### Stage 1 — Web App MVP ✅ (shipped)
 
-Deliverables:
+- [x] Project scaffold (monorepo: `/frontend`, `/backend`)
+- [x] PostgreSQL schema + forward-only SQL migrations (custom runner)
+- [x] Fastify API with JWT auth (access + refresh)
+- [x] Vue.js SPA with Vite
+- [x] CodeMirror 6 editor (Normal Mode + Source Mode toggle)
+- [x] Notebooks & stacks CRUD + sidebar tree
+- [x] Tags CRUD + tag browser
+- [x] Full-text search (PostgreSQL tsvector)
+- [x] Quick capture inbox modal (global shortcut)
+- [x] Tasks panel (inline checkboxes + task list view)
+- [x] Reminders (due dates + reminder timestamps)
+- [x] File attachment upload + inline image rendering
+- [x] PWA manifest + service worker (offline shell)
+- [x] Nginx reverse proxy + Tailscale access (production deployed)
+- [x] Soft delete / Trash view (migration 002)
+- [x] Offline quick-capture outbox with idempotent replay (migration 006)
 
-- [ ] Project scaffold (monorepo: `/frontend`, `/backend`, `/db`)
-- [ ] PostgreSQL schema + migrations (node-pg-migrate)
-- [ ] Fastify API with JWT auth
-- [ ] Vue.js SPA with Vite
-- [ ] CodeMirror 6 editor (Normal Mode + Source Mode toggle)
-- [ ] Notebooks & stacks CRUD + sidebar tree
-- [ ] Tags CRUD + tag browser
-- [ ] Full-text search (PostgreSQL tsvector)
-- [ ] Quick capture inbox modal (global shortcut)
-- [ ] Tasks panel (inline checkboxes + task list view)
-- [ ] Reminders (due dates + reminder timestamps)
-- [ ] File attachment upload + inline image rendering
-- [ ] PWA manifest + service worker (offline shell)
-- [ ] Nginx reverse proxy + Tailscale access
-- [ ] PM2 process management
+### Stage 2 — Knowledge Graph ✅ (shipped)
 
-### Stage 2 — Knowledge Graph (Target: Weeks 11–20)
+- [x] Bidirectional wikilink parsing + `note_links` table population
+- [x] Wikilink autocomplete in editor
+- [x] Backlinks panel in note view
+- [x] Unlinked mentions detection
+- [x] D3.js force-directed graph view (full + local)
+- [x] Tag nodes in graph (concept clustering)
+- [x] OCR for PDF/image attachments via local LLM/OCR gateway
+- [x] OCR text included in full-text search index (migration 007)
+- [x] Google Drive import integration (OAuth, polling, manual scan)
+- [x] Web clipper browser extension (Chrome MV3) — article / selection / screenshot / link modes, Phase 7.1–7.3
 
-**Goal:** Elevate notes from a collection to a connected knowledge base.
+### Backlog / Known Issues
 
-Deliverables:
-
-- [ ] Bidirectional wikilink parsing + `note_links` table population
-- [ ] Wikilink autocomplete in editor
-- [ ] Backlinks panel in note view
-- [ ] Unlinked mentions detection
-- [ ] D3.js force-directed graph view (full + local)
-- [ ] Tag nodes in graph (concept clustering)
-- [ ] Web clipper browser extension (Chrome first)
-- [ ] OCR for PDF/image attachments (Tesseract.js or pytesseract microservice)
-- [ ] OCR text included in full-text search index
+- **[Medium] Attachment bearer token in query string.** `GET /api/v1/attachments/:id?token=…` accepts the JWT via query string for inline rendering. Replace with short-lived signed URLs (opaque token, separate from JWT) or cookie-based auth on that endpoint only.
+- **[Low] Installed Android PWA offline capture is degraded.** Works in a browser tab; investigation paused by decision.
 
 ### Stage 3 — Collaboration & AI (Future)
 
@@ -594,7 +704,7 @@ noted/
 │   │   │   ├── searchService.js
 │   │   │   └── graphService.js
 │   │   └── app.js
-│   ├── migrations/              # node-pg-migrate files
+│   ├── migrations/              # Numbered raw-SQL migration files (001_*, 002_*, …)
 │   └── package.json
 │
 ├── db/
@@ -620,7 +730,7 @@ noted/
 ```bash
 # Backend
 cd backend && npm install
-npm run migrate:up              # Run DB migrations
+npm run migrate                 # Apply forward-only SQL migrations
 npm run dev                     # Fastify dev server (port 3001, nodemon)
 
 # Frontend
@@ -694,8 +804,8 @@ The following are explicitly out of scope and will not be built:
 
 ---
 
-*Last updated: April 2026*
-*Status: Pre-development — Stage 1 specification complete*
+*Last updated: 2026-04-14*
+*Status: Stages 1–2 shipped and deployed to production. Phase 7 (Web Clipper & OCR) complete except 7.7 (translate-on-clip). Next up: Phase 8 (LLM-powered intelligence).*
 
 ---
 

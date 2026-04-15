@@ -56,6 +56,10 @@ Update both:
 | `backend/src/routes/links.js` | Backlinks, unlinked mentions, local graph APIs |
 | `backend/src/routes/graph.js` | Full knowledge graph API |
 | `frontend/src/views/GraphView.vue` | D3.js knowledge graph visualization |
+| `backend/src/routes/clips.js` | Web clipper ingestion endpoint (`POST /api/v1/clips`) |
+| `backend/src/services/llmService.js` | LLM gateway client (OCR now, embeddings/generation later) |
+| `backend/tests/phase7-clips.test.js` | Web clipper API integration tests |
+| `clipper/` | Chrome MV3 web-clipper extension (manifest, background, popup, options, vendor libs) |
 | `frontend/src/lib/codemirror/wikilinkRendering.js` | Wikilink rendering in editor |
 | `frontend/src/lib/codemirror/wikilinkAutocomplete.js` | `[[` autocomplete in editor |
 

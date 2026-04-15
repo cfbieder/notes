@@ -21,11 +21,17 @@ async function searchRoutes(fastify) {
   }, async (request) => {
     const { q, notebook_id, tag_id, from, to, limit = 20, offset = 0 } = request.query;
 
-    const conditions = ['n.user_id = $1', `n.content_tsv @@ websearch_to_tsquery('english', $2)`];
+    // Match note body OR OCR text from any attachment on the note.
+    const conditions = [
+      'n.user_id = $1',
+      'n.deleted_at IS NULL',
+      `(n.content_tsv @@ websearch_to_tsquery('english', $2)
+        OR a.ocr_tsv @@ websearch_to_tsquery('english', $2))`
+    ];
     const params = [request.user.id, q];
     let idx = 3;
 
-    let joinClause = '';
+    let joinClause = 'LEFT JOIN attachments a ON a.note_id = n.id';
 
     if (notebook_id) {
       conditions.push(`n.notebook_id = $${idx++}`);
@@ -33,7 +39,7 @@ async function searchRoutes(fastify) {
     }
 
     if (tag_id) {
-      joinClause = 'JOIN note_tags nt ON nt.note_id = n.id';
+      joinClause += ' JOIN note_tags nt ON nt.note_id = n.id';
       conditions.push(`nt.tag_id = $${idx++}`);
       params.push(tag_id);
     }
@@ -56,17 +62,23 @@ async function searchRoutes(fastify) {
       params
     );
 
-    // Results with rank
+    // Results with rank. A note may match via body, OCR, or both — take the max
+    // rank across the join and collapse per-note with GROUP BY.
     params.push(limit, offset);
     const result = await fastify.db.query(
-      `SELECT DISTINCT n.id, n.title, n.notebook_id, n.is_inbox, n.created_at, n.updated_at,
-              ts_rank(n.content_tsv, websearch_to_tsquery('english', $2)) AS rank,
-              ts_headline('english', n.content,
+      `SELECT n.id, n.title, n.notebook_id, n.is_inbox, n.created_at, n.updated_at,
+              MAX(GREATEST(
+                ts_rank(n.content_tsv, websearch_to_tsquery('english', $2)),
+                ts_rank(COALESCE(a.ocr_tsv, ''::tsvector), websearch_to_tsquery('english', $2))
+              )) AS rank,
+              ts_headline('english',
+                n.content || ' ' || COALESCE(string_agg(DISTINCT a.ocr_text, ' '), ''),
                 websearch_to_tsquery('english', $2),
                 'StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=30'
               ) AS snippet
        FROM notes n ${joinClause}
        WHERE ${where}
+       GROUP BY n.id
        ORDER BY rank DESC
        LIMIT $${idx++} OFFSET $${idx}`,
       params

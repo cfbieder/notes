@@ -47,6 +47,9 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: https://noted.tail413695.ts.net/api/v1/integrations/google-drive/callback
+      LLM_GATEWAY_URL: ${LLM_GATEWAY_URL:-http://100.66.213.40:8080}
+      LLM_ENABLED: ${LLM_ENABLED:-true}
+      LLM_OCR_TIMEOUT_MS: ${LLM_OCR_TIMEOUT_MS:-120000}
     volumes:
       - noted_uploads:/app/uploads
       - noted_logs:/app/logs

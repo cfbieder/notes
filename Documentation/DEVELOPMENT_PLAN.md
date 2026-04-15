@@ -1,7 +1,7 @@
 # Development Plan — Noted
 
 > Personal Knowledge & Task Management App
-> Status: Phases 0–6, 9 complete | Last updated: 2026-04-11
+> Status: Phases 0–6, 9 complete | Last updated: 2026-04-13
 
 ---
 
@@ -254,12 +254,12 @@ Browser / PWA
 
 | # | Task | Details |
 |---|------|---------|
-| 7.1 | Web clipper extension | Chrome extension — capture full page, article (Readability.js), selection, or screenshot |
-| 7.2 | Clipper API endpoint | Accept clipped content with URL, timestamp, notebook, tags |
-| 7.3 | Clipper destination UI | Popup with notebook/tag selection or "send to inbox" |
-| 7.4 | OCR integration | Backend calls LLM gateway `POST /ocr` for text extraction and `POST /ocr/json` for structured data extraction from PDF/image attachments. No local Tesseract dependency. |
-| 7.5 | OCR text storage | Populate `attachments.ocr_text` column on upload — triggered automatically when image/PDF attachments are saved |
-| 7.6 | OCR in search index | Include `ocr_text` in full-text search tsvector |
+| 7.1 | ✅ Web clipper extension | Chrome MV3 extension in `clipper/` — supports article (Readability.js + Turndown), selection, screenshot, and link-only modes. Context menu entry for quick selection clips. |
+| 7.2 | ✅ Clipper API endpoint | `POST /api/v1/clips` — accepts `{url, title, content, mode, notebook_id, tag_names, send_to_inbox, screenshot_data_url}`. Migration 008 adds `notes.source_url`. Screenshots become attachments and run through the Phase 7.4 OCR pipeline automatically. CORS updated to accept `chrome-extension://` origins. |
+| 7.3 | ✅ Clipper destination UI | Popup with mode picker, title/notebook/tag inputs, send-to-inbox toggle. Options page handles server URL + login. Automated tests in `backend/tests/phase7-clips.test.js` (22 assertions). |
+| 7.4 | ✅ OCR integration | `backend/src/services/llmService.js` — HTTP client for LLM gateway `POST /ocr`. Env: `LLM_GATEWAY_URL`, `LLM_ENABLED`, `LLM_OCR_TIMEOUT_MS`. Degrades gracefully when gateway unreachable. |
+| 7.5 | ✅ OCR text storage | Attachment upload route fires OCR asynchronously after save; image/PDF attachments populate `attachments.ocr_text` without blocking the upload response. |
+| 7.6 | ✅ OCR in search index | Migration `007_attachment_ocr_search.sql` adds generated `attachments.ocr_tsv` + GIN index. `/api/v1/search` left-joins attachments and matches either `notes.content_tsv` or `attachments.ocr_tsv`; results collapsed per note with `GROUP BY`, rank is max across body/OCR. |
 | 7.7 | OCR + translate on clip | Optional translation of clipped/OCR'd content via gateway `POST /ocr/translate` — useful for foreign-language documents |
 
 **Acceptance criteria:**
@@ -343,6 +343,8 @@ These items are out of scope for Stages 1–2 but documented for future planning
 - [x] ~~Notebook picker in editor toolbar~~ — completed 2026-04-13 (NoteNotebooks.vue dropdown next to tag picker; supports filter + inline create)
 - [x] ~~Reset checkboxes button~~ — completed 2026-04-13 (EditorToolbar shows Reset button when note contains `- [x]`; flips all checked task-list items to unchecked, using standard `ConfirmModal`)
 - [x] ~~Notebook count refresh bug~~ — fixed 2026-04-13 (notes store `createNote`/`updateNote`/`trashNote` now trigger `notebooksStore.fetchNotebooks()` so sidebar counts stay in sync; `updateNote` only refreshes when `notebook_id`/`is_inbox` changes to avoid hammering on autosave)
+- [ ] **[Security] Replace attachment query-string JWT with signed URLs.** `GET /api/v1/attachments/:id` currently accepts the JWT access token via `?token=` so `<img>`/`<iframe>` tags can render inline. This leaks the token into browser history, proxy logs, and referrer headers. Replace with short-lived signed attachment URLs: on note fetch, the backend mints an opaque HMAC token scoped to `(attachment_id, user_id, exp ~5min)`, distinct from the JWT; the attachments route validates the signed token instead of the bearer. Keep bearer-header path for the upload/delete routes.
+- [x] ~~[High] Search returned trashed notes~~ — fixed 2026-04-14 (`backend/src/routes/search.js` now filters `n.deleted_at IS NULL` alongside the user_id + tsv conditions, matching notes/graph/backlinks routes).
 - [ ] User settings page — email, display preferences
 - [ ] Multi-user workspaces (shared notebooks)
 - [ ] Role-based access control (viewer / editor / admin)
@@ -361,7 +363,7 @@ These items are out of scope for Stages 1–2 but documented for future planning
 |------|-----------------|---------|
 | 2026-04-04 | Fastify over Express | Lower overhead, built-in schema validation, Pino logging out of the box |
 | 2026-04-04 | Vue.js over React | PROJECT_DESCRIPTION specifies Vue 3 with Composition API; DEVELOPMENT_PRACTICES reference uses React/Express patterns — adapt infrastructure patterns (Docker, scripts, env separation) to Vue/Fastify stack |
-| 2026-04-04 | node-pg-migrate for migrations | Forward-only migrations with numbered SQL files; no rollbacks in production |
+| 2026-04-04 | Forward-only SQL migrations | Numbered raw-SQL files in `backend/migrations/` run by a custom runner (`backend/src/utils/migrate.js`). No ORM, no node-pg-migrate, no down migrations. |
 | 2026-04-04 | Naming convention | camelCase in JavaScript, snake_case in database columns |
 | 2026-04-04 | API response format | `{ data, meta }` for success; `{ error, message, statusCode }` for errors |
 | 2026-04-05 | Quick capture shortcut | Changed from `Ctrl+Shift+N` to `Alt+N` — browser intercepts Ctrl+Shift+N as "new incognito window" |
@@ -385,7 +387,11 @@ These items are out of scope for Stages 1–2 but documented for future planning
 | 2026-04-11 | OAuth callback auth bypass | Fastify plugin-level `addHook('onRequest')` cannot be overridden per-route with `onRequest: []`. Fixed by using Fastify encapsulation: callback in its own `register()` block without auth, other routes in a separate `register()` block with auth. |
 | 2026-04-11 | PWA service worker intercepts API | Workbox `navigateFallback` serves `index.html` for all navigation requests including `/api/` callback redirects. Fixed by adding `navigateFallbackDenylist: [/^\/api\//]` to Vite PWA workbox config. After deploy, users must unregister old service worker in DevTools. |
 | 2026-04-11 | Google Drive OAuth scope | `drive.file` scope only grants write access to files the app created. Changed to `drive` scope for full read/write. Move-to-processed is best-effort — import counted as success regardless. |
-| 2026-04-13 | Offline quick-capture | IndexedDB outbox (`frontend/src/lib/offlineOutbox.js`) queues notes/tasks when `apiFetch` throws `OfflineError`. Flushed on `online` event and on `OfflineStatus` mount. Backend idempotency via `notes.client_id` (migration 006) so flush replays are safe. Session hint (`noted.hasSession` in localStorage) lets the router load the app shell offline instead of bouncing to /login. iOS has no true background sync — flush runs on next app open. |
+| 2026-04-13 | Offline quick-capture | IndexedDB outbox (`frontend/src/lib/offlineOutbox.js`) queues notes/tasks when `apiFetch` throws `OfflineError`. Flushed on `online` event with backoff retry (handles flaky reconnects where `navigator.onLine` flips before the network is actually reachable). Backend idempotency via `notes.client_id` (migration 006) so flush replays are safe. Session hint (`noted.hasSession` in localStorage) lets the router load the app shell offline instead of bouncing to /login. `OfflineStatus` pill at bottom-left shows pending count, auto-flushes, allows manual retry on click. |
+| 2026-04-13 | API runtime cache removed from SW | Originally had Workbox `NetworkFirst` for `/api/v1/*` with `networkTimeoutSeconds: 10` and `method: 'GET'` filter. On Android Chrome installed PWA, POSTs to `/api/v1/notes` were delayed ~10s regardless of the method filter — hypothesis: Workbox / Chrome was still routing mutations through the handler. Removed the runtime cache entirely; API calls now go direct to the network. Attachment CacheFirst (GET-only) retained. |
+| 2026-04-13 | Offline capture PWA caveat | Works correctly in Chrome tab (desktop + mobile). Installed PWA (WebAPK) on Android still showed persistent POST latency even after unregistering the SW, likely a device- or Tailscale-routing issue; could not reproduce in Chrome tab on the same phone. Recommendation: use Chrome tab bookmark for offline capture on mobile. Feature remains fully functional in all browser contexts; only the standalone PWA install path is degraded. |
+| 2026-04-13 | Mobile editor delete button | Added trash icon to `MobileEditor.vue` header with `ConfirmModal` confirmation. Previously there was no way to delete a note from the mobile layout. |
+| 2026-04-13 | `createNote` non-blocking refresh | Post-save `fetchNotes()` is fire-and-forget (`catch(() => {})`) instead of awaited. Prevents a slow/failed list refresh from blocking Quick Capture's modal from closing. |
 | 2026-04-11 | Wikilink sync on save | Wikilinks parsed and resolved on every note POST/PUT. Delete-then-insert pattern ensures stale links are removed. Case-insensitive title matching via `LOWER(title)`. Self-links excluded. |
 | 2026-04-11 | Graph service inline | Graph data built inline in route handlers rather than a separate service file — simpler for the current scale. |
 | 2026-04-11 | D3.js force graph | Using D3 v7 force simulation with forceLink, forceManyBody, forceCenter, forceCollide. Node radius scales with link count (6-18px for notes, 4-10px for tags). |
