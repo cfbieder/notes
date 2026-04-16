@@ -73,6 +73,7 @@ Update both:
 | `frontend/src/lib/tableParser.js` | Shared GFM pipe-table parse/serialize/align helpers (renderer, keymap, table editor modal) |
 | `frontend/src/components/ui/InsertTableModal.vue` | Rows/cols/alignment modal for inserting a new table |
 | `frontend/src/components/ui/TableEditorModal.vue` | Click-to-edit grid editor for existing tables (`<input>` cells, add/del row/col, per-col align) |
+| `frontend/src/lib/printNote.js` | Print/PDF export — renders markdown to HTML via markdown-it, opens styled print window |
 
 ## Dev Environment
 

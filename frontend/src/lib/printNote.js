@@ -187,20 +187,28 @@ export function printNote(title, markdownContent) {
 
   printWindow.document.close();
 
+  // Close window after print completes (or is cancelled)
+  printWindow.addEventListener('afterprint', () => printWindow.close());
+
+  function doPrint() {
+    printWindow.focus();
+    printWindow.print();
+    // Fallback close for browsers where afterprint doesn't fire
+    setTimeout(() => {
+      if (!printWindow.closed) printWindow.close();
+    }, 500);
+  }
+
   // Wait for images to load before printing
   const images = printWindow.document.querySelectorAll('img');
   if (images.length === 0) {
-    printWindow.focus();
-    printWindow.print();
+    doPrint();
   } else {
     let loaded = 0;
     const total = images.length;
     const onReady = () => {
       loaded++;
-      if (loaded >= total) {
-        printWindow.focus();
-        printWindow.print();
-      }
+      if (loaded >= total) doPrint();
     };
     images.forEach(img => {
       if (img.complete) {
@@ -211,10 +219,7 @@ export function printNote(title, markdownContent) {
       }
     });
     // Fallback: print after 5s even if some images haven't loaded
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-    }, 5000);
+    setTimeout(doPrint, 5000);
   }
 }
 

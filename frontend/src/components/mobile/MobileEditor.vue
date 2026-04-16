@@ -93,6 +93,10 @@ function onInsertImage(attachment) {
   scheduleSave();
 }
 
+function handlePrint() {
+  printNote(noteTitle.value, editorContent.value);
+}
+
 function onRemoveReference(attachmentId) {
   const pattern = new RegExp(`\\n?!\\[[^\\]]*\\]\\(/api/v1/attachments/${attachmentId}\\)\\n?`, 'g');
   editorContent.value = editorContent.value.replace(pattern, '\n');
@@ -119,6 +123,9 @@ function onRemoveReference(attachmentId) {
       >
         <Code v-if="uiStore.editorMode === 'normal'" :size="18" />
         <Eye v-else :size="18" />
+      </button>
+      <button class="print-btn" @click="handlePrint" title="Print or save as PDF">
+        <Printer :size="18" />
       </button>
       <button class="delete-btn" @click="showDeleteConfirm = true" title="Delete note">
         <Trash2 :size="18" />
@@ -202,6 +209,21 @@ function onRemoveReference(attachmentId) {
 .mode-toggle:hover { border-color: var(--accent-primary); color: var(--text-primary); }
 .mode-toggle.active {
   background: rgba(58, 134, 255, 0.12);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.print-btn {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.print-btn:hover {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
 }

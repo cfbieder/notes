@@ -133,6 +133,7 @@ Browser / PWA
      ├── Search module (notes + attachment OCR)
      ├── Attachments module (+ OCR via LLM gateway)
      ├── Reminders module
+     ├── Voice module (audio → Whisper transcription → idea)
      └── Integrations module (Google Drive import)
      │
      ▼
@@ -167,6 +168,7 @@ The core editing experience is inspired by TypeDown:
 - **Code blocks:** Syntax highlighting via CodeMirror's language packages.
 - **Autosave:** Debounced autosave (500ms after last keystroke). Save indicator in toolbar.
 - **Collapsible panels / focus mode:** The desktop three-pane layout supports collapsing the middle note list (`Alt+[`) and the bottom backlinks/graph/attachments stack (`Alt+]`) independently, or both at once via focus mode (`Alt+\`). Toggles are available in the editor toolbar (per-panel, when a note is open) and as a persistent Focus button in the sidebar footer. Collapsed state is persisted to `localStorage`.
+- **Print / Save as PDF:** Toolbar button (Printer icon) opens a print-friendly window with the note rendered as clean HTML via `markdown-it` (white background, Inter/Plus Jakarta Sans typography, proper page-break rules). Inline images load with auth tokens. Wikilinks render as plain text. The browser's native print dialog handles both physical printing and "Save as PDF". Available on desktop (EditorToolbar) and mobile (MobileEditor header).
 
 ### 5.2 Notebooks & Stacks (Stage 1)
 
@@ -198,7 +200,7 @@ Tags serve a dual purpose:
 A GTD-inspired frictionless capture system:
 
 - **Global capture shortcut:** Keyboard shortcut (e.g., `Ctrl+Shift+N`) opens a floating capture modal from anywhere in the app.
-- **Capture types:** Plain note, task/to-do, or idea. Ideas are a distinct `note_type` and live in a dedicated **Ideas** section rather than the Inbox.
+- **Capture types:** Plain note, task/to-do, idea, or voice. Ideas are a distinct `note_type` and live in a dedicated **Ideas** section rather than the Inbox. Voice captures are recorded via MediaRecorder, transcribed via Whisper, and saved as ideas.
 - **Inbox view:** A dedicated "Inbox" view shows all unallocated *note* captures in reverse chronological order.
 - **Ideas view:** A dedicated **💡 Ideas** view (sidebar entry + `Alt+I` shortcut, mobile home card) for notebook-less, pre-allocation captures. Each idea can be **promoted** to a regular note in a chosen notebook, **moved to a note** (appended as a bullet to an existing note's body, source soft-deleted), opened, or trashed — all actions available both from the Ideas list and from the editor toolbar when viewing an idea. Ideas are first-class across the app — they appear in All Notes, Search, Graph, and Tag views, distinguished by a 💡 chip rendered from `note_type`.
 - **Processing:** Each inbox item can be: converted to a full note, added as a task to an existing note, moved to a notebook, or discarded.
@@ -208,7 +210,9 @@ A GTD-inspired frictionless capture system:
 
 - **Inline tasks:** `- [ ]` checkboxes in any note create tasks linked to that note.
 - **Due dates:** Tasks can have a due date set via a date picker inline or in the task detail panel.
-- **Reminders:** Notes and tasks can have reminders that surface in a Reminders panel.
+- **Reminders:** Notes and tasks can have `reminder_at` timestamps. A **ReminderPicker** dropdown (bell icon) provides quick presets (due-date-aware: "1h before due", "Morning of", "Day before"; universal: "In 1 hour", "Tomorrow 9 AM", "Next Monday 9 AM") plus custom datetime and clear. Available in the task add form, per-task rows, and the note editor toolbar.
+- **Reminders panel:** Sidebar bell icon opens an overlay listing overdue (red) and upcoming reminders. Each row has **snooze** (15 min / 1 hour / Tomorrow 9 AM) and **dismiss** (clears reminder) action buttons. Click navigates to the linked note or Tasks view.
+- **Reminder notifications:** 60-second background poll detects newly-due reminders and fires persistent **toast notifications** (with a two-tone chime sound) plus optional **browser Notification API** alerts. Session-deduped via `sessionStorage`.
 - **Task list view:** A dedicated view shows all tasks across all notes, filterable by status (open / done) and due date.
 - **Inbox tasks:** Tasks created via quick capture live in the inbox until allocated to a note.
 
@@ -230,6 +234,7 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 | `Ctrl+K` | Open search palette |
 | `Alt+N` | Quick capture — new note |
 | `Alt+I` | Quick capture — new idea |
+| `Alt+V` | Quick capture — voice note |
 | `Alt+[` | Toggle note list panel |
 | `Alt+]` | Toggle backlinks / attachments panels |
 | `Alt+\` | Focus mode — collapse both panels |
@@ -244,6 +249,15 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **Timeouts:** nginx proxy timeouts bumped to 180s, backend `LLM_TRANSLATE_TIMEOUT_MS` 150s — both comfortably above typical translation time for the truncated payload.
 - **Failure modes:** Gateway unreachable → HTTP 502 with a helpful message (note is untouched). `LLM_ENABLED=false` → HTTP 503. Empty-content note → HTTP 400.
 - **Replaces earlier "translate on clip":** The web clipper originally had a translate checkbox in v0.2.0, but long-article translations exceeded the sync request window. The feature was moved to the main app in clipper v0.3.0 and backend Phase 8.11 above.
+
+### 5.6.3 Voice Note Capture (Phase 8.10, implemented)
+
+- **Action:** Quick Capture modal gains a 4th "Voice" tab (Note/Task/Idea/Voice), accessible via `Alt+V` or the mobile home Voice card.
+- **Recording:** Uses the browser `MediaRecorder` API to record WebM/Opus natively. 5-minute max recording, enforced client-side with a visible countdown.
+- **Pipeline:** On stop, the audio blob is uploaded to `POST /api/v1/notes/voice`. The backend writes the audio to a temp file, calls `llmService.transcribeAudio()` → LLM gateway `POST /transcribe` (Whisper medium, CPU int8, auto-detect language), creates an **idea** (`note_type='idea'`, notebook-less, not inbox) with the transcription as content, and saves the audio file as an attachment on the idea.
+- **Why ideas:** Voice memos are raw, unprocessed thoughts. Landing them as ideas lets the user review the transcription and use the existing Promote (→ note in a notebook) or Move-to-note (→ append to an existing note) workflows.
+- **Mobile:** The MobileHome 2x3 grid includes a Voice card in slot 6 that triggers Quick Capture in voice mode.
+- **Graceful degradation:** Voice tab hidden if `MediaRecorder` API unavailable (old browsers); endpoint returns 503 if `LLM_ENABLED=false`; gateway unreachable → 502.
 
 ### 5.7 File Attachments (Stage 1)
 
@@ -490,6 +504,7 @@ POST   /api/v1/notes/:id/restore    Clears deleted_at
 DELETE /api/v1/notes/:id?hard=true  Permanent delete (removes row + attachments on disk)
 GET    /api/v1/notes/:id/backlinks  Returns notes linking to this note
 GET    /api/v1/notes/:id/graph      Returns local graph data (nodes + edges, 1 degree)
+POST   /api/v1/notes/voice          Multipart audio upload → transcribe via Whisper → create idea + attachment
 ```
 
 `client_id` on `POST /notes` supports the offline outbox: replays with the same `(user_id, client_id)` resolve to the existing note instead of creating a duplicate.
@@ -524,6 +539,15 @@ POST   /api/v1/tasks                Body: { content, note_id, due_date, reminder
 PUT    /api/v1/tasks/:id
 DELETE /api/v1/tasks/:id
 GET    /api/v1/tasks/inbox          All tasks with note_id = NULL
+```
+
+### Reminders
+
+```
+GET    /api/v1/reminders            All reminders (overdue, upcoming, dismissed)
+GET    /api/v1/reminders/due        Reminders due now (for polling)
+PUT    /api/v1/reminders/:id/snooze Body: { type, snooze_until }
+PUT    /api/v1/reminders/:id/dismiss Body: { type }
 ```
 
 ### Graph
@@ -665,6 +689,7 @@ useUIStore          — sidebar state, active view, editor mode (normal/source),
 - [x] Google Drive import integration (OAuth, polling, manual scan)
 - [x] Web clipper browser extension (Chrome MV3) — article / selection / screenshot / link modes, Phase 7.1–7.3
 - [x] Note translation (Phase 8.11) — toolbar action, appends translated block, 28 languages via LLM gateway
+- [x] Voice note capture (Phase 8.10) — Quick Capture Voice tab, MediaRecorder → Whisper transcription → idea + audio attachment
 
 ### Backlog / Known Issues
 
@@ -835,8 +860,8 @@ The following are explicitly out of scope and will not be built:
 
 ---
 
-*Last updated: 2026-04-14*
-*Status: Stages 1–2 shipped and deployed to production. Phase 7 (Web Clipper & OCR) complete; Phase 7.7 rescoped to the note-level translate action (Phase 8.11, also complete). Next up: remaining Phase 8 tasks (pgvector, semantic search, summarization, task extraction, "ask my notes", audio capture).*
+*Last updated: 2026-04-16*
+*Status: Stages 1–2 shipped and deployed to production. Phase 7 (Web Clipper & OCR) complete. Phase 8.10 (voice capture) and 8.11 (note translate) shipped. Next up: remaining Phase 8 tasks (pgvector, semantic search, summarization, task extraction, "ask my notes").*
 
 ---
 

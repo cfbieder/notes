@@ -6,6 +6,7 @@ import { useTasksStore } from '../../stores/tasks.js';
 import { useRemindersStore } from '../../stores/reminders.js';
 import { useIdeasStore } from '../../stores/ideas.js';
 import { Plus, CheckSquare, Inbox, Search, ChevronDown, ChevronRight, Menu, Bell, Mic } from 'lucide-vue-next';
+import RemindersPanel from '../ui/RemindersPanel.vue';
 
 const emit = defineEmits(['open-sidebar', 'open-capture', 'open-voice-capture']);
 const router = useRouter();
@@ -15,6 +16,7 @@ const remindersStore = useRemindersStore();
 const ideasStore = useIdeasStore();
 
 const recentExpanded = ref(false);
+const showReminders = ref(false);
 const recentNotes = ref([]);
 
 onMounted(async () => {
@@ -131,10 +133,11 @@ onMounted(async () => {
           <span class="card-label">Search</span>
         </button>
         <!-- Slots 5 (Reminders) + 6 (Voice) -->
-        <div class="card small-card placeholder-card" aria-hidden="true">
+        <button class="card small-card" @click="showReminders = true">
           <Bell :size="22" />
-          <span class="card-label muted">Reminders</span>
-        </div>
+          <span class="card-label">Reminders</span>
+          <span v-if="remindersStore.overdueCount > 0" class="card-badge overdue-badge">{{ remindersStore.overdueCount }}</span>
+        </button>
         <button class="card small-card" @click="$emit('open-voice-capture')">
           <Mic :size="22" />
           <span class="card-label">Voice</span>
@@ -167,6 +170,7 @@ onMounted(async () => {
       </div>
     </div>
   </div>
+  <RemindersPanel v-if="showReminders" @close="showReminders = false" />
 </template>
 
 <style scoped>
@@ -281,6 +285,7 @@ onMounted(async () => {
   min-width: 20px;
   text-align: center;
 }
+.overdue-badge { background: #ff6b6b; }
 
 .recent-section {
   margin-top: 8px;
