@@ -7,7 +7,8 @@ import { useUIStore } from '../../stores/ui.js';
 import CodeMirrorEditor from '../editor/CodeMirrorEditor.vue';
 import AttachmentZone from '../editor/AttachmentZone.vue';
 import ConfirmModal from '../ui/ConfirmModal.vue';
-import { ArrowLeft, Code, Eye, Trash2 } from 'lucide-vue-next';
+import { ArrowLeft, Code, Eye, Trash2, Printer } from 'lucide-vue-next';
+import { printNote } from '../../lib/printNote.js';
 
 const props = defineProps({
   noteId: { type: String, required: true }
