@@ -1,7 +1,7 @@
 <script setup>
 import { useUIStore } from '../../stores/ui.js';
 import { computed } from 'vue';
-import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom } from 'lucide-vue-next';
+import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom, Printer } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
 import NoteNotebooks from './NoteNotebooks.vue';
 import ReminderPicker from '../ui/ReminderPicker.vue';
@@ -15,7 +15,7 @@ const props = defineProps({
   reminderAt: { type: [String, null], default: null }
 });
 
-const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'translate', 'insert-table', 'set-reminder']);
+const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'translate', 'insert-table', 'set-reminder', 'print']);
 
 const isIdea = computed(() => props.noteType === 'idea');
 
@@ -127,6 +127,15 @@ function onTitleInput(e) {
       </button>
 
       <button
+        class="print-btn"
+        @click="$emit('print')"
+        title="Print or save as PDF"
+      >
+        <Printer :size="14" />
+        <span>Print</span>
+      </button>
+
+      <button
         class="trash-btn"
         @click="$emit('trash')"
         title="Move to trash"
@@ -177,14 +186,16 @@ function onTitleInput(e) {
   .idea-btn span,
   .reset-btn span,
   .table-btn span,
-  .translate-btn span {
+  .translate-btn span,
+  .print-btn span {
     display: none;
   }
   .mode-toggle,
   .idea-btn,
   .reset-btn,
   .table-btn,
-  .translate-btn {
+  .translate-btn,
+  .print-btn {
     gap: 0;
     padding: 5px 8px;
   }
@@ -303,6 +314,25 @@ function onTitleInput(e) {
   transition: all 0.1s;
 }
 .translate-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.print-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.print-btn:hover {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
 }

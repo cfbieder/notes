@@ -22,6 +22,7 @@ import { FileText, X, Search } from 'lucide-vue-next';
 import { useAttachmentsStore } from '../stores/attachments.js';
 import { useNotebooksStore } from '../stores/notebooks.js';
 import { useGraphStore } from '../stores/graph.js';
+import { printNote } from '../lib/printNote.js';
 
 const attachmentsStore = useAttachmentsStore();
 const notebooksStore = useNotebooksStore();
@@ -67,6 +68,11 @@ function openTranslateModal() {
 async function setNoteReminder(value) {
   if (!notesStore.currentNote) return;
   await notesStore.updateNote(notesStore.currentNote.id, { reminder_at: value });
+}
+
+function handlePrint() {
+  if (!notesStore.currentNote) return;
+  printNote(noteTitle.value, editorContent.value);
 }
 
 async function confirmTranslate() {
@@ -411,6 +417,7 @@ function onMobileVoiceCapture() {
           @translate="openTranslateModal"
           @insert-table="openInsertTable"
           @set-reminder="setNoteReminder"
+          @print="handlePrint"
         />
         <div class="editor-body">
           <CodeMirrorEditor

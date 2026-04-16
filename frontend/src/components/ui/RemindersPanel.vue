@@ -14,12 +14,15 @@ onMounted(async () => {
   await remindersStore.fetchReminders();
 });
 
-function goToNote(noteId) {
+function goToReminder(r) {
   emit('close');
-  if (noteId) {
-    // Use nextTick to ensure panel closes before navigation
-    setTimeout(() => router.push(`/notes/${noteId}`), 50);
-  }
+  setTimeout(() => {
+    if (r.note_id) {
+      router.push(`/notes/${r.note_id}`);
+    } else if (r.type === 'task') {
+      router.push('/tasks');
+    }
+  }, 50);
 }
 
 function formatDate(dateStr) {
@@ -103,7 +106,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideSn
             :key="r.id + r.type"
             class="reminder-item overdue"
           >
-            <div class="reminder-body" @click="goToNote(r.note_id)">
+            <div class="reminder-body" @click="goToReminder(r)">
               <div class="reminder-content">{{ r.content }}</div>
               <div class="reminder-meta">
                 <span class="reminder-time">{{ formatDate(r.reminder_at) }}</span>
@@ -141,7 +144,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideSn
             :key="r.id + r.type"
             class="reminder-item"
           >
-            <div class="reminder-body" @click="goToNote(r.note_id)">
+            <div class="reminder-body" @click="goToReminder(r)">
               <div class="reminder-content">{{ r.content }}</div>
               <div class="reminder-meta">
                 <span class="reminder-time">{{ formatDate(r.reminder_at) }}</span>

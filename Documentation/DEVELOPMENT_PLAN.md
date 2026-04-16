@@ -665,9 +665,10 @@ Completed: 2026-04-16
 - **Keyboard shortcut:** `Alt+V` opens Quick Capture with Voice tab pre-selected.
 - **Mobile:** MobileHome 2x3 grid slot 6 (previously reserved) is now a Voice card that triggers Quick Capture in voice mode.
 - **Graceful degradation:** `LLM_ENABLED=false` → endpoint returns 503; `MediaRecorder` unavailable → Voice tab hidden; gateway unreachable → 502.
+- **Editor toolbar responsive fix:** `EditorToolbar.vue` toolbar was overflowing on narrow viewports (title truncated, buttons clipped off-screen). Fixed: toolbar and actions now `flex-wrap: wrap`; button text labels collapse to icon-only below 1200px via media query; title has `min-width: 160px` to prevent aggressive truncation.
 - **Files touched:**
   - Backend: `services/llmService.js`, `routes/voice.js` (new), `app.js`, `tests/phase8-voice.test.js` (new)
-  - Frontend: `components/ui/QuickCapture.vue`, `App.vue`, `components/ui/HelpModal.vue`, `components/mobile/MobileHome.vue`, `views/NotesView.vue`
+  - Frontend: `components/ui/QuickCapture.vue`, `App.vue`, `components/ui/HelpModal.vue`, `components/mobile/MobileHome.vue`, `views/NotesView.vue`, `components/editor/EditorToolbar.vue`
 - **Tests:** 19/19 passing (`phase8-voice.test.js`). Phase 4 (29/29), Phase 7 (22/22), Phase 10 (26/26) regression tests all green.
 
 ### Phase 4b — Reminders Enhancement ✅
