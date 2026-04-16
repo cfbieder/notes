@@ -5,7 +5,8 @@ import { useTasksStore } from '../stores/tasks.js';
 import { useNotesStore } from '../stores/notes.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
-import { CheckSquare, Square, Calendar, FileText, Trash2, Plus } from 'lucide-vue-next';
+import { CheckSquare, Square, Calendar, FileText, Trash2, Plus, Bell } from 'lucide-vue-next';
+import ReminderPicker from '../components/ui/ReminderPicker.vue';
 
 import { useMobile } from '../composables/useMobile.js';
 const { isMobile } = useMobile();
@@ -18,6 +19,7 @@ const filter = ref('open'); // 'all' | 'open' | 'done'
 const newTaskContent = ref('');
 const newTaskDue = ref('');
 const newTaskNoteId = ref('');
+const newTaskReminder = ref(null);
 
 onMounted(async () => {
   await tasksStore.fetchTasks();
@@ -52,11 +54,13 @@ async function addTask() {
   const data = { content };
   if (newTaskDue.value) data.due_date = newTaskDue.value;
   if (newTaskNoteId.value) data.note_id = newTaskNoteId.value;
+  if (newTaskReminder.value) data.reminder_at = newTaskReminder.value;
   try {
     await tasksStore.createTask(data);
     newTaskContent.value = '';
     newTaskDue.value = '';
     newTaskNoteId.value = '';
+    newTaskReminder.value = null;
     await tasksStore.fetchTasks();
   } catch (err) {
     console.error('Failed to create task:', err);
@@ -77,6 +81,33 @@ function isOverdue(dateStr) {
   if (!dateStr) return false;
   return new Date(dateStr) < new Date(new Date().toDateString());
 }
+
+async function updateTaskReminder(task, value) {
+  await tasksStore.updateTask(task.id, { reminder_at: value });
+}
+
+function formatReminderTime(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMs = d - now;
+  const diffMins = Math.round(diffMs / 60000);
+  const diffHours = Math.round(diffMs / 3600000);
+  const diffDays = Math.round(diffMs / 86400000);
+
+  if (diffMs < 0) {
+    const absMins = Math.abs(diffMins);
+    if (absMins < 60) return `${absMins}m overdue`;
+    const absHours = Math.abs(diffHours);
+    if (absHours < 24) return `${absHours}h overdue`;
+    return `${Math.abs(diffDays)}d overdue`;
+  }
+
+  if (diffMins < 60) return `in ${diffMins}m`;
+  if (diffHours < 24) return `in ${diffHours}h`;
+  if (diffDays < 7) return `in ${diffDays}d`;
+  return d.toLocaleDateString();
+}
 </script>
 
 <template>
@@ -95,6 +126,11 @@ function isOverdue(dateStr) {
         <Plus :size="16" class="add-icon" />
         <input v-model="newTaskContent" class="add-task-input" placeholder="Add a task..." @keydown.enter="addTask" />
         <input v-model="newTaskDue" type="date" class="add-task-date" />
+        <ReminderPicker
+          :modelValue="newTaskReminder"
+          :dueDate="newTaskDue"
+          @update:modelValue="newTaskReminder = $event"
+        />
         <button type="button" class="add-task-btn" @click="addTask" :disabled="!newTaskContent">Add</button>
       </div>
 
@@ -118,8 +154,18 @@ function isOverdue(dateStr) {
               <button v-if="task.note_title" class="task-note-link" @click="goToNote(task.note_id)">
                 <FileText :size="11" /> {{ task.note_title }}
               </button>
+              <span v-if="task.reminder_at" class="task-reminder" :class="{ overdue: new Date(task.reminder_at) < new Date() }">
+                <Bell :size="11" />
+                {{ formatReminderTime(task.reminder_at) }}
+              </span>
             </div>
           </div>
+          <ReminderPicker
+            :modelValue="task.reminder_at"
+            :dueDate="task.due_date"
+            size="small"
+            @update:modelValue="updateTaskReminder(task, $event)"
+          />
           <button class="task-delete" @click="removeTask(task.id)" title="Delete">
             <Trash2 :size="14" />
           </button>
@@ -161,6 +207,11 @@ function isOverdue(dateStr) {
           type="date"
           class="add-task-date"
         />
+        <ReminderPicker
+          :modelValue="newTaskReminder"
+          :dueDate="newTaskDue"
+          @update:modelValue="newTaskReminder = $event"
+        />
         <button type="button" class="add-task-btn" @click="addTask" :disabled="!newTaskContent">Add</button>
       </div>
 
@@ -201,8 +252,18 @@ function isOverdue(dateStr) {
                 <FileText :size="11" />
                 {{ task.note_title }}
               </button>
+              <span v-if="task.reminder_at" class="task-reminder" :class="{ overdue: new Date(task.reminder_at) < new Date() }">
+                <Bell :size="11" />
+                {{ formatReminderTime(task.reminder_at) }}
+              </span>
             </div>
           </div>
+          <ReminderPicker
+            :modelValue="task.reminder_at"
+            :dueDate="task.due_date"
+            size="small"
+            @update:modelValue="updateTaskReminder(task, $event)"
+          />
           <button class="task-delete" @click="removeTask(task.id)" title="Delete">
             <Trash2 :size="14" />
           </button>
@@ -399,6 +460,15 @@ function isOverdue(dateStr) {
   padding: 0;
 }
 .task-note-link:hover { text-decoration: underline; }
+
+.task-reminder {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--accent-warn);
+}
+.task-reminder.overdue { color: #ff6b6b; }
 
 .task-delete {
   background: none;

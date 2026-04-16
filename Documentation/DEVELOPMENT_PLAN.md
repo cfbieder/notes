@@ -1,7 +1,7 @@
 # Development Plan — Noted
 
 > Personal Knowledge & Task Management App
-> Status: Phases 0–6, 9 complete | Last updated: 2026-04-15
+> Status: Phases 0–6, 9 complete; 8.10, 8.11 shipped | Last updated: 2026-04-16
 
 ---
 
@@ -286,7 +286,7 @@ Browser / PWA
 | 8.7 | Note summarization | `POST /api/v1/notes/:id/summarize` — generates 2-3 sentence summary via gateway (phi4:14b). `NoteSummary.vue` — collapsible summary block at top of editor. Also used in note list panel as preview text (cached, regenerated on content change). |
 | 8.8 | Task extraction | "Extract tasks" button in editor toolbar. Sends note content to gateway (phi4:14b) with prompt to identify action items. Returns proposed tasks in a review modal — user can accept/edit/dismiss each before creation. `POST /api/v1/notes/:id/extract-tasks`. |
 | 8.9 | Natural language note query | "Ask my notes" mode in search palette. User types a question → backend embeds query → pgvector retrieves top-N relevant notes → sends to gateway with context for synthesis → returns answer with note citations (clickable links). `POST /api/v1/search/ask`. |
-| 8.10 | Audio note capture | Record audio in quick capture modal (MediaRecorder API) or upload audio file. Backend sends to gateway `POST /transcribe` (Whisper). Transcribed text becomes note content. Mobile FAB gets microphone option. Supports OGG, MP3, WAV, M4A. |
+| 8.10 | ✅ Audio note capture | Record audio in Quick Capture modal (MediaRecorder API, WebM/Opus native). Backend `POST /api/v1/notes/voice` receives audio, forwards to gateway `POST /transcribe` (Whisper medium, CPU int8), creates an **idea** (`note_type='idea'`, notebook-less) with transcription as content + audio file as attachment — user can promote/merge into a note via existing idea workflows. Quick Capture gains "Voice" tab (Note/Task/Idea/Voice). 5-minute max recording, auto-detect language. `Alt+V` shortcut. Mobile Home grid slot 6 is now a Voice card. Graceful degradation: Voice tab hidden if MediaRecorder unavailable; endpoint returns 503 if `LLM_ENABLED=false`. Tests: `backend/tests/phase8-voice.test.js` (19 assertions). |
 | 8.11 | ✅ Note translation | `POST /api/v1/notes/:id/translate` — accepts `{source_lang, target_lang}`, calls `llmService.translateText` → gateway `POST /translate`, appends the translated block below the original content (divider + labeled header) so both versions stay searchable. Frontend toolbar button on the note editor opens a modal with 28 hardcoded languages. Nginx proxy timeouts bumped to 180s for LLM endpoints. Long content is truncated at `LLM_TRANSLATE_MAX_CHARS` (default 8000). Tests: `backend/tests/phase8-translate.test.js` (11 assertions). |
 
 **Acceptance criteria:**
@@ -654,7 +654,43 @@ Completed: 2026-04-15
 - **Failure modes:** Gateway unreachable → 502, `LLM_ENABLED=false` → 503, empty-content note → 400, same source/target lang → 400.
 - **Tests:** `backend/tests/phase8-translate.test.js` (11 assertions), all passing against the real LLM gateway.
 
-**Next up:** Remaining Phase 8 tasks — pgvector + embeddings (8.1–8.2), semantic/hybrid search (8.3), related notes panel (8.4), smart tag suggestions (8.5), auto-title (8.6), summarization (8.7), task extraction (8.8), "Ask my notes" (8.9), audio capture (8.10).
+**Next up:** Remaining Phase 8 tasks — pgvector + embeddings (8.1–8.2), semantic/hybrid search (8.3), related notes panel (8.4), smart tag suggestions (8.5), auto-title (8.6), summarization (8.7), task extraction (8.8), "Ask my notes" (8.9).
+
+### Phase 8.10 — Voice Note Capture ✅
+Completed: 2026-04-16
+
+- **Backend:** `POST /api/v1/notes/voice` in `backend/src/routes/voice.js` — accepts multipart audio, writes to temp file, calls `llmService.transcribeAudio()` → gateway `POST /transcribe` (Whisper medium, CPU int8, auto-detect language), creates an **idea** (`note_type='idea'`, notebook-less, not inbox) with transcription as content, moves audio file to permanent attachment storage. Voice captures land in the Ideas section where they can be promoted to notes or merged into existing notes via the existing idea workflow. Empty transcription (silence) handled gracefully with placeholder text.
+- **LLM service:** Added `transcribeAudio()` and `isAudioCandidate()` to `llmService.js`. Supports WebM, OGG, MP3, WAV, M4A, FLAC, AAC, Opus. Timeout: `LLM_TRANSCRIBE_TIMEOUT_MS` (default 300s).
+- **Frontend — Voice tab:** Quick Capture modal gains a 4th "Voice" tab (Note/Task/Idea/Voice). Uses `MediaRecorder` API to record WebM/Opus natively. UI states: idle (mic button), recording (pulsing dot + elapsed timer + remaining time), transcribing (spinner), error (message + retry). 5-minute max recording enforced client-side. Tab hidden if `MediaRecorder` API unavailable.
+- **Keyboard shortcut:** `Alt+V` opens Quick Capture with Voice tab pre-selected.
+- **Mobile:** MobileHome 2x3 grid slot 6 (previously reserved) is now a Voice card that triggers Quick Capture in voice mode.
+- **Graceful degradation:** `LLM_ENABLED=false` → endpoint returns 503; `MediaRecorder` unavailable → Voice tab hidden; gateway unreachable → 502.
+- **Files touched:**
+  - Backend: `services/llmService.js`, `routes/voice.js` (new), `app.js`, `tests/phase8-voice.test.js` (new)
+  - Frontend: `components/ui/QuickCapture.vue`, `App.vue`, `components/ui/HelpModal.vue`, `components/mobile/MobileHome.vue`, `views/NotesView.vue`
+- **Tests:** 19/19 passing (`phase8-voice.test.js`). Phase 4 (29/29), Phase 7 (22/22), Phase 10 (26/26) regression tests all green.
+
+### Phase 4b — Reminders Enhancement ✅
+Completed: 2026-04-16
+
+**Goal:** Make reminders fully functional end-to-end — UI to set them, notifications when they fire, snooze/dismiss actions, and optional note-level reminders.
+
+**Implementation:**
+- **Backend — COALESCE null fix:** `PUT /tasks/:id` and `PUT /notes/:id` previously used `COALESCE` for `reminder_at`, making it impossible to clear a reminder to NULL. Both now use dynamic SET clause construction — only includes `reminder_at` when the key is present in the request body, allowing explicit null.
+- **Backend — Notes reminder_at support:** `POST /notes` and `PUT /notes/:id` schemas now accept `reminder_at` (type `date-time`, nullable). `GET /notes` list query includes `n.reminder_at` in SELECT. `GET /notes/:id` already returns `n.*`.
+- **Backend — Snooze/dismiss endpoints:** `PUT /api/v1/reminders/:id/snooze` (body: `{type, snooze_until}`) updates `reminder_at` on the specified task/note. `PUT /api/v1/reminders/:id/dismiss` (body: `{type}`) sets `reminder_at = NULL`, returns 204. Both validate ownership and return 404 for missing resources.
+- **Toast notification system:** Reusable `toasts.js` Pinia store (`addToast`, `removeToast`, max 3 visible, auto-dismiss by duration) + `ToastContainer.vue` (Teleported to body, bottom-right stack with slide-up transition, type-colored left borders, optional action button). Mounted in `App.vue`.
+- **Reminder notifications:** `reminders.js` store `checkDue()` now tracks seen reminder IDs in a `Set` (persisted to `sessionStorage`). New due reminders fire a warning toast (10s, "View" action navigates to the note) and a browser `Notification` if permission is granted. `requestNotificationPermission()` exposed for opt-in. Seen set cleared on `stopPolling()` (logout).
+- **ReminderPicker component:** `ReminderPicker.vue` — reusable datetime picker. Bell icon trigger (grey=unset, orange=active with relative time label). Click-open dropdown with quick presets (due-date-aware: "1h before due", "Morning of", "Day before"; always: "In 1 hour", "Tomorrow 9 AM", "Next Monday 9 AM"), custom `datetime-local` input, and clear button. Click-outside closes.
+- **Task reminder UI:** `TasksView.vue` — `ReminderPicker` in the add-task form (next to date input, passes `dueDate` for smart presets) and per task row (small bell icon, hover to open picker). Task rows display active reminders as colored time labels (orange for upcoming, red for overdue). Both desktop and mobile templates updated.
+- **RemindersPanel snooze/dismiss:** Each reminder row now has hover-reveal action buttons — Snooze dropdown (15 min / 1 hour / Tomorrow 9 AM) and Dismiss (BellOff icon, clears `reminder_at`). Actions call dedicated endpoints and refresh the list. Always visible on mobile.
+- **Note reminder in editor:** `EditorToolbar.vue` gains a `ReminderPicker` (between Table and Translate buttons). `NotesView.vue` handles the `set-reminder` emit via `notesStore.updateNote()`.
+
+**Files touched:**
+- Backend: `routes/tasks.js`, `routes/notes.js`, `routes/reminders.js`, `tests/phase4-reminders.test.js` (new, 29 assertions)
+- Frontend: `App.vue`, `stores/toasts.js` (new), `stores/reminders.js`, `components/ui/ToastContainer.vue` (new), `components/ui/ReminderPicker.vue` (new), `components/ui/RemindersPanel.vue`, `views/TasksView.vue`, `views/NotesView.vue`, `components/editor/EditorToolbar.vue`
+
+**Tests:** 29/29 passing (`phase4-reminders.test.js`). Phase 4 (29/29), Phase 7 (22/22), Phase 10 (26/26) regression tests all green.
 
 ### Phase 4 — Attachments, Reminders & PWA ✅
 Completed: 2026-04-06
@@ -696,7 +732,7 @@ Features:
 | ~~Phase 5~~ | ~~Production launch — Docker prod stack, Nginx, TLS, deploy script, backups, cron~~ | ✅ Complete |
 | ~~Phase 6~~ | ~~Knowledge Graph — wikilinks, backlinks, D3.js graph~~ | ✅ Complete |
 | ~~Phase 7~~ | ~~Web Clipper & OCR — LLM gateway OCR, Chrome MV3 extension~~ | ✅ Complete |
-| Phase 8 | LLM Intelligence — pgvector, semantic search, related notes, smart tags, summarization, task extraction, audio capture, natural language queries. **Note translate (8.11) already shipped.** | Next |
+| Phase 8 | LLM Intelligence — pgvector, semantic search, related notes, smart tags, summarization, task extraction, natural language queries. **Voice capture (8.10) and note translate (8.11) shipped.** | Next |
 
 ---
 

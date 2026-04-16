@@ -5,9 +5,9 @@ import { useNotesStore } from '../../stores/notes.js';
 import { useTasksStore } from '../../stores/tasks.js';
 import { useRemindersStore } from '../../stores/reminders.js';
 import { useIdeasStore } from '../../stores/ideas.js';
-import { Plus, CheckSquare, Inbox, Search, ChevronDown, ChevronRight, Menu, Bell } from 'lucide-vue-next';
+import { Plus, CheckSquare, Inbox, Search, ChevronDown, ChevronRight, Menu, Bell, Mic } from 'lucide-vue-next';
 
-const emit = defineEmits(['open-sidebar', 'open-capture']);
+const emit = defineEmits(['open-sidebar', 'open-capture', 'open-voice-capture']);
 const router = useRouter();
 const notesStore = useNotesStore();
 const tasksStore = useTasksStore();
@@ -130,12 +130,15 @@ onMounted(async () => {
           <Search :size="22" />
           <span class="card-label">Search</span>
         </button>
-        <!-- Slots 5 (Reminders) + 6 reserved -->
+        <!-- Slots 5 (Reminders) + 6 (Voice) -->
         <div class="card small-card placeholder-card" aria-hidden="true">
           <Bell :size="22" />
           <span class="card-label muted">Reminders</span>
         </div>
-        <div class="card small-card placeholder-card" aria-hidden="true"></div>
+        <button class="card small-card" @click="$emit('open-voice-capture')">
+          <Mic :size="22" />
+          <span class="card-label">Voice</span>
+        </button>
       </div>
     </div>
 

@@ -109,7 +109,7 @@ async function noteRoutes(fastify) {
     params.push(limit, offset);
     const result = await fastify.db.query(
       `SELECT DISTINCT n.id, n.title, n.content, n.notebook_id, n.is_inbox, n.note_type, n.pinned,
-              n.created_at, n.updated_at
+              n.reminder_at, n.created_at, n.updated_at
        FROM notes n ${joinClause}
        WHERE ${where}
        ORDER BY n.pinned DESC, n.updated_at DESC
@@ -170,13 +170,14 @@ async function noteRoutes(fastify) {
           notebook_id: { type: 'string', format: 'uuid' },
           is_inbox: { type: 'boolean' },
           note_type: { type: 'string', enum: ['note', 'idea'] },
+          reminder_at: { type: 'string', format: 'date-time' },
           client_id: { type: 'string', format: 'uuid' },
           tag_ids: { type: 'array', items: { type: 'string', format: 'uuid' } }
         }
       }
     }
   }, async (request, reply) => {
-    const { title, content, notebook_id, is_inbox, note_type, client_id, tag_ids } = request.body;
+    const { title, content, notebook_id, is_inbox, note_type, reminder_at, client_id, tag_ids } = request.body;
     const userId = request.user.id;
 
     // Idempotency: if this client_id already exists for the user, return existing row.
@@ -204,10 +205,10 @@ async function noteRoutes(fastify) {
     }
 
     const result = await fastify.db.query(
-      `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox, note_type, client_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox, note_type, reminder_at, client_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [userId, finalNotebookId || null, title || 'Untitled', content || '', is_inbox || false, finalNoteType, client_id || null]
+      [userId, finalNotebookId || null, title || 'Untitled', content || '', is_inbox || false, finalNoteType, reminder_at || null, client_id || null]
     );
 
     const note = result.rows[0];
@@ -241,6 +242,7 @@ async function noteRoutes(fastify) {
           pinned: { type: 'boolean' },
           is_inbox: { type: 'boolean' },
           note_type: { type: 'string', enum: ['note', 'idea'] },
+          reminder_at: { type: ['string', 'null'], format: 'date-time', nullable: true },
           tag_ids: { type: 'array', items: { type: 'string', format: 'uuid' } }
         }
       }
@@ -249,17 +251,30 @@ async function noteRoutes(fastify) {
     const { id } = request.params;
     const { title, content, notebook_id, pinned, is_inbox, note_type, tag_ids } = request.body;
 
+    // Build SET clause — reminder_at needs explicit null handling
+    const setClauses = [
+      'title = COALESCE($1, title)',
+      'content = COALESCE($2, content)',
+      'notebook_id = COALESCE($3, notebook_id)',
+      'pinned = COALESCE($4, pinned)',
+      'is_inbox = COALESCE($5, is_inbox)',
+      'note_type = COALESCE($6, note_type)'
+    ];
+    const params = [title, content, notebook_id, pinned, is_inbox, note_type];
+    let idx = 7;
+
+    if ('reminder_at' in request.body) {
+      setClauses.push(`reminder_at = $${idx++}`);
+      params.push(request.body.reminder_at);
+    }
+
+    params.push(id, request.user.id);
     const result = await fastify.db.query(
       `UPDATE notes
-       SET title = COALESCE($1, title),
-           content = COALESCE($2, content),
-           notebook_id = COALESCE($3, notebook_id),
-           pinned = COALESCE($4, pinned),
-           is_inbox = COALESCE($5, is_inbox),
-           note_type = COALESCE($6, note_type)
-       WHERE id = $7 AND user_id = $8 AND deleted_at IS NULL
+       SET ${setClauses.join(', ')}
+       WHERE id = $${idx++} AND user_id = $${idx} AND deleted_at IS NULL
        RETURNING *`,
-      [title, content, notebook_id, pinned, is_inbox, note_type, id, request.user.id]
+      params
     );
 
     if (result.rows.length === 0) {

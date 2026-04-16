@@ -64,6 +64,11 @@ function openTranslateModal() {
   };
 }
 
+async function setNoteReminder(value) {
+  if (!notesStore.currentNote) return;
+  await notesStore.updateNote(notesStore.currentNote.id, { reminder_at: value });
+}
+
 async function confirmTranslate() {
   if (!notesStore.currentNote) return;
   const { sourceLang, targetLang } = translateModal.value;
@@ -350,6 +355,11 @@ function onMobileCapture() {
   // Trigger the global Alt+N handler in App.vue
   window.dispatchEvent(new KeyboardEvent('keydown', { altKey: true, key: 'n' }));
 }
+
+function onMobileVoiceCapture() {
+  // Trigger the global Alt+V handler in App.vue
+  window.dispatchEvent(new KeyboardEvent('keydown', { altKey: true, key: 'v' }));
+}
 </script>
 
 <template>
@@ -364,6 +374,7 @@ function onMobileCapture() {
     <MobileHome
       @open-sidebar="mobileSidebarOpen = true"
       @open-capture="onMobileCapture"
+      @open-voice-capture="onMobileVoiceCapture"
     />
 
     <!-- Mobile sidebar overlay -->
@@ -391,6 +402,7 @@ function onMobileCapture() {
           :noteTitle="noteTitle"
           :noteContent="editorContent"
           :noteType="notesStore.currentNote?.note_type"
+          :reminderAt="notesStore.currentNote?.reminder_at"
           @update:noteTitle="onTitleChange"
           @trash="trashCurrentNote"
           @reset-checkboxes="resetCheckboxes"
@@ -398,6 +410,7 @@ function onMobileCapture() {
           @merge="openMergeModal"
           @translate="openTranslateModal"
           @insert-table="openInsertTable"
+          @set-reminder="setNoteReminder"
         />
         <div class="editor-body">
           <CodeMirrorEditor

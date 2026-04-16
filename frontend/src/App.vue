@@ -7,6 +7,7 @@ import MobileFAB from './components/mobile/MobileFAB.vue';
 import InstallBanner from './components/ui/InstallBanner.vue';
 import OfflineStatus from './components/ui/OfflineStatus.vue';
 import HelpModal from './components/ui/HelpModal.vue';
+import ToastContainer from './components/ui/ToastContainer.vue';
 import { useAuthStore } from './stores/auth.js';
 import { useUIStore } from './stores/ui.js';
 
@@ -41,6 +42,16 @@ function onKeydown(e) {
     e.preventDefault();
     if (authStore.isAuthenticated) {
       captureInitialType.value = 'idea';
+      showCapture.value = true;
+      showSearch.value = false;
+    }
+  }
+
+  // Alt+V — Quick capture (Voice tab)
+  if (e.altKey && e.key === 'v') {
+    e.preventDefault();
+    if (authStore.isAuthenticated) {
+      captureInitialType.value = 'voice';
       showCapture.value = true;
       showSearch.value = false;
     }
@@ -102,6 +113,7 @@ onBeforeUnmount(() => {
   <InstallBanner />
   <OfflineStatus v-if="authStore.isAuthenticated" />
   <HelpModal v-if="uiStore.showHelp" @close="uiStore.showHelp = false" />
+  <ToastContainer />
 </template>
 
 <style>

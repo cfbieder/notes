@@ -1,11 +1,11 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed, onBeforeUnmount } from 'vue';
 import { useNotesStore } from '../../stores/notes.js';
 import { useTasksStore } from '../../stores/tasks.js';
 import { useIdeasStore } from '../../stores/ideas.js';
-import { api, OfflineError } from '../../api/client.js';
+import { api, apiUpload, OfflineError } from '../../api/client.js';
 import { enqueue, KIND_NOTE, KIND_TASK } from '../../lib/offlineOutbox.js';
-import { X, FileText, CheckSquare } from 'lucide-vue-next';
+import { X, FileText, CheckSquare, Mic, Square, Loader } from 'lucide-vue-next';
 
 const props = defineProps({
   initialType: { type: String, default: 'note' }
@@ -16,10 +16,145 @@ const tasksStore = useTasksStore();
 const ideasStore = useIdeasStore();
 
 const content = ref('');
-const captureType = ref(props.initialType); // 'note' | 'task' | 'idea'
+const captureType = ref(props.initialType); // 'note' | 'task' | 'idea' | 'voice'
 const loading = ref(false);
 const status = ref(null); // null | 'saved-offline'
 const inputRef = ref(null);
+
+// --- Voice recording state ---
+const MAX_RECORDING_SECONDS = 300; // 5 minutes
+const isRecording = ref(false);
+const recordingSeconds = ref(0);
+const voiceStatus = ref(null); // null | 'recording' | 'transcribing' | 'done' | 'error'
+const voiceError = ref('');
+let mediaRecorder = null;
+let audioChunks = [];
+let recordingTimer = null;
+
+const hasMediaRecorder = typeof window !== 'undefined' && !!window.MediaRecorder;
+
+const formattedTime = computed(() => {
+  const m = Math.floor(recordingSeconds.value / 60);
+  const s = recordingSeconds.value % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+});
+
+const remainingTime = computed(() => {
+  const left = MAX_RECORDING_SECONDS - recordingSeconds.value;
+  const m = Math.floor(left / 60);
+  const s = left % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+});
+
+async function startRecording() {
+  voiceError.value = '';
+  voiceStatus.value = null;
+  audioChunks = [];
+  recordingSeconds.value = 0;
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Prefer webm/opus, fall back to whatever the browser supports
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : '';
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      // Stop all tracks to release the microphone
+      stream.getTracks().forEach(t => t.stop());
+      clearInterval(recordingTimer);
+      recordingTimer = null;
+    };
+
+    mediaRecorder.start(1000); // collect chunks every second
+    isRecording.value = true;
+    voiceStatus.value = 'recording';
+
+    recordingTimer = setInterval(() => {
+      recordingSeconds.value++;
+      if (recordingSeconds.value >= MAX_RECORDING_SECONDS) {
+        stopRecording();
+      }
+    }, 1000);
+  } catch (err) {
+    voiceError.value = err.name === 'NotAllowedError'
+      ? 'Microphone access denied. Please allow microphone access and try again.'
+      : 'Could not access microphone: ' + (err.message || 'unknown error');
+    voiceStatus.value = 'error';
+  }
+}
+
+async function stopRecording() {
+  if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+
+  return new Promise((resolve) => {
+    const prevOnStop = mediaRecorder.onstop;
+    mediaRecorder.onstop = (e) => {
+      if (prevOnStop) prevOnStop(e);
+      resolve();
+      handleVoiceUpload();
+    };
+    mediaRecorder.stop();
+    isRecording.value = false;
+  });
+}
+
+function cancelRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    const stream = mediaRecorder.stream;
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      clearInterval(recordingTimer);
+      recordingTimer = null;
+    };
+    mediaRecorder.stop();
+  }
+  isRecording.value = false;
+  voiceStatus.value = null;
+  audioChunks = [];
+  recordingSeconds.value = 0;
+}
+
+async function handleVoiceUpload() {
+  if (audioChunks.length === 0) return;
+
+  voiceStatus.value = 'transcribing';
+  loading.value = true;
+
+  const mimeType = mediaRecorder?.mimeType || 'audio/webm';
+  const ext = mimeType.includes('webm') ? '.webm' : mimeType.includes('ogg') ? '.ogg' : '.webm';
+  const blob = new Blob(audioChunks, { type: mimeType });
+  const file = new File([blob], `voice_recording${ext}`, { type: mimeType });
+
+  try {
+    const result = await apiUpload('/notes/voice', file);
+    voiceStatus.value = 'done';
+    ideasStore.fetchIdeas?.().catch(() => {});
+    emit('close');
+  } catch (err) {
+    voiceStatus.value = 'error';
+    voiceError.value = err.message || 'Failed to transcribe voice note';
+    loading.value = false;
+  }
+}
+
+// Cleanup on unmount
+onBeforeUnmount(() => {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    mediaRecorder.stop();
+  }
+  clearInterval(recordingTimer);
+});
+
+// --- Text capture (existing) ---
 
 function buildNotePayload(text, type) {
   const title = text.split('\n')[0].slice(0, 80);
@@ -112,30 +247,90 @@ async function handleCapture() {
         >
           <span class="idea-emoji">💡</span> Idea
         </button>
-      </div>
-
-      <textarea
-        ref="inputRef"
-        v-model="content"
-        class="capture-input"
-        :placeholder="captureType === 'task' ? 'What needs to be done?' : 'Capture a thought...'"
-        rows="4"
-        autofocus
-        @keydown.meta.enter="handleCapture"
-        @keydown.ctrl.enter="handleCapture"
-        @keydown.escape="$emit('close')"
-      />
-
-      <div v-if="status === 'saved-offline'" class="capture-offline-toast">
-        Saved offline — will sync when online.
-      </div>
-
-      <div class="capture-footer">
-        <span class="capture-hint">Ctrl+Enter to save</span>
-        <button class="capture-save" @click="handleCapture" :disabled="loading || !content.trim()">
-          {{ loading ? 'Saving...' : 'Capture' }}
+        <button
+          v-if="hasMediaRecorder"
+          class="type-btn"
+          :class="{ active: captureType === 'voice' }"
+          @click="captureType = 'voice'"
+        >
+          <Mic :size="14" /> Voice
         </button>
       </div>
+
+      <!-- Text capture (Note / Task / Idea) -->
+      <template v-if="captureType !== 'voice'">
+        <textarea
+          ref="inputRef"
+          v-model="content"
+          class="capture-input"
+          :placeholder="captureType === 'task' ? 'What needs to be done?' : 'Capture a thought...'"
+          rows="4"
+          autofocus
+          @keydown.meta.enter="handleCapture"
+          @keydown.ctrl.enter="handleCapture"
+          @keydown.escape="$emit('close')"
+        />
+
+        <div v-if="status === 'saved-offline'" class="capture-offline-toast">
+          Saved offline — will sync when online.
+        </div>
+
+        <div class="capture-footer">
+          <span class="capture-hint">Ctrl+Enter to save</span>
+          <button class="capture-save" @click="handleCapture" :disabled="loading || !content.trim()">
+            {{ loading ? 'Saving...' : 'Capture' }}
+          </button>
+        </div>
+      </template>
+
+      <!-- Voice capture -->
+      <template v-else>
+        <div class="voice-capture">
+          <!-- Idle state -->
+          <div v-if="!voiceStatus" class="voice-idle">
+            <button class="voice-record-btn" @click="startRecording">
+              <Mic :size="28" />
+            </button>
+            <p class="voice-hint">Tap to start recording (max 5 min)</p>
+          </div>
+
+          <!-- Recording state -->
+          <div v-else-if="voiceStatus === 'recording'" class="voice-recording">
+            <div class="voice-pulse-ring">
+              <div class="voice-pulse-dot"></div>
+            </div>
+            <div class="voice-timer">{{ formattedTime }}</div>
+            <div class="voice-remaining">{{ remainingTime }} remaining</div>
+            <div class="voice-recording-actions">
+              <button class="voice-cancel-btn" @click="cancelRecording" title="Cancel">
+                <X :size="18" />
+              </button>
+              <button class="voice-stop-btn" @click="stopRecording" title="Stop & transcribe">
+                <Square :size="18" />
+              </button>
+            </div>
+          </div>
+
+          <!-- Transcribing state -->
+          <div v-else-if="voiceStatus === 'transcribing'" class="voice-transcribing">
+            <Loader :size="28" class="voice-spinner" />
+            <p class="voice-hint">Transcribing your voice note...</p>
+          </div>
+
+          <!-- Error state -->
+          <div v-else-if="voiceStatus === 'error'" class="voice-error">
+            <p class="voice-error-text">{{ voiceError }}</p>
+            <button class="voice-retry-btn" @click="voiceStatus = null; voiceError = ''">
+              Try again
+            </button>
+          </div>
+        </div>
+
+        <div class="capture-footer">
+          <span class="capture-hint">Voice → transcribed to text → saved as idea</span>
+          <span></span>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -258,5 +453,174 @@ async function handleCapture() {
   border-radius: 6px;
   color: var(--accent-warn);
   font-size: 12px;
+}
+
+/* Voice capture styles */
+.voice-capture {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  min-height: 120px;
+}
+
+.voice-idle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.voice-record-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-warn);
+  background: rgba(255, 152, 0, 0.1);
+  color: var(--accent-warn);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.voice-record-btn:hover {
+  background: rgba(255, 152, 0, 0.2);
+  transform: scale(1.05);
+}
+
+.voice-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.voice-recording {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.voice-pulse-ring {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pulse-ring 1.5s ease-in-out infinite;
+}
+
+.voice-pulse-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+  50% { box-shadow: 0 0 0 16px rgba(239, 68, 68, 0); }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.voice-timer {
+  font-size: 28px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-primary);
+}
+
+.voice-remaining {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.voice-recording-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.voice-cancel-btn,
+.voice-stop-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.voice-cancel-btn:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+.voice-stop-btn {
+  border-color: var(--accent-warn);
+  color: var(--accent-warn);
+  background: rgba(255, 152, 0, 0.08);
+}
+.voice-stop-btn:hover {
+  background: rgba(255, 152, 0, 0.18);
+}
+
+.voice-transcribing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.voice-spinner {
+  animation: spin 1s linear infinite;
+  color: var(--accent-primary);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.voice-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-error-text {
+  font-size: 13px;
+  color: #ef4444;
+  margin: 0;
+  text-align: center;
+  max-width: 320px;
+}
+
+.voice-retry-btn {
+  padding: 6px 16px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+}
+.voice-retry-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 </style>

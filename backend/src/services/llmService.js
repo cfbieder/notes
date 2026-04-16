@@ -102,4 +102,52 @@ async function translateText({ text, sourceLang, targetLang }) {
   }
 }
 
-module.exports = { ocrFile, isOcrCandidate, isEnabled, translateText };
+// Transcription timeout — Whisper on CPU can be slow for longer audio.
+const TRANSCRIBE_TIMEOUT_MS = parseInt(process.env.LLM_TRANSCRIBE_TIMEOUT_MS, 10) || 300_000;
+
+const AUDIO_MIME_TYPES = new Set([
+  'audio/webm', 'audio/ogg', 'audio/mpeg', 'audio/mp3', 'audio/wav',
+  'audio/x-wav', 'audio/mp4', 'audio/x-m4a', 'audio/flac', 'audio/aac',
+  'audio/opus'
+]);
+
+function isAudioCandidate(mimeType) {
+  return AUDIO_MIME_TYPES.has(mimeType);
+}
+
+async function transcribeAudio({ filePath, filename, mimeType }) {
+  if (!ENABLED) return null;
+  if (!isAudioCandidate(mimeType)) return null;
+
+  const buffer = await fs.readFile(filePath);
+  const blob = new Blob([buffer], { type: mimeType });
+  const form = new FormData();
+  form.append('file', blob, filename || path.basename(filePath));
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TRANSCRIBE_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(`${GATEWAY_URL}/transcribe`, {
+      method: 'POST',
+      body: form,
+      signal: controller.signal
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Transcribe gateway ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const json = await res.json();
+    return {
+      text: json.text || '',
+      language: json.language || null,
+      languageProbability: json.language_probability || null,
+      duration: json.duration || null,
+      segments: json.segments || null
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+module.exports = { ocrFile, isOcrCandidate, isEnabled, translateText, transcribeAudio, isAudioCandidate };

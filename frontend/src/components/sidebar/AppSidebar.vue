@@ -48,6 +48,8 @@ onMounted(async () => {
     ideasStore.fetchIdeas()
   ]);
   remindersStore.startPolling(60000);
+  // Initial due check after a short delay (auth is already complete at this point)
+  setTimeout(() => remindersStore.checkDue(), 3000);
 });
 
 const unstackedNotebooks = computed(() =>

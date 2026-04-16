@@ -113,24 +113,37 @@ async function taskRoutes(fastify) {
           is_done: { type: 'boolean' },
           note_id: { type: 'string', format: 'uuid' },
           due_date: { type: 'string', format: 'date' },
-          reminder_at: { type: 'string', format: 'date-time' }
+          reminder_at: { type: ['string', 'null'], format: 'date-time', nullable: true }
         }
       }
     }
   }, async (request, reply) => {
     const { id } = request.params;
-    const { content, is_done, note_id, due_date, reminder_at } = request.body;
+    const { content, is_done, note_id, due_date } = request.body;
 
+    // Build SET clause dynamically — reminder_at needs explicit null handling
+    // (COALESCE can't clear a value to NULL)
+    const setClauses = [
+      'content = COALESCE($1, content)',
+      'is_done = COALESCE($2, is_done)',
+      'note_id = COALESCE($3, note_id)',
+      'due_date = COALESCE($4, due_date)'
+    ];
+    const params = [content, is_done, note_id, due_date];
+    let idx = 5;
+
+    if ('reminder_at' in request.body) {
+      setClauses.push(`reminder_at = $${idx++}`);
+      params.push(request.body.reminder_at);
+    }
+
+    params.push(id, request.user.id);
     const result = await fastify.db.query(
       `UPDATE tasks
-       SET content = COALESCE($1, content),
-           is_done = COALESCE($2, is_done),
-           note_id = COALESCE($3, note_id),
-           due_date = COALESCE($4, due_date),
-           reminder_at = COALESCE($5, reminder_at)
-       WHERE id = $6 AND user_id = $7
+       SET ${setClauses.join(', ')}
+       WHERE id = $${idx++} AND user_id = $${idx}
        RETURNING *`,
-      [content, is_done, note_id, due_date, reminder_at, id, request.user.id]
+      params
     );
 
     if (result.rows.length === 0) {

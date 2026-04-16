@@ -60,6 +60,12 @@ Update both:
 | `backend/src/services/llmService.js` | LLM gateway client (OCR now, embeddings/generation later) |
 | `backend/tests/phase7-clips.test.js` | Web clipper API integration tests |
 | `clipper/` | Chrome MV3 web-clipper extension (manifest, background, popup, options, vendor libs) |
+| `frontend/src/stores/toasts.js` | Global toast notification store |
+| `frontend/src/components/ui/ToastContainer.vue` | Toast notification renderer (bottom-right stack) |
+| `frontend/src/components/ui/ReminderPicker.vue` | Reusable reminder datetime picker with presets |
+| `backend/tests/phase4-reminders.test.js` | Reminders enhancement tests (29 assertions) |
+| `backend/src/routes/voice.js` | Voice note capture endpoint (`POST /api/v1/notes/voice`) |
+| `backend/tests/phase8-voice.test.js` | Voice note capture tests (19 assertions) |
 | `frontend/src/lib/codemirror/wikilinkRendering.js` | Wikilink rendering in editor |
 | `frontend/src/lib/codemirror/wikilinkAutocomplete.js` | `[[` autocomplete in editor |
 | `frontend/src/lib/codemirror/tableKeymap.js` | Source-mode Enter auto-row + Tab auto-extend inside GFM pipe tables |

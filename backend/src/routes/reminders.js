@@ -66,6 +66,65 @@ async function reminderRoutes(fastify) {
 
     return { data: [...tasksResult.rows, ...notesResult.rows] };
   });
+
+  // PUT /api/v1/reminders/:id/snooze — reschedule a reminder
+  fastify.put('/:id/snooze', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['type', 'snooze_until'],
+        properties: {
+          type: { type: 'string', enum: ['task', 'note'] },
+          snooze_until: { type: 'string', format: 'date-time' }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { type, snooze_until } = request.body;
+    const userId = request.user.id;
+
+    const table = type === 'task' ? 'tasks' : 'notes';
+    const extraCondition = type === 'note' ? ' AND deleted_at IS NULL' : '';
+    const result = await fastify.db.query(
+      `UPDATE ${table} SET reminder_at = $1 WHERE id = $2 AND user_id = $3${extraCondition} RETURNING id, reminder_at`,
+      [snooze_until, id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Reminder not found', statusCode: 404 });
+    }
+    return { data: result.rows[0] };
+  });
+
+  // PUT /api/v1/reminders/:id/dismiss — clear a reminder
+  fastify.put('/:id/dismiss', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['type'],
+        properties: {
+          type: { type: 'string', enum: ['task', 'note'] }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { type } = request.body;
+    const userId = request.user.id;
+
+    const table = type === 'task' ? 'tasks' : 'notes';
+    const extraCondition = type === 'note' ? ' AND deleted_at IS NULL' : '';
+    const result = await fastify.db.query(
+      `UPDATE ${table} SET reminder_at = NULL WHERE id = $1 AND user_id = $2${extraCondition} RETURNING id`,
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Reminder not found', statusCode: 404 });
+    }
+    return reply.code(204).send();
+  });
 }
 
 module.exports = reminderRoutes;

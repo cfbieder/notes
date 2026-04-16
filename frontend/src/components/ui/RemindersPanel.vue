@@ -1,21 +1,24 @@
 <script setup>
-import { onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRemindersStore } from '../../stores/reminders.js';
-import { Bell, BellRing, Clock, CheckCircle, FileText, X } from 'lucide-vue-next';
+import { Bell, BellRing, BellOff, Clock, CheckCircle, FileText, X } from 'lucide-vue-next';
 
 const emit = defineEmits(['close']);
 const router = useRouter();
 const remindersStore = useRemindersStore();
+
+const snoozeOpenId = ref(null);
 
 onMounted(async () => {
   await remindersStore.fetchReminders();
 });
 
 function goToNote(noteId) {
+  emit('close');
   if (noteId) {
-    router.push(`/notes/${noteId}`);
-    emit('close');
+    // Use nextTick to ensure panel closes before navigation
+    setTimeout(() => router.push(`/notes/${noteId}`), 50);
   }
 }
 
@@ -41,6 +44,38 @@ function formatDate(dateStr) {
   if (diffDays < 7) return `in ${diffDays}d`;
   return date.toLocaleDateString();
 }
+
+function toggleSnooze(r) {
+  const key = `${r.type}-${r.id}`;
+  snoozeOpenId.value = snoozeOpenId.value === key ? null : key;
+}
+
+async function snooze(r, minutes) {
+  const until = new Date(Date.now() + minutes * 60000).toISOString();
+  await remindersStore.snoozeReminder(r.id, r.type, until);
+  snoozeOpenId.value = null;
+}
+
+async function snoozeTomorrow(r) {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+  await remindersStore.snoozeReminder(r.id, r.type, tomorrow.toISOString());
+  snoozeOpenId.value = null;
+}
+
+async function dismiss(r) {
+  await remindersStore.dismissReminder(r.id, r.type);
+}
+
+function onClickOutsideSnooze(e) {
+  if (snoozeOpenId.value && !e.target.closest('.snooze-dropdown') && !e.target.closest('.action-snooze')) {
+    snoozeOpenId.value = null;
+  }
+}
+
+onMounted(() => document.addEventListener('mousedown', onClickOutsideSnooze));
+onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideSnooze));
 </script>
 
 <template>
@@ -67,14 +102,30 @@ function formatDate(dateStr) {
             v-for="r in remindersStore.overdue"
             :key="r.id + r.type"
             class="reminder-item overdue"
-            @click="goToNote(r.note_id)"
           >
-            <div class="reminder-content">{{ r.content }}</div>
-            <div class="reminder-meta">
-              <span class="reminder-time">{{ formatDate(r.reminder_at) }}</span>
-              <span v-if="r.note_title && r.type === 'task'" class="reminder-note">
-                <FileText :size="10" /> {{ r.note_title }}
-              </span>
+            <div class="reminder-body" @click="goToNote(r.note_id)">
+              <div class="reminder-content">{{ r.content }}</div>
+              <div class="reminder-meta">
+                <span class="reminder-time">{{ formatDate(r.reminder_at) }}</span>
+                <span v-if="r.note_title && r.type === 'task'" class="reminder-note">
+                  <FileText :size="10" /> {{ r.note_title }}
+                </span>
+              </div>
+            </div>
+            <div class="reminder-actions">
+              <div class="snooze-wrapper">
+                <button class="action-snooze" @click.stop="toggleSnooze(r)" title="Snooze">
+                  <Clock :size="13" />
+                </button>
+                <div v-if="snoozeOpenId === `${r.type}-${r.id}`" class="snooze-dropdown">
+                  <button @click.stop="snooze(r, 15)">15 minutes</button>
+                  <button @click.stop="snooze(r, 60)">1 hour</button>
+                  <button @click.stop="snoozeTomorrow(r)">Tomorrow 9 AM</button>
+                </div>
+              </div>
+              <button class="action-dismiss" @click.stop="dismiss(r)" title="Dismiss">
+                <BellOff :size="13" />
+              </button>
             </div>
           </div>
         </div>
@@ -89,14 +140,30 @@ function formatDate(dateStr) {
             v-for="r in remindersStore.upcoming"
             :key="r.id + r.type"
             class="reminder-item"
-            @click="goToNote(r.note_id)"
           >
-            <div class="reminder-content">{{ r.content }}</div>
-            <div class="reminder-meta">
-              <span class="reminder-time">{{ formatDate(r.reminder_at) }}</span>
-              <span v-if="r.note_title && r.type === 'task'" class="reminder-note">
-                <FileText :size="10" /> {{ r.note_title }}
-              </span>
+            <div class="reminder-body" @click="goToNote(r.note_id)">
+              <div class="reminder-content">{{ r.content }}</div>
+              <div class="reminder-meta">
+                <span class="reminder-time">{{ formatDate(r.reminder_at) }}</span>
+                <span v-if="r.note_title && r.type === 'task'" class="reminder-note">
+                  <FileText :size="10" /> {{ r.note_title }}
+                </span>
+              </div>
+            </div>
+            <div class="reminder-actions">
+              <div class="snooze-wrapper">
+                <button class="action-snooze" @click.stop="toggleSnooze(r)" title="Snooze">
+                  <Clock :size="13" />
+                </button>
+                <div v-if="snoozeOpenId === `${r.type}-${r.id}`" class="snooze-dropdown">
+                  <button @click.stop="snooze(r, 15)">15 minutes</button>
+                  <button @click.stop="snooze(r, 60)">1 hour</button>
+                  <button @click.stop="snoozeTomorrow(r)">Tomorrow 9 AM</button>
+                </div>
+              </div>
+              <button class="action-dismiss" @click.stop="dismiss(r)" title="Dismiss">
+                <BellOff :size="13" />
+              </button>
             </div>
           </div>
         </div>
@@ -181,14 +248,21 @@ function formatDate(dateStr) {
 .overdue-label { color: #ff6b6b; }
 
 .reminder-item {
+  display: flex;
+  align-items: center;
   padding: 10px 16px;
-  cursor: pointer;
   transition: background-color 0.1s;
 }
 .reminder-item:hover { background: rgba(255, 255, 255, 0.04); }
 
 .reminder-item.overdue {
   border-left: 3px solid #ff6b6b;
+}
+
+.reminder-body {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
 }
 
 .reminder-content {
@@ -215,6 +289,66 @@ function formatDate(dateStr) {
   display: flex;
   align-items: center;
   gap: 3px;
+}
+
+.reminder-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.reminder-item:hover .reminder-actions { opacity: 1; }
+
+/* Always show actions on mobile */
+@media (max-width: 768px) {
+  .reminder-actions { opacity: 1; }
+}
+
+.action-snooze, .action-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+.action-snooze:hover { color: var(--accent-primary); background: rgba(58, 134, 255, 0.08); }
+.action-dismiss:hover { color: #ff6b6b; background: rgba(255, 107, 107, 0.08); }
+
+.snooze-wrapper {
+  position: relative;
+}
+
+.snooze-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 160px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 1001;
+  overflow: hidden;
+}
+
+.snooze-dropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+}
+.snooze-dropdown button:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
 }
 
 .empty-state {

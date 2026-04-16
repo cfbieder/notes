@@ -4,16 +4,18 @@ import { computed } from 'vue';
 import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
 import NoteNotebooks from './NoteNotebooks.vue';
+import ReminderPicker from '../ui/ReminderPicker.vue';
 
 const uiStore = useUIStore();
 
 const props = defineProps({
   noteTitle: { type: String, default: '' },
   noteContent: { type: String, default: '' },
-  noteType: { type: String, default: 'note' }
+  noteType: { type: String, default: 'note' },
+  reminderAt: { type: [String, null], default: null }
 });
 
-const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'translate', 'insert-table']);
+const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'translate', 'insert-table', 'set-reminder']);
 
 const isIdea = computed(() => props.noteType === 'idea');
 
@@ -110,6 +112,11 @@ function onTitleInput(e) {
         <span>Table</span>
       </button>
 
+      <ReminderPicker
+        :modelValue="reminderAt"
+        @update:modelValue="$emit('set-reminder', $event)"
+      />
+
       <button
         class="translate-btn"
         @click="$emit('translate')"
@@ -134,13 +141,15 @@ function onTitleInput(e) {
 .editor-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   padding: 12px 24px;
   border-bottom: 1px solid var(--border-subtle);
-  gap: 16px;
+  gap: 8px 16px;
 }
 
 .title-input {
-  flex: 1;
+  flex: 1 1 200px;
+  min-width: 160px;
   background: none;
   border: none;
   color: var(--text-primary);
@@ -158,7 +167,27 @@ function onTitleInput(e) {
 .toolbar-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Collapse button text labels on narrow viewports */
+@media (max-width: 1200px) {
+  .mode-toggle span,
+  .idea-btn span,
+  .reset-btn span,
+  .table-btn span,
+  .translate-btn span {
+    display: none;
+  }
+  .mode-toggle,
+  .idea-btn,
+  .reset-btn,
+  .table-btn,
+  .translate-btn {
+    gap: 0;
+    padding: 5px 8px;
+  }
 }
 
 .save-indicator {
@@ -167,10 +196,15 @@ function onTitleInput(e) {
   gap: 4px;
   font-size: 11px;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 .save-indicator.saving { color: var(--accent-warn); }
 .save-indicator.unsaved { color: var(--accent-warn); }
 .save-indicator.saved { color: var(--accent-success); }
+
+@media (max-width: 1200px) {
+  .save-indicator span { display: none; }
+}
 
 .mode-toggle {
   display: flex;

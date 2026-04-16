@@ -7,6 +7,7 @@ const shortcuts = [
   { keys: 'Ctrl+K', label: 'Open search palette' },
   { keys: 'Alt+N', label: 'Quick capture — new note' },
   { keys: 'Alt+I', label: 'Quick capture — new idea' },
+  { keys: 'Alt+V', label: 'Quick capture — voice note' },
   { keys: 'Alt+\\', label: 'Focus mode (collapse side panels)' },
   { keys: 'Alt+[', label: 'Toggle note list panel' },
   { keys: 'Alt+]', label: 'Toggle backlinks / attachments panels' },
