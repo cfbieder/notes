@@ -1,7 +1,7 @@
 <script setup>
 import { useUIStore } from '../../stores/ui.js';
 import { computed } from 'vue';
-import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom, Printer, RefreshCw } from 'lucide-vue-next';
+import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom, Printer, RefreshCw, Download } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
 import NoteNotebooks from './NoteNotebooks.vue';
 import ReminderPicker from '../ui/ReminderPicker.vue';
@@ -17,7 +17,7 @@ const props = defineProps({
   autoUpdate: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'translate', 'insert-table', 'set-reminder', 'print', 'toggle-auto-update']);
+const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'translate', 'insert-table', 'set-reminder', 'print', 'toggle-auto-update', 'download']);
 
 const isIdea = computed(() => props.noteType === 'idea');
 
@@ -138,6 +138,15 @@ function onTitleInput(e) {
       </button>
 
       <button
+        class="download-btn"
+        @click="$emit('download')"
+        title="Download as .md file"
+      >
+        <Download :size="14" />
+        <span>Download</span>
+      </button>
+
+      <button
         v-if="driveImported"
         class="auto-update-btn"
         :class="{ active: autoUpdate }"
@@ -201,6 +210,7 @@ function onTitleInput(e) {
   .table-btn span,
   .translate-btn span,
   .print-btn span,
+  .download-btn span,
   .auto-update-btn span {
     display: none;
   }
@@ -210,6 +220,7 @@ function onTitleInput(e) {
   .table-btn,
   .translate-btn,
   .print-btn,
+  .download-btn,
   .auto-update-btn {
     gap: 0;
     padding: 5px 8px;
@@ -348,6 +359,25 @@ function onTitleInput(e) {
   transition: all 0.1s;
 }
 .print-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.download-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.download-btn:hover {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
 }

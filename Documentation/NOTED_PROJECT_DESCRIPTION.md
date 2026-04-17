@@ -340,6 +340,14 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 
 - **Settings view (`/settings`):** Password change, Google Drive integration config/scan, and account-level preferences.
 
+### 5.16 Note Export & API Tokens (implemented)
+
+- **Download button:** Editor toolbar button triggers a browser download of the current note as a `.md` file (filename derived from title).
+- **Export API:** `GET /api/v1/notes/export/:title` returns raw markdown by note title (`Content-Type: text/markdown`). Supports authentication via Bearer header or `?token=` query param for curl/script usage.
+- **Long-lived API tokens:** `POST /api/v1/auth/token` creates a `noted_`-prefixed token (SHA-256 hashed in DB, shown once on creation). `GET /api/v1/auth/tokens` lists tokens (without values). `DELETE /api/v1/auth/token/:id` revokes a token. Optional expiry via `expires_in_days`. Tokens work anywhere JWTs do (Bearer header).
+- **Script workflow:** Users create a token via the API, then use `curl -H "Authorization: Bearer noted_..."` or `?token=noted_...` in shell scripts (e.g. `getDocs.sh`) to pull notes from remote machines over Tailscale.
+- **Code:** `backend/src/routes/export.js`, `backend/src/routes/auth.js` (token endpoints), `backend/src/plugins/auth.js` (token verification), `backend/migrations/011_api_tokens.sql`.
+
 ---
 
 ## 6. Data Model
@@ -487,13 +495,24 @@ CREATE TABLE import_history (
 CREATE INDEX import_history_user_idx       ON import_history(user_id);
 CREATE INDEX import_history_drive_file_idx ON import_history(drive_file_id);
 CREATE INDEX import_history_imported_at_idx ON import_history(imported_at DESC);
+
+-- Long-lived API tokens for script/CLI access (migration 011)
+CREATE TABLE api_tokens (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  token_hash  TEXT NOT NULL,                      -- SHA-256 of the noted_xxx token
+  last_used   TIMESTAMPTZ,
+  expires_at  TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
 ```
 
 ---
 
 ## 7. API Design
 
-All endpoints are prefixed with `/api/v1`. JWT token required in `Authorization: Bearer <token>` header for all routes except auth.
+All endpoints are prefixed with `/api/v1`. JWT token required in `Authorization: Bearer <token>` header (or long-lived API token with `noted_` prefix) for all routes except auth.
 
 ### Auth
 
@@ -501,6 +520,9 @@ All endpoints are prefixed with `/api/v1`. JWT token required in `Authorization:
 POST   /api/v1/auth/login          Body: { username, password }
 POST   /api/v1/auth/refresh         Uses httpOnly refresh token cookie
 POST   /api/v1/auth/logout
+POST   /api/v1/auth/token           Body: { name, expires_in_days? } — create API token (returns token once)
+GET    /api/v1/auth/tokens          List API tokens (name, last_used, expires_at)
+DELETE /api/v1/auth/token/:id       Revoke an API token
 ```
 
 ### Notes
@@ -511,6 +533,7 @@ POST   /api/v1/notes                Body: { title, content, notebook_id, tag_ids
 GET    /api/v1/notes/:id
 PUT    /api/v1/notes/:id            Body: { title, content, notebook_id, tag_ids, pinned, auto_update }
 DELETE /api/v1/notes/:id            Soft delete — sets deleted_at
+GET    /api/v1/notes/export/:title  Raw markdown by title (text/markdown, supports ?token= for scripts)
 GET    /api/v1/notes/trash          Lists soft-deleted notes for the user
 POST   /api/v1/notes/:id/restore    Clears deleted_at
 DELETE /api/v1/notes/:id?hard=true  Permanent delete (removes row + attachments on disk)

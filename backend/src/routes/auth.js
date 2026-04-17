@@ -166,6 +166,66 @@ async function authRoutes(fastify) {
     return { data: { message: 'Password updated' } };
   });
 
+  // POST /api/v1/auth/token — create a long-lived API token
+  fastify.post('/token', { onRequest: fastify.authenticate, schema: {
+    body: {
+      type: 'object',
+      required: ['name'],
+      properties: {
+        name: { type: 'string', minLength: 1, maxLength: 100 },
+        expires_in_days: { type: 'integer', minimum: 1, maximum: 365 }
+      }
+    }
+  }}, async (request) => {
+    const { name, expires_in_days } = request.body;
+    const userId = request.user.id;
+
+    const rawToken = 'noted_' + fastify.auth.generateApiToken();
+    const tokenHash = fastify.auth.hashApiToken(rawToken);
+
+    const expiresAt = expires_in_days
+      ? new Date(Date.now() + expires_in_days * 86400000).toISOString()
+      : null;
+
+    await fastify.db.query(
+      `INSERT INTO api_tokens (user_id, name, token_hash, expires_at)
+       VALUES ($1, $2, $3, $4)`,
+      [userId, name, tokenHash, expiresAt]
+    );
+
+    // Return the raw token ONCE — it cannot be retrieved again
+    return {
+      data: {
+        token: rawToken,
+        name,
+        expires_at: expiresAt,
+        message: 'Save this token — it will not be shown again.'
+      }
+    };
+  });
+
+  // GET /api/v1/auth/tokens — list API tokens (without the token value)
+  fastify.get('/tokens', { onRequest: fastify.authenticate }, async (request) => {
+    const result = await fastify.db.query(
+      `SELECT id, name, last_used, expires_at, created_at
+       FROM api_tokens WHERE user_id = $1 ORDER BY created_at DESC`,
+      [request.user.id]
+    );
+    return { data: result.rows };
+  });
+
+  // DELETE /api/v1/auth/token/:id — revoke an API token
+  fastify.delete('/token/:id', { onRequest: fastify.authenticate }, async (request, reply) => {
+    const result = await fastify.db.query(
+      `DELETE FROM api_tokens WHERE id = $1 AND user_id = $2 RETURNING id`,
+      [request.params.id, request.user.id]
+    );
+    if (result.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Token not found', statusCode: 404 });
+    }
+    return { data: { message: 'Token revoked' } };
+  });
+
   // POST /api/v1/auth/logout
   fastify.post('/logout', async (request, reply) => {
     reply.clearCookie('refreshToken', {

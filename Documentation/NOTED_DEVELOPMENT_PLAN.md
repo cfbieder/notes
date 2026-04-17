@@ -1,7 +1,7 @@
 # Development Plan — Noted
 
 > Personal Knowledge & Task Management App
-> Status: Phases 0–6, 9 complete; 8.10, 8.11, 9.10, 9.11 shipped | Last updated: 2026-04-17
+> Status: Phases 0–6, 9 complete; 8.10, 8.11, 9.10–9.12 shipped | Last updated: 2026-04-17
 
 ---
 
@@ -318,6 +318,7 @@ Browser / PWA
 | 9.9 | ✅ Docker/prod config | Google OAuth env vars in `docker-compose.prod.yml` and `.env.prod.example` |
 | 9.10 | ✅ Auto-update from Drive | `010_note_auto_update.sql` — `auto_update` boolean on notes. Per-note toggle (shown only for Drive-imported notes). When enabled, Drive scans overwrite note content if the Drive file was modified since last import. Preserves tags, folder, wikilinks. File stays in Drive folder (not moved to Processed). |
 | 9.11 | ✅ Search prefix filters | `from:drive` and `is:auto-update` prefix filters in search. Parsed client-side, passed as query params to `GET /search`. Filter-only queries (no text) return notes sorted by `updated_at`. Quick-filter buttons + removable chips in SearchView UI. HelpModal (Alt+/) updated with search filter reference section. |
+| 9.12 | ✅ Note export & API tokens | Download button in editor toolbar (browser `.md` download). `GET /api/v1/notes/export/:title` endpoint returns raw markdown (supports Bearer header and `?token=` query param). Long-lived API tokens (`noted_` prefix, SHA-256 hashed in DB) via `POST /api/v1/auth/token`, `GET /api/v1/auth/tokens`, `DELETE /api/v1/auth/token/:id`. Migration `011_api_tokens.sql`. |
 
 **Prerequisites:** Google Cloud project with Drive API enabled + OAuth2 credentials (Web application type). Redirect URI must include Tailscale domain.
 

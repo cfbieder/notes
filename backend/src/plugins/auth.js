@@ -1,6 +1,7 @@
 const fp = require('fastify-plugin');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 const SALT_ROUNDS = 10;
 
@@ -42,16 +43,27 @@ async function authPlugin(fastify) {
     return bcrypt.compare(password, hash);
   }
 
+  function generateApiToken() {
+    return crypto.randomBytes(32).toString('hex');
+  }
+
+  function hashApiToken(token) {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
   fastify.decorate('auth', {
     generateAccessToken,
     generateRefreshToken,
     verifyAccessToken,
     verifyRefreshToken,
     hashPassword,
-    comparePassword
+    comparePassword,
+    generateApiToken,
+    hashApiToken
   });
 
   // Authentication decorator for protected routes
+  // Supports JWT Bearer tokens and long-lived API tokens (prefixed with "noted_")
   fastify.decorate('authenticate', async function (request, reply) {
     const authHeader = request.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -59,8 +71,33 @@ async function authPlugin(fastify) {
       return;
     }
 
+    const token = authHeader.split(' ')[1];
+
+    // Long-lived API token (prefixed with "noted_")
+    if (token.startsWith('noted_')) {
+      const tokenHash = hashApiToken(token);
+      try {
+        const result = await fastify.db.query(
+          `SELECT at.id AS token_id, u.id, u.username
+           FROM api_tokens at JOIN users u ON u.id = at.user_id
+           WHERE at.token_hash = $1 AND (at.expires_at IS NULL OR at.expires_at > NOW())`,
+          [tokenHash]
+        );
+        if (result.rows.length === 0) {
+          reply.code(401).send({ error: 'Unauthorized', message: 'Invalid or expired API token', statusCode: 401 });
+          return;
+        }
+        request.user = { id: result.rows[0].id, username: result.rows[0].username };
+        // Update last_used in background
+        fastify.db.query('UPDATE api_tokens SET last_used = NOW() WHERE id = $1', [result.rows[0].token_id]).catch(() => {});
+      } catch {
+        reply.code(401).send({ error: 'Unauthorized', message: 'Token validation failed', statusCode: 401 });
+      }
+      return;
+    }
+
+    // Standard JWT token
     try {
-      const token = authHeader.split(' ')[1];
       const decoded = verifyAccessToken(token);
       request.user = decoded;
     } catch (err) {

@@ -81,6 +81,19 @@ function handlePrint() {
   printNote(noteTitle.value, editorContent.value);
 }
 
+function handleDownload() {
+  if (!notesStore.currentNote) return;
+  const title = noteTitle.value || 'Untitled';
+  const filename = title.replace(/[^a-zA-Z0-9_\- ]/g, '').replace(/\s+/g, '_') + '.md';
+  const blob = new Blob([editorContent.value], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 async function confirmTranslate() {
   if (!notesStore.currentNote) return;
   const { sourceLang, targetLang } = translateModal.value;
@@ -426,6 +439,7 @@ function onMobileVoiceCapture() {
           @insert-table="openInsertTable"
           @set-reminder="setNoteReminder"
           @print="handlePrint"
+          @download="handleDownload"
           @toggle-auto-update="toggleAutoUpdate"
         />
         <div class="editor-body">

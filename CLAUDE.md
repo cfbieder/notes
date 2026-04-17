@@ -76,6 +76,8 @@ Update all applicable:
 | `frontend/src/components/ui/TableEditorModal.vue` | Click-to-edit grid editor for existing tables (`<input>` cells, add/del row/col, per-col align) |
 | `frontend/src/lib/printNote.js` | Print/PDF export — renders markdown to HTML via markdown-it, opens styled print window |
 
+| `backend/src/routes/export.js` | Note export endpoint (`GET /api/v1/notes/export/:title`) |
+
 ## Dev Environment
 
 ```bash

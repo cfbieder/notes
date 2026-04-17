@@ -68,6 +68,7 @@ const registerRoutes = async () => {
   await fastify.register(require('./routes/graph'), { prefix: '/api/v1/graph' });
   await fastify.register(require('./routes/clips'), { prefix: '/api/v1/clips' });
   await fastify.register(require('./routes/voice'), { prefix: '/api/v1/notes/voice' });
+  await fastify.register(require('./routes/export'), { prefix: '/api/v1/notes/export' });
 };
 
 // Health check
