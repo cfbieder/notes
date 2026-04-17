@@ -73,7 +73,7 @@ project-root/
 │   ├── Project_Description/
 │   │   └── CURRENT_STATE.md         # Living project state doc
 │   └── Development_Plan/
-│       └── DEVELOPMENT_PLAN.md      # Roadmap, backlog, completed phases
+│       └── NOTED_DEVELOPMENT_PLAN.md      # Roadmap, backlog, completed phases
 ├── docker-compose.dev.yml           # Dev: DB container only
 ├── docker-compose.prod.yml          # Prod: DB + backend + nginx (full stack)
 ├── CLAUDE.md                        # AI assistant instructions
@@ -1050,8 +1050,8 @@ The single source of truth for the project. Contains:
 - **API Endpoints** (every route, method, auth requirement)
 - **Frontend & Backend Structure** breakdowns
 
-#### DEVELOPMENT_PLAN.md
-Location: `Project_Documentation/Development_Plan/DEVELOPMENT_PLAN.md`
+#### NOTED_DEVELOPMENT_PLAN.md
+Location: `Project_Documentation/Development_Plan/NOTED_DEVELOPMENT_PLAN.md`
 
 The roadmap and backlog. Contains:
 - **Project Objective** and architecture overview
@@ -1064,7 +1064,7 @@ The roadmap and backlog. Contains:
 
 ### Update Rules
 - **CURRENT_STATE.md**: Update after every task that changes structure, routes, schema, or configuration
-- **DEVELOPMENT_PLAN.md**: Mark items done, add new issues/backlog items discovered during work
+- **NOTED_DEVELOPMENT_PLAN.md**: Mark items done, add new issues/backlog items discovered during work
 
 ---
 
@@ -1085,14 +1085,14 @@ Update both of the following files to reflect the changes made:
 
 1. **`Project_Documentation/Project_Description/CURRENT_STATE.md`** — Update any affected sections
    (project structure, routes, API endpoints, database tables, scripts, etc.)
-2. **`Project_Documentation/Development_Plan/DEVELOPMENT_PLAN.md`** — Mark completed backlog items
+2. **`Project_Documentation/Development_Plan/NOTED_DEVELOPMENT_PLAN.md`** — Mark completed backlog items
    as done, add new known issues if discovered, or add new backlog items if the work reveals them
 
 ## Dashboard Impact Check
 
 After completing any feature, evaluate whether it should be reflected on the Dashboard or main
 summary view. Check if the feature produces data for header cards, summary sections, or status
-trackers. See `DEVELOPMENT_PLAN.md > Dashboard Impact Check` for full checklist.
+trackers. See `NOTED_DEVELOPMENT_PLAN.md > Dashboard Impact Check` for full checklist.
 
 ## When prompting for questions
 1. Always go through questions one at a time
