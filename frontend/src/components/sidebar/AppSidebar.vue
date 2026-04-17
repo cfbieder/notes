@@ -12,9 +12,15 @@ import RemindersPanel from '../ui/RemindersPanel.vue';
 import { useRemindersStore } from '../../stores/reminders.js';
 import {
   FileText, Inbox, CheckSquare, Search, Network, Trash2, Bell,
-  ChevronRight, ChevronDown, Plus, LogOut, FolderOpen, Tag, Settings, HelpCircle, Maximize2, Minimize2
+  ChevronRight, ChevronDown, Plus, LogOut, FolderOpen, Tag, Settings, HelpCircle, Maximize2, Minimize2,
+  Sparkles
 } from 'lucide-vue-next';
 import { useUIStore } from '../../stores/ui.js';
+import { useAIAssistStore } from '../../stores/aiAssist.js';
+import { useMobile } from '../../composables/useMobile.js';
+
+const aiAssistStore = useAIAssistStore();
+const { isMobile } = useMobile();
 
 const uiStore = useUIStore();
 
@@ -367,6 +373,10 @@ async function deleteNotebook() {
       <button class="nav-item" :class="{ active: route.path === '/graph' }" @click="goToGraph">
         <Network :size="16" />
         <span>Graph</span>
+      </button>
+      <button v-if="!isMobile" class="nav-item" @click="aiAssistStore.open()" title="AI Assist (⌘/Ctrl+Shift+A)">
+        <Sparkles :size="16" />
+        <span>AI Assist</span>
       </button>
       <button class="nav-item" @click="showReminders = true">
         <Bell :size="16" />

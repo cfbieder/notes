@@ -22,11 +22,13 @@ import { FileText, X, Search } from 'lucide-vue-next';
 import { useAttachmentsStore } from '../stores/attachments.js';
 import { useNotebooksStore } from '../stores/notebooks.js';
 import { useGraphStore } from '../stores/graph.js';
+import { useAIAssistStore } from '../stores/aiAssist.js';
 import { printNote } from '../lib/printNote.js';
 
 const attachmentsStore = useAttachmentsStore();
 const notebooksStore = useNotebooksStore();
 const graphStore = useGraphStore();
+const aiAssistStore = useAIAssistStore();
 
 const route = useRoute();
 const router = useRouter();
@@ -204,6 +206,14 @@ function onResize() {
   if (!isMobile.value) mobileSidebarOpen.value = false;
 }
 
+// Register the editor with the AI Assist store so the modal can offer
+// "Insert at cursor" while a note is open. Watching `editorRef` because the
+// CodeMirrorEditor mounts only when a note is loaded.
+watch(editorRef, (handle, prev) => {
+  if (prev) aiAssistStore.unregisterEditor(prev);
+  if (handle) aiAssistStore.registerEditor(handle);
+});
+
 onMounted(async () => {
   window.addEventListener('resize', onResize);
 
@@ -228,6 +238,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize);
   if (saveTimer) clearTimeout(saveTimer);
+  if (editorRef.value) aiAssistStore.unregisterEditor(editorRef.value);
 });
 
 // Watch route changes to load notes

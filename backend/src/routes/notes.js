@@ -176,12 +176,14 @@ async function noteRoutes(fastify) {
           note_type: { type: 'string', enum: ['note', 'idea'] },
           reminder_at: { type: 'string', format: 'date-time' },
           client_id: { type: 'string', format: 'uuid' },
-          tag_ids: { type: 'array', items: { type: 'string', format: 'uuid' } }
+          tag_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
+          is_ai_generated: { type: 'boolean' },
+          ai_prompt: { type: 'string', maxLength: 4000 }
         }
       }
     }
   }, async (request, reply) => {
-    const { title, content, notebook_id, is_inbox, note_type, reminder_at, client_id, tag_ids } = request.body;
+    const { title, content, notebook_id, is_inbox, note_type, reminder_at, client_id, tag_ids, is_ai_generated, ai_prompt } = request.body;
     const userId = request.user.id;
 
     // Idempotency: if this client_id already exists for the user, return existing row.
@@ -209,10 +211,10 @@ async function noteRoutes(fastify) {
     }
 
     const result = await fastify.db.query(
-      `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox, note_type, reminder_at, client_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox, note_type, reminder_at, client_id, is_ai_generated, ai_prompt)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [userId, finalNotebookId || null, title || 'Untitled', content || '', is_inbox || false, finalNoteType, reminder_at || null, client_id || null]
+      [userId, finalNotebookId || null, title || 'Untitled', content || '', is_inbox || false, finalNoteType, reminder_at || null, client_id || null, is_ai_generated || false, ai_prompt || null]
     );
 
     const note = result.rows[0];

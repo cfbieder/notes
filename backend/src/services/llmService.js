@@ -150,4 +150,149 @@ async function transcribeAudio({ filePath, filename, mimeType }) {
   }
 }
 
-module.exports = { ocrFile, isOcrCandidate, isEnabled, translateText, transcribeAudio, isAudioCandidate };
+// Text generation — used by AI Assist. Keep timeout well below nginx's
+// proxy timeout so long prompts fail visibly instead of dropping the socket.
+const GENERATE_TIMEOUT_MS = parseInt(process.env.LLM_GENERATE_TIMEOUT_MS, 10) || 180_000;
+// Default to qwen3:32b — best quality model on the gateway. Override with
+// LLM_GENERATION_MODEL if a faster/smaller model is preferred.
+const GENERATE_MODEL = process.env.LLM_GENERATION_MODEL || 'qwen3:32b';
+const CONTEXT_WINDOW_TOKENS = parseInt(process.env.LLM_CONTEXT_WINDOW, 10) || 32_000;
+
+function getContextWindow() {
+  return CONTEXT_WINDOW_TOKENS;
+}
+
+function getGenerationModel() {
+  return GENERATE_MODEL;
+}
+
+async function generateText({ prompt, model, system, maxTokens, temperature }) {
+  if (!ENABLED) return null;
+  if (!prompt || typeof prompt !== 'string') return null;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GENERATE_TIMEOUT_MS);
+
+  try {
+    const payload = {
+      model: model || GENERATE_MODEL,
+      prompt,
+      stream: false
+    };
+    if (system) payload.system = system;
+    if (maxTokens) payload.max_tokens = maxTokens;
+    if (temperature !== undefined) payload.temperature = temperature;
+
+    const res = await fetch(`${GATEWAY_URL}/llm/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Generate gateway ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const json = await res.json();
+    // Ollama returns { response: "..." }; cover other common shapes too.
+    const out = json.response || json.text || json.output || json.generated_text || json.completion || null;
+    return {
+      text: out,
+      model: json.model || payload.model,
+      promptTokens: json.prompt_eval_count || json.prompt_tokens || null,
+      completionTokens: json.eval_count || json.completion_tokens || null
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Streaming variant — calls the gateway with stream=true and invokes
+// onChunk(text) for each token as it arrives. Returns final metadata.
+async function generateTextStream({ prompt, model, system, maxTokens, temperature }, onChunk) {
+  if (!ENABLED) return null;
+  if (!prompt || typeof prompt !== 'string') return null;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GENERATE_TIMEOUT_MS);
+
+  try {
+    const payload = {
+      model: model || GENERATE_MODEL,
+      prompt,
+      stream: true
+    };
+    if (system) payload.system = system;
+    if (maxTokens) payload.max_tokens = maxTokens;
+    if (temperature !== undefined) payload.temperature = temperature;
+
+    const res = await fetch(`${GATEWAY_URL}/llm/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Generate gateway ${res.status}: ${body.slice(0, 200)}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let lastMeta = {};
+    let fullText = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (!line) continue;
+        try {
+          const obj = JSON.parse(line);
+          const piece = obj.response || obj.chunk || '';
+          if (piece) {
+            fullText += piece;
+            try { onChunk(piece); } catch {}
+          }
+          if (obj.done) lastMeta = obj;
+        } catch {
+          // ignore non-JSON lines
+        }
+      }
+    }
+
+    return {
+      text: fullText,
+      model: lastMeta.model || payload.model,
+      promptTokens: lastMeta.prompt_eval_count || null,
+      completionTokens: lastMeta.eval_count || null
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function listModels() {
+  if (!ENABLED) return [];
+  try {
+    const res = await fetch(`${GATEWAY_URL}/llm/models`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return Array.isArray(json.models) ? json.models : [];
+  } catch {
+    return [];
+  }
+}
+
+module.exports = {
+  ocrFile, isOcrCandidate, isEnabled,
+  translateText,
+  transcribeAudio, isAudioCandidate,
+  generateText, generateTextStream, getContextWindow, getGenerationModel,
+  listModels
+};

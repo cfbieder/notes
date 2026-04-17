@@ -8,11 +8,16 @@ import InstallBanner from './components/ui/InstallBanner.vue';
 import OfflineStatus from './components/ui/OfflineStatus.vue';
 import HelpModal from './components/ui/HelpModal.vue';
 import ToastContainer from './components/ui/ToastContainer.vue';
+import AIAssistModal from './components/ai/AIAssistModal.vue';
 import { useAuthStore } from './stores/auth.js';
 import { useUIStore } from './stores/ui.js';
+import { useAIAssistStore } from './stores/aiAssist.js';
+import { useMobile } from './composables/useMobile.js';
 
 const authStore = useAuthStore();
 const uiStore = useUIStore();
+const aiAssistStore = useAIAssistStore();
+const { isMobile } = useMobile();
 const showSearch = ref(false);
 const showCapture = ref(false);
 const captureInitialType = ref('note');
@@ -44,6 +49,14 @@ function onKeydown(e) {
       captureInitialType.value = 'idea';
       showCapture.value = true;
       showSearch.value = false;
+    }
+  }
+
+  // Cmd/Ctrl+Shift+A — AI Assist (desktop only)
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+    e.preventDefault();
+    if (authStore.isAuthenticated && !isMobile.value) {
+      aiAssistStore.toggle();
     }
   }
 
@@ -113,6 +126,7 @@ onBeforeUnmount(() => {
   <InstallBanner />
   <OfflineStatus v-if="authStore.isAuthenticated" />
   <HelpModal v-if="uiStore.showHelp" @close="uiStore.showHelp = false" />
+  <AIAssistModal v-if="aiAssistStore.isOpen && !isMobile" @close="aiAssistStore.close()" />
   <ToastContainer />
 </template>
 

@@ -269,6 +269,21 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **Mobile:** The MobileHome 2x3 grid includes a Voice card in slot 6 that triggers Quick Capture in voice mode.
 - **Graceful degradation:** Voice tab hidden if `MediaRecorder` API unavailable (old browsers); endpoint returns 503 if `LLM_ENABLED=false`; gateway unreachable → 502.
 
+### 5.6.4 AI Assist (Phase 8.12, implemented — desktop only)
+
+- **Action:** Sidebar entry "AI Assist" (sparkle icon) or `Cmd/Ctrl+Shift+A` opens a centered modal. Hidden on mobile (`useMobile()` breakpoint).
+- **Compose stage:** Prompt textarea + `NoteMultiPicker` (fuzzy search reuses `GET /notes?search=`, results render as removable chips). Live token gauge below the picker shows `~tokens / contextWindow` (configured via `LLM_CONTEXT_WINDOW`); turns amber at 85% (`warnTokens`) and red over limit. The user can still send when over limit — the LLM gateway truncates.
+- **Pipeline:** `POST /api/v1/ai-assist/generate { prompt, noteIds[] }` fetches the selected notes, concatenates them as `# {title}\n\n{body}` blocks separated by `---`, builds the final prompt, and calls `llmService.generateText` → LLM gateway `POST /llm/generate`. Default model is `qwen3:32b` (override with `LLM_GENERATION_MODEL`). Returns `{ output, model, sources, estimatedTokens }`. Does **not** create a note.
+- **Preview stage:** Modal switches to a preview pane with editable title (auto-suggested from prompt: `"AI: {first line truncated to 60 chars}"`) and editable body. Body has the LLM output followed by a `## Sources` section with `[[wikilinks]]` to each input note. Save calls `POST /notes` with `is_ai_generated=true` and `ai_prompt` persisted; existing wikilink sync creates backlinks automatically, so the AI note becomes first-class in the graph.
+- **Other endpoints:** `GET /ai-assist/config` returns `{ enabled, contextWindow, warnTokens, model }`. `POST /ai-assist/estimate` is pure utility for the live token gauge (no LLM call).
+- **Schema:** Migration `012_ai_generated_notes.sql` adds `is_ai_generated BOOLEAN` and `ai_prompt TEXT` to `notes`, plus a partial index on AI-generated notes.
+- **Graceful degradation:** Returns 503 when `LLM_ENABLED=false`; 502 when the gateway is unreachable. Modal shows a "disabled" state if the config endpoint reports `enabled: false`.
+- **Streaming (8.12.1):** When `stream: true` is sent, the route hijacks the reply and writes NDJSON chunks (`{chunk: "..."}`) followed by a final `{done: true, sources, model, ...}` line. Frontend reads the response body as a `ReadableStream` and appends tokens to the preview as they arrive. `X-Accel-Buffering: no` keeps nginx from buffering the stream.
+- **Model picker (8.12.1):** `GET /ai-assist/models` wraps the gateway's `/llm/models`. Modal header dropdown lets the user override the default model per-request; selection is persisted to localStorage.
+- **Prompt history (8.12.1):** Last 20 prompts persist to localStorage (`noted.aiAssist.history`). Dropdown under the prompt textarea — click to refill. Dedupes on insertion; "Clear history" action wipes the list.
+- **Condense sources (8.12.1):** Optional checkbox in the modal. When on, the backend runs each selected note through a fast model (`LLM_CONDENSE_MODEL`, default `phi4:14b`) with a "3-5 bullets" prompt before assembling the main prompt. Trades latency for fitting more notes in the context window. Best-effort: any per-note condense failure falls back to the original content.
+- **Insert at cursor (8.12.1):** When the modal is opened while a note is open in the editor, the preview stage shows a second action button alongside "Save as note." Clicking it inserts the AI output into the open note at the current cursor position via the editor's exposed `insertAtCursor()`. `NotesView.vue` registers/unregisters the CodeMirrorEditor handle into `aiAssistStore.editor`, so the modal knows whether an editor is available.
+
 ### 5.7 File Attachments (Stage 1)
 
 - **Supported types:** Images (PNG, JPG, GIF, WebP), PDFs, and common document types (DOCX, XLSX, TXT).
@@ -619,6 +634,20 @@ POST   /api/v1/clips                Body: { url, title?, content?, mode, noteboo
                                     also attaches the image and queues OCR automatically.
 ```
 
+### AI Assist (Phase 8.12 + 8.12.1)
+
+```
+GET    /api/v1/ai-assist/config             { enabled, contextWindow, warnTokens, model, condenseModel }
+GET    /api/v1/ai-assist/models             Returns array of model names from the gateway
+POST   /api/v1/ai-assist/estimate           Body: { prompt?, noteIds? }
+                                            Returns { estimatedTokens, characters, contextWindow }
+POST   /api/v1/ai-assist/generate           Body: { prompt, noteIds?, model?, condense?, stream? }
+                                            Default: JSON { output, model, sources, estimatedTokens, condensed }
+                                            stream=true: NDJSON chunks ({chunk:"..."}) then a final
+                                            {done:true, model, sources, ...} line.
+                                            Does NOT create a note — frontend previews then calls POST /notes.
+```
+
 ### Integrations — Google Drive
 
 ```
@@ -684,6 +713,7 @@ useAuthStore        — JWT tokens, user session
 useUIStore          — sidebar state, active view, editor mode (normal/source),
                       noteListCollapsed / contextPanelsCollapsed (persisted to
                       localStorage), focus-mode toggle, help-modal visibility
+useAIAssistStore    — AI Assist modal isOpen + last prompt (persisted to localStorage)
 ```
 
 ---

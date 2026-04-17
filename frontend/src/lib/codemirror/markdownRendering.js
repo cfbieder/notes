@@ -244,6 +244,11 @@ class TableWidget extends WidgetType {
       && this.sourceText === other.sourceText;
   }
 
+  get estimatedHeight() {
+    // Header row + body rows at ~28px each + 20px wrapper margin
+    return (this.rows.length + 1) * 28 + 20;
+  }
+
   ignoreEvent(event) {
     return event.type !== 'mousedown';
   }
@@ -373,8 +378,12 @@ function buildDecorations(view) {
         }
 
         // Hide blockquote markers: >
+        // Only extend past node.to if the next char is a space, never swallow newlines —
+        // an inline Decoration.replace that spans a line break confuses CodeMirror layout.
         if (node.name === 'QuoteMark') {
-          builder.add(node.from, Math.min(node.to + 1, doc.length), Decoration.replace({}));
+          const nextChar = doc.sliceString(node.to, Math.min(node.to + 1, doc.length));
+          const end = nextChar === ' ' ? node.to + 1 : node.to;
+          builder.add(node.from, end, Decoration.replace({}));
         }
 
         // Note: inline image rendering handled separately via regex scan below
