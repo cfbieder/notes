@@ -14,6 +14,13 @@ const shortcuts = [
   { keys: 'Alt+/', label: 'Show this help' },
   { keys: 'Esc', label: 'Close modal / palette' }
 ];
+
+const searchFilters = [
+  { filter: 'from:drive', label: 'All Google Drive-imported notes' },
+  { filter: 'is:auto-update', label: 'Notes with auto-update enabled' },
+  { filter: 'from:drive is:auto-update', label: 'Drive notes with auto-update on' },
+  { filter: 'from:drive meeting', label: 'Drive notes matching "meeting"' }
+];
 </script>
 
 <template>
@@ -21,15 +28,25 @@ const shortcuts = [
     <div class="help-overlay" @click.self="$emit('close')">
       <div class="help-modal">
         <div class="help-header">
-          <span>Keyboard Shortcuts</span>
+          <span>Help</span>
           <button class="help-close" @click="$emit('close')"><X :size="16" /></button>
         </div>
+        <div class="help-body">
+        <div class="help-section-header" style="border-top: none; margin-top: 0;">Keyboard Shortcuts</div>
         <ul class="help-list">
           <li v-for="s in shortcuts" :key="s.keys">
             <kbd>{{ s.keys }}</kbd>
             <span>{{ s.label }}</span>
           </li>
         </ul>
+        <div class="help-section-header">Search Filters</div>
+        <ul class="help-list">
+          <li v-for="f in searchFilters" :key="f.filter">
+            <kbd>{{ f.filter }}</kbd>
+            <span>{{ f.label }}</span>
+          </li>
+        </ul>
+        </div>
       </div>
     </div>
   </Teleport>
@@ -72,6 +89,18 @@ const shortcuts = [
   color: var(--text-muted);
   cursor: pointer;
   display: flex;
+}
+.help-body {
+  overflow-y: auto;
+  flex: 1;
+}
+.help-section-header {
+  padding: 12px 16px 0;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 4px;
 }
 .help-list {
   list-style: none;

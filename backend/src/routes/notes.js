@@ -144,7 +144,11 @@ async function noteRoutes(fastify) {
               COALESCE(
                 json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
                 FILTER (WHERE t.id IS NOT NULL), '[]'
-              ) AS tags
+              ) AS tags,
+              EXISTS(
+                SELECT 1 FROM import_history ih
+                WHERE ih.note_id = n.id AND ih.status = 'success'
+              ) AS drive_imported
        FROM notes n
        LEFT JOIN note_tags nt ON nt.note_id = n.id
        LEFT JOIN tags t ON t.id = nt.tag_id
@@ -243,6 +247,7 @@ async function noteRoutes(fastify) {
           is_inbox: { type: 'boolean' },
           note_type: { type: 'string', enum: ['note', 'idea'] },
           reminder_at: { type: ['string', 'null'], format: 'date-time', nullable: true },
+          auto_update: { type: 'boolean' },
           tag_ids: { type: 'array', items: { type: 'string', format: 'uuid' } }
         }
       }
@@ -266,6 +271,11 @@ async function noteRoutes(fastify) {
     if ('reminder_at' in request.body) {
       setClauses.push(`reminder_at = $${idx++}`);
       params.push(request.body.reminder_at);
+    }
+
+    if ('auto_update' in request.body) {
+      setClauses.push(`auto_update = $${idx++}`);
+      params.push(request.body.auto_update);
     }
 
     params.push(id, request.user.id);

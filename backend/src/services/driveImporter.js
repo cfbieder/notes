@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
 const { pipeline } = require('stream/promises');
+const { extractWikilinks, resolveWikilinks } = require('./wikilinkParser');
 
 async function importDriveFile(fastify, drive, file, userId, integrationId) {
   const uploadDir = process.env.UPLOAD_DIR || './uploads';
@@ -29,11 +30,33 @@ async function importDriveFile(fastify, drive, file, userId, integrationId) {
       const textContent = Buffer.concat(chunks).toString('utf-8');
       const title = path.basename(file.name, path.extname(file.name));
 
-      const noteResult = await fastify.db.query(
-        `INSERT INTO notes (user_id, title, content, is_inbox)
-         VALUES ($1, $2, $3, TRUE) RETURNING *`,
-        [userId, title, textContent]
+      // Check for an existing note with the same title that has auto_update enabled
+      const existingNote = await fastify.db.query(
+        `SELECT id FROM notes
+         WHERE user_id = $1 AND LOWER(title) = LOWER($2)
+           AND auto_update = TRUE AND deleted_at IS NULL
+         LIMIT 1`,
+        [userId, title]
       );
+
+      let noteResult;
+      if (existingNote.rows.length > 0) {
+        // Auto-update: replace content in place, preserving tags/folder/metadata
+        const noteId = existingNote.rows[0].id;
+        noteResult = await fastify.db.query(
+          `UPDATE notes SET content = $1, updated_at = NOW()
+           WHERE id = $2 AND user_id = $3 RETURNING *`,
+          [textContent, noteId, userId]
+        );
+        // Re-sync wikilinks for the updated content
+        await syncNoteWikilinks(fastify, noteId, userId, textContent);
+      } else {
+        noteResult = await fastify.db.query(
+          `INSERT INTO notes (user_id, title, content, is_inbox)
+           VALUES ($1, $2, $3, TRUE) RETURNING *`,
+          [userId, title, textContent]
+        );
+      }
 
       await logImport(fastify, userId, integrationId, file, noteResult.rows[0].id, 'success');
       return noteResult.rows[0];
@@ -100,6 +123,38 @@ async function importDriveFile(fastify, drive, file, userId, integrationId) {
     await logImport(fastify, userId, integrationId, file, null, 'error', err.message);
     throw err;
   }
+}
+
+async function syncNoteWikilinks(fastify, noteId, userId, content) {
+  const extracted = extractWikilinks(content);
+  await fastify.db.query('DELETE FROM note_links WHERE source_note_id = $1', [noteId]);
+  if (extracted.length === 0) return;
+
+  const titles = [...new Set(extracted.map(e => e.title.toLowerCase()))];
+  const titleResult = await fastify.db.query(
+    `SELECT id, LOWER(title) AS lower_title FROM notes
+     WHERE user_id = $1 AND deleted_at IS NULL AND LOWER(title) = ANY($2) AND id != $3`,
+    [userId, titles, noteId]
+  );
+
+  const titleToId = {};
+  titleResult.rows.forEach(r => { titleToId[r.lower_title] = r.id; });
+
+  const { resolved } = resolveWikilinks(extracted, titleToId);
+  if (resolved.length === 0) return;
+
+  const values = resolved.map((_, i) =>
+    `($1, $${i * 2 + 2}, $${i * 2 + 3})`
+  ).join(', ');
+  const params = [noteId];
+  resolved.forEach(r => { params.push(r.targetNoteId, r.contextSnippet); });
+
+  await fastify.db.query(
+    `INSERT INTO note_links (source_note_id, target_note_id, context_snippet)
+     VALUES ${values}
+     ON CONFLICT (source_note_id, target_note_id) DO UPDATE SET context_snippet = EXCLUDED.context_snippet`,
+    params
+  );
 }
 
 async function moveToProcessed(drive, fileId, processedFolderId) {

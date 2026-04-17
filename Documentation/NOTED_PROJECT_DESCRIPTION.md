@@ -1,4 +1,4 @@
-# PROJECT_DESCRIPTION.md
+# NOTED_PROJECT_DESCRIPTION.md
 
 # Noted — Personal Knowledge & Task Management App
 
@@ -221,13 +221,14 @@ A GTD-inspired frictionless capture system:
 - **Full-text search:** PostgreSQL `tsvector` full-text search across note titles and content.
 - **Attachment OCR search (implemented):** Attachments have an `ocr_text` / `ocr_tsv` column; a note matches if either the note body or any of its attachments' OCR text matches the query. OCR is produced via the local LLM/OCR gateway on upload (see migration `007_attachment_ocr_search.sql`).
 - **Filters:** Search results can be filtered by notebook, tag, date range, or attachment type.
+- **Prefix filters (implemented):** Gmail-style search operators parsed from the query string. `from:drive` filters to Google Drive-imported notes, `is:auto-update` filters to notes with auto-update enabled. Filters can be combined with each other and with text queries. Quick-filter buttons shown below the search input; active filters appear as removable chips.
 - **Keyboard-first:** Search triggered by `Ctrl+K` (command palette style). Results navigate with arrow keys.
 - **Soft-delete aware:** Search excludes trashed notes (`deleted_at IS NULL`), matching the rest of the app.
 - **Stage 3 — semantic search:** pgvector embeddings for "find notes similar to this concept" queries.
 
 ### 5.6.2 Keyboard Shortcuts & Help
 
-All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette convention), documented in an in-app `HelpModal` reachable via `Alt+/` or the sidebar-footer **Help** button.
+All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette convention), documented in an in-app `HelpModal` reachable via `Alt+/` or the sidebar-footer **Help** button. The Help modal also documents search filter syntax.
 
 | Shortcut | Action |
 |---|---|
@@ -238,8 +239,17 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 | `Alt+[` | Toggle note list panel |
 | `Alt+]` | Toggle backlinks / attachments panels |
 | `Alt+\` | Focus mode — collapse both panels |
-| `Alt+/` | Show keyboard shortcuts help |
+| `Alt+/` | Show help (shortcuts + search filters) |
 | `Esc` | Close active modal / palette |
+
+**Search filters** (type in search bar or Ctrl+K palette):
+
+| Filter | Result |
+|---|---|
+| `from:drive` | All Google Drive-imported notes |
+| `is:auto-update` | Notes with auto-update enabled |
+| `from:drive is:auto-update` | Drive notes with auto-update on |
+| `from:drive <text>` | Drive notes matching text query |
 
 ### 5.6.1 Note Translation (Phase 8.11, implemented)
 
@@ -316,6 +326,7 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **Folder targeting:** User selects one or more Drive folders; markdown and supported file types are imported as notes/attachments.
 - **Polling:** `drivePoller` runs on an interval and imports new/changed files idempotently.
 - **Manual scan:** A "Scan now" action in Settings triggers an immediate sync.
+- **Auto-update:** Per-note toggle (visible only on Drive-imported notes). When enabled, the poller detects Drive file modifications (via `modifiedTime`) and overwrites the note content, preserving tags, folder assignment, and wikilinks. Auto-update files remain in the import folder (not moved to Processed) so future changes are detected. Migration: `010_note_auto_update.sql`.
 - **Code:** `backend/src/services/driveImporter.js`, `backend/src/services/drivePoller.js`, `backend/src/routes/integrations.js`, `frontend/src/views/SettingsView.vue`.
 
 ### 5.14 Offline Quick Capture (implemented)
@@ -365,7 +376,7 @@ CREATE TABLE stacks (
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Notes (migrations 001, 002 soft-delete, 006 offline client_id, 008 clipper source_url)
+-- Notes (migrations 001, 002 soft-delete, 006 offline client_id, 008 clipper source_url, 010 auto_update)
 CREATE TABLE notes (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -379,6 +390,7 @@ CREATE TABLE notes (
   pinned      BOOLEAN DEFAULT FALSE,
   client_id   UUID,                               -- Idempotency for offline outbox replay
   source_url  TEXT,                               -- Origin URL for web-clipper notes (migration 008)
+  auto_update BOOLEAN NOT NULL DEFAULT FALSE,     -- Auto-update from Google Drive (migration 010)
   deleted_at  TIMESTAMPTZ,                        -- Soft delete / trash (NULL = live)
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW(),
@@ -497,7 +509,7 @@ POST   /api/v1/auth/logout
 GET    /api/v1/notes                Query: notebook_id, tag_id, search, is_inbox, limit, offset (excludes trashed)
 POST   /api/v1/notes                Body: { title, content, notebook_id, tag_ids, client_id? }
 GET    /api/v1/notes/:id
-PUT    /api/v1/notes/:id            Body: { title, content, notebook_id, tag_ids, pinned }
+PUT    /api/v1/notes/:id            Body: { title, content, notebook_id, tag_ids, pinned, auto_update }
 DELETE /api/v1/notes/:id            Soft delete — sets deleted_at
 GET    /api/v1/notes/trash          Lists soft-deleted notes for the user
 POST   /api/v1/notes/:id/restore    Clears deleted_at
@@ -569,7 +581,7 @@ DELETE /api/v1/attachments/:id
 ### Search
 
 ```
-GET    /api/v1/search               Query: q, notebook_id, tag_id, from, to
+GET    /api/v1/search               Query: q, notebook_id, tag_id, from, to, from_drive, auto_update
                                     Matches on notes.content_tsv OR attachments.ocr_tsv
                                     Filters deleted_at IS NULL
 ```
@@ -633,7 +645,7 @@ App.vue
 ├── InboxView.vue
 ├── TasksView.vue
 ├── SearchView.vue
-└── HelpModal.vue (keyboard shortcuts reference, Alt+/)
+└── HelpModal.vue (keyboard shortcuts + search filters reference, Alt+/)
 ```
 
 ### State Management (Pinia)
@@ -655,7 +667,7 @@ useUIStore          — sidebar state, active view, editor mode (normal/source),
 
 ## 9. Development Stages
 
-> **Note:** See `Documentation/DEVELOPMENT_PLAN.md` for the authoritative, in-progress tracker. This section is a high-level snapshot.
+> **Note:** See `Documentation/NOTED_DEVELOPMENT_PLAN.md` for the authoritative, in-progress tracker. This section is a high-level snapshot.
 
 ### Stage 1 — Web App MVP ✅ (shipped)
 
@@ -773,7 +785,7 @@ noted/
 │   └── noted.conf
 │
 ├── CLAUDE.md                    # Claude Code project context
-├── PROJECT_DESCRIPTION.md       # This file
+├── NOTED_PROJECT_DESCRIPTION.md  # This file
 └── docker-compose.yml           # Optional: local dev environment
 ```
 

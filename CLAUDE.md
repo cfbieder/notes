@@ -2,13 +2,14 @@
 
 ## Before Starting Any Task
 
-Read `Documentation/PROJECT_DESCRIPTION.md` for the full spec and `Documentation/DEVELOPMENT_PLAN.md` for current phase and backlog.
+Read `Documentation/NOTED_PROJECT_DESCRIPTION.md` for the full spec and `Documentation/NOTED_DEVELOPMENT_PLAN.md` for current phase and backlog.
 
 ## After Completing Any Task
 
-Update both:
-1. **`Documentation/DEVELOPMENT_PLAN.md`** — Mark completed items, add new issues/backlog items
-2. If schema, routes, or structure changed, note it in the relevant plan section
+Update all applicable:
+1. **`Documentation/NOTED_DEVELOPMENT_PLAN.md`** — Mark completed items, add new issues/backlog items
+2. **`Documentation/NOTED_PROJECT_DESCRIPTION.md`** — Update feature descriptions, data model, API docs
+3. If schema, routes, or structure changed, note it in the relevant section of both docs
 
 ## Tech Stack
 

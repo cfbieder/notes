@@ -114,7 +114,7 @@ class DrivePoller {
     // List files in the configured folder (not in subfolders, not trashed)
     const res = await drive.files.list({
       q: `'${folderId}' in parents AND trashed = false AND mimeType != 'application/vnd.google-apps.folder'`,
-      fields: 'files(id, name, mimeType, size, createdTime)',
+      fields: 'files(id, name, mimeType, size, createdTime, modifiedTime)',
       spaces: 'drive',
       pageSize: 100
     });
@@ -124,19 +124,36 @@ class DrivePoller {
       return { imported: 0, errors: [] };
     }
 
-    // Filter out already-imported files
+    // Filter out already-imported files (unless they match an auto-update note)
     const fileIds = files.map(f => f.id);
     const existing = await this.fastify.db.query(
-      `SELECT drive_file_id FROM import_history
-       WHERE integration_id = $1 AND drive_file_id = ANY($2) AND status = 'success'`,
+      `SELECT ih.drive_file_id, ih.note_id, ih.imported_at, n.auto_update
+       FROM import_history ih
+       LEFT JOIN notes n ON n.id = ih.note_id AND n.deleted_at IS NULL
+       WHERE ih.integration_id = $1 AND ih.drive_file_id = ANY($2) AND ih.status = 'success'`,
       [integration.id, fileIds]
     );
-    const importedIds = new Set(existing.rows.map(r => r.drive_file_id));
-    const newFiles = files.filter(f => !importedIds.has(f.id));
 
-    if (newFiles.length === 0) {
+    const importedMap = new Map();
+    for (const row of existing.rows) {
+      importedMap.set(row.drive_file_id, row);
+    }
+
+    const filesToProcess = files.filter(f => {
+      const prev = importedMap.get(f.id);
+      if (!prev) return true; // never imported
+      // Re-import if note has auto_update and file was modified after last import
+      if (prev.auto_update && f.modifiedTime) {
+        return new Date(f.modifiedTime) > new Date(prev.imported_at);
+      }
+      return false;
+    });
+
+    if (filesToProcess.length === 0) {
       return { imported: 0, errors: [] };
     }
+
+    const newFiles = filesToProcess;
 
     let imported = 0;
     const errors = [];
@@ -154,21 +171,28 @@ class DrivePoller {
         await importDriveFile(this.fastify, drive, file, integration.user_id, integration.id);
         imported++;
 
-        // Try to move to Processed subfolder, but don't fail the import if it errors
-        try {
-          let processedFolderId = integration.config.processed_folder_id;
-          if (!processedFolderId) {
-            processedFolderId = await ensureProcessedFolder(drive, folderId);
-            const updatedConfig = { ...integration.config, processed_folder_id: processedFolderId };
-            await this.fastify.db.query(
-              `UPDATE integrations SET config = $1 WHERE id = $2`,
-              [JSON.stringify(updatedConfig), integration.id]
-            );
-            integration.config.processed_folder_id = processedFolderId;
+        // Don't move to Processed if this was an auto-update re-import —
+        // the file must stay in the folder for future update scans.
+        const prevImport = importedMap.get(file.id);
+        const isAutoUpdateReimport = prevImport && prevImport.auto_update;
+
+        if (!isAutoUpdateReimport) {
+          // Try to move to Processed subfolder, but don't fail the import if it errors
+          try {
+            let processedFolderId = integration.config.processed_folder_id;
+            if (!processedFolderId) {
+              processedFolderId = await ensureProcessedFolder(drive, folderId);
+              const updatedConfig = { ...integration.config, processed_folder_id: processedFolderId };
+              await this.fastify.db.query(
+                `UPDATE integrations SET config = $1 WHERE id = $2`,
+                [JSON.stringify(updatedConfig), integration.id]
+              );
+              integration.config.processed_folder_id = processedFolderId;
+            }
+            await moveToProcessed(drive, file.id, processedFolderId);
+          } catch (moveErr) {
+            this.fastify.log.warn({ fileName: file.name, err: moveErr.message }, 'Could not move file to Processed folder (import succeeded)');
           }
-          await moveToProcessed(drive, file.id, processedFolderId);
-        } catch (moveErr) {
-          this.fastify.log.warn({ fileName: file.name, err: moveErr.message }, 'Could not move file to Processed folder (import succeeded)');
         }
       } catch (err) {
         this.fastify.log.error({ err, fileName: file.name }, 'Failed to import file');

@@ -70,6 +70,12 @@ async function setNoteReminder(value) {
   await notesStore.updateNote(notesStore.currentNote.id, { reminder_at: value });
 }
 
+async function toggleAutoUpdate() {
+  if (!notesStore.currentNote) return;
+  const newVal = !notesStore.currentNote.auto_update;
+  await notesStore.updateNote(notesStore.currentNote.id, { auto_update: newVal });
+}
+
 function handlePrint() {
   if (!notesStore.currentNote) return;
   printNote(noteTitle.value, editorContent.value);
@@ -409,6 +415,8 @@ function onMobileVoiceCapture() {
           :noteContent="editorContent"
           :noteType="notesStore.currentNote?.note_type"
           :reminderAt="notesStore.currentNote?.reminder_at"
+          :driveImported="notesStore.currentNote?.drive_imported || false"
+          :autoUpdate="notesStore.currentNote?.auto_update || false"
           @update:noteTitle="onTitleChange"
           @trash="trashCurrentNote"
           @reset-checkboxes="resetCheckboxes"
@@ -418,6 +426,7 @@ function onMobileVoiceCapture() {
           @insert-table="openInsertTable"
           @set-reminder="setNoteReminder"
           @print="handlePrint"
+          @toggle-auto-update="toggleAutoUpdate"
         />
         <div class="editor-body">
           <CodeMirrorEditor

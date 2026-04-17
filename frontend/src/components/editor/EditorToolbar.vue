@@ -1,7 +1,7 @@
 <script setup>
 import { useUIStore } from '../../stores/ui.js';
 import { computed } from 'vue';
-import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom, Printer } from 'lucide-vue-next';
+import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom, Printer, RefreshCw } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
 import NoteNotebooks from './NoteNotebooks.vue';
 import ReminderPicker from '../ui/ReminderPicker.vue';
@@ -12,10 +12,12 @@ const props = defineProps({
   noteTitle: { type: String, default: '' },
   noteContent: { type: String, default: '' },
   noteType: { type: String, default: 'note' },
-  reminderAt: { type: [String, null], default: null }
+  reminderAt: { type: [String, null], default: null },
+  driveImported: { type: Boolean, default: false },
+  autoUpdate: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'translate', 'insert-table', 'set-reminder', 'print']);
+const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'translate', 'insert-table', 'set-reminder', 'print', 'toggle-auto-update']);
 
 const isIdea = computed(() => props.noteType === 'idea');
 
@@ -136,6 +138,17 @@ function onTitleInput(e) {
       </button>
 
       <button
+        v-if="driveImported"
+        class="auto-update-btn"
+        :class="{ active: autoUpdate }"
+        @click="$emit('toggle-auto-update')"
+        :title="autoUpdate ? 'Auto-update enabled — Drive changes will overwrite this note' : 'Enable auto-update from Google Drive'"
+      >
+        <RefreshCw :size="14" />
+        <span>Auto Update</span>
+      </button>
+
+      <button
         class="trash-btn"
         @click="$emit('trash')"
         title="Move to trash"
@@ -187,7 +200,8 @@ function onTitleInput(e) {
   .reset-btn span,
   .table-btn span,
   .translate-btn span,
-  .print-btn span {
+  .print-btn span,
+  .auto-update-btn span {
     display: none;
   }
   .mode-toggle,
@@ -195,7 +209,8 @@ function onTitleInput(e) {
   .reset-btn,
   .table-btn,
   .translate-btn,
-  .print-btn {
+  .print-btn,
+  .auto-update-btn {
     gap: 0;
     padding: 5px 8px;
   }
@@ -333,6 +348,30 @@ function onTitleInput(e) {
   transition: all 0.1s;
 }
 .print-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.auto-update-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.auto-update-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+.auto-update-btn.active {
+  background-color: rgba(58, 134, 255, 0.12);
   border-color: var(--accent-primary);
   color: var(--accent-primary);
 }

@@ -5,7 +5,7 @@ import { useSearchStore } from '../stores/search.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import { useMobile } from '../composables/useMobile.js';
-import { Search, FileText } from 'lucide-vue-next';
+import { Search, FileText, RefreshCw, X } from 'lucide-vue-next';
 
 const { isMobile } = useMobile();
 
@@ -21,6 +21,20 @@ function onInput() {
   }, 300);
 }
 
+function removeFilter(filter) {
+  // Remove the filter token from the query string
+  const regex = new RegExp(`\\s*${filter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'gi');
+  query.value = query.value.replace(regex, ' ').trim();
+  searchStore.search(query.value);
+}
+
+function addFilter(filter) {
+  if (!query.value.toLowerCase().includes(filter.toLowerCase())) {
+    query.value = (query.value + ' ' + filter).trim();
+    searchStore.search(query.value);
+  }
+}
+
 function openNote(id) {
   router.push(`/notes/${id}`);
 }
@@ -32,11 +46,21 @@ function openNote(id) {
       <div class="search-header">
         <div class="search-input-row">
           <Search :size="18" />
-          <input v-model="query" class="search-input" placeholder="Search all notes..." @input="onInput" autofocus />
+          <input v-model="query" class="search-input" placeholder="Search... (from:drive, is:auto-update)" @input="onInput" autofocus />
         </div>
-        <span v-if="searchStore.meta.total > 0" class="search-count">
-          {{ searchStore.meta.total }} result{{ searchStore.meta.total === 1 ? '' : 's' }}
-        </span>
+        <div class="search-meta-row">
+          <div class="search-filters">
+            <span v-for="f in searchStore.activeFilters" :key="f" class="filter-chip">
+              {{ f }}
+              <button class="filter-chip-remove" @click="removeFilter(f)"><X :size="10" /></button>
+            </span>
+            <button v-if="!searchStore.activeFilters.includes('from:drive')" class="filter-quick" @click="addFilter('from:drive')">from:drive</button>
+            <button v-if="!searchStore.activeFilters.includes('is:auto-update')" class="filter-quick" @click="addFilter('is:auto-update')">is:auto-update</button>
+          </div>
+          <span v-if="searchStore.meta.total > 0" class="search-count">
+            {{ searchStore.meta.total }} result{{ searchStore.meta.total === 1 ? '' : 's' }}
+          </span>
+        </div>
       </div>
       <div v-if="searchStore.loading" class="loading">Searching...</div>
       <div v-else-if="query && searchStore.results.length === 0" class="empty">
@@ -64,14 +88,37 @@ function openNote(id) {
           <input
             v-model="query"
             class="search-input"
-            placeholder="Search all notes..."
+            placeholder="Search all notes... (try from:drive or is:auto-update)"
             @input="onInput"
             autofocus
           />
         </div>
-        <span v-if="searchStore.meta.total > 0" class="search-count">
-          {{ searchStore.meta.total }} result{{ searchStore.meta.total === 1 ? '' : 's' }}
-        </span>
+        <div class="search-meta-row">
+          <div class="search-filters">
+            <span
+              v-for="f in searchStore.activeFilters"
+              :key="f"
+              class="filter-chip"
+            >
+              <RefreshCw v-if="f.includes('auto')" :size="11" />
+              {{ f }}
+              <button class="filter-chip-remove" @click="removeFilter(f)"><X :size="10" /></button>
+            </span>
+            <button
+              v-if="!searchStore.activeFilters.includes('from:drive')"
+              class="filter-quick"
+              @click="addFilter('from:drive')"
+            >from:drive</button>
+            <button
+              v-if="!searchStore.activeFilters.includes('is:auto-update')"
+              class="filter-quick"
+              @click="addFilter('is:auto-update')"
+            >is:auto-update</button>
+          </div>
+          <span v-if="searchStore.meta.total > 0" class="search-count">
+            {{ searchStore.meta.total }} result{{ searchStore.meta.total === 1 ? '' : 's' }}
+          </span>
+        </div>
       </div>
 
       <div v-if="searchStore.loading" class="loading">Searching...</div>
@@ -92,6 +139,9 @@ function openNote(id) {
             <span v-if="result.note_type === 'idea'" class="idea-chip" title="Idea">💡</span>
             <FileText v-else :size="16" />
             <span class="result-title">{{ result.title }}</span>
+            <span v-if="result.auto_update" class="auto-update-chip" title="Auto-update enabled">
+              <RefreshCw :size="11" /> auto
+            </span>
           </div>
           <div class="result-snippet" v-html="result.snippet" />
         </button>
@@ -138,11 +188,68 @@ function openNote(id) {
 }
 .search-input::placeholder { color: var(--text-muted); }
 
-.search-count {
-  display: block;
+.search-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-top: 8px;
+  gap: 8px;
+}
+
+.search-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(58, 134, 255, 0.15);
+  border: 1px solid rgba(58, 134, 255, 0.3);
+  border-radius: 12px;
+  color: var(--accent-primary);
+  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+}
+
+.filter-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--accent-primary);
+  cursor: pointer;
+  padding: 0;
+  margin-left: 2px;
+  opacity: 0.7;
+}
+.filter-chip-remove:hover { opacity: 1; }
+
+.filter-quick {
+  padding: 3px 8px;
+  background: none;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 12px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.filter-quick:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  border-style: solid;
+}
+
+.search-count {
   font-size: 12px;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .loading, .empty {
@@ -187,6 +294,19 @@ function openNote(id) {
   font-weight: 500;
 }
 .idea-chip { font-size: 14px; line-height: 1; }
+
+.auto-update-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  padding: 2px 6px;
+  background: rgba(58, 134, 255, 0.12);
+  border-radius: 4px;
+  color: var(--accent-primary);
+  font-size: 10px;
+  font-weight: 500;
+}
 
 .result-snippet {
   font-size: 12px;
