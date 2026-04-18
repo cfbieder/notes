@@ -1,4 +1,18 @@
-:root {
+/*
+ * Theme definitions for Noted.
+ *
+ * Three palettes are available, selected via `data-theme` on <html>:
+ *   - sapphire (default): deep navy + amber/blue accents ("Sapphire Slate")
+ *   - dark: neutral charcoal dark mode
+ *   - light: neutral light mode
+ *
+ * All component styles MUST reference these variables rather than hardcoding
+ * colors, so theme switching works at runtime without a rebuild.
+ */
+
+/* Sapphire Slate (default) */
+:root,
+:root[data-theme="sapphire"] {
   /* Backgrounds — three-tier depth hierarchy */
   --bg-main:    #1a3a6d;
   --bg-sidebar: #102a50;
@@ -11,12 +25,105 @@
 
   /* Accents & Interaction */
   --accent-primary: #3a86ff;
+  --accent-hover:   #5b9dff;
   --accent-warn:    #ff9f1c;
   --accent-success: #4cc9f0;
 
+  /* Semantic status colors (error / warning / success-green) */
+  --status-error:   #ff6b6b;
+  --status-warning: #eab308;
+  --status-success: #22c55e;
+
+  /* Soft backgrounds for status badges */
+  --status-error-bg:   rgba(255, 107, 107, 0.15);
+  --status-warning-bg: rgba(234, 179, 8, 0.15);
+  --status-success-bg: rgba(34, 197, 94, 0.15);
+
   /* Borders & Dividers */
   --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
+
+  /* Overlays (modal scrims, selection) */
+  --overlay-modal: rgba(0, 0, 0, 0.5);
+  --selection-bg: rgba(58, 134, 255, 0.25);
+  --hover-bg: rgba(58, 134, 255, 0.1);
 
   /* Shadows */
   --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.3);
+
+  /* Button foreground on amber CTA (needs dark text for contrast) */
+  --on-accent-warn: #1a1a1a;
+}
+
+/* Neutral Dark */
+:root[data-theme="dark"] {
+  --bg-main:    #1e1e1e;
+  --bg-sidebar: #141414;
+  --bg-card:    #2a2a2a;
+
+  --text-primary:   #f0f0f0;
+  --text-secondary: #c0c0c0;
+  --text-muted:     #888888;
+
+  --accent-primary: #5b9dff;
+  --accent-hover:   #7cb3ff;
+  --accent-warn:    #ffb547;
+  --accent-success: #4cc9f0;
+
+  --status-error:   #ff6b6b;
+  --status-warning: #eab308;
+  --status-success: #22c55e;
+
+  --status-error-bg:   rgba(255, 107, 107, 0.15);
+  --status-warning-bg: rgba(234, 179, 8, 0.15);
+  --status-success-bg: rgba(34, 197, 94, 0.15);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  --overlay-modal: rgba(0, 0, 0, 0.6);
+  --selection-bg: rgba(91, 157, 255, 0.25);
+  --hover-bg: rgba(255, 255, 255, 0.05);
+
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  --on-accent-warn: #1a1a1a;
+}
+
+/* Neutral Light */
+:root[data-theme="light"] {
+  --bg-main:    #ffffff;
+  --bg-sidebar: #f3f5f8;
+  --bg-card:    #ffffff;
+
+  --text-primary:   #1a1a1a;
+  --text-secondary: #4a4a4a;
+  --text-muted:     #8a8a8a;
+
+  --accent-primary: #2563eb;
+  --accent-hover:   #1d4ed8;
+  --accent-warn:    #d97706;
+  --accent-success: #0891b2;
+
+  --status-error:   #dc2626;
+  --status-warning: #ca8a04;
+  --status-success: #16a34a;
+
+  --status-error-bg:   rgba(220, 38, 38, 0.10);
+  --status-warning-bg: rgba(202, 138, 4, 0.12);
+  --status-success-bg: rgba(22, 163, 74, 0.12);
+
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.18);
+
+  --overlay-modal: rgba(0, 0, 0, 0.4);
+  --selection-bg: rgba(37, 99, 235, 0.18);
+  --hover-bg: rgba(0, 0, 0, 0.04);
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.12);
+
+  --on-accent-warn: #ffffff;
 }

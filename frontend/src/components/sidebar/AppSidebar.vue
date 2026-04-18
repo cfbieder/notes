@@ -653,12 +653,12 @@ async function deleteNotebook() {
   text-align: left;
 }
 .nb-context-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover-bg);
   color: var(--text-primary);
 }
 .nb-context-item.delete:hover {
-  background: rgba(255, 107, 107, 0.1);
-  color: #ff6b6b;
+  background: var(--status-error-bg);
+  color: var(--status-error);
 }
 
 .nb-context-submenu-wrapper {
@@ -756,7 +756,7 @@ async function deleteNotebook() {
   transition: background-color 0.1s;
   text-align: left;
 }
-.nav-item:hover { background-color: rgba(255, 255, 255, 0.06); }
+.nav-item:hover { background-color: var(--hover-bg); }
 .nav-item.active {
   background-color: rgba(58, 134, 255, 0.15);
   color: var(--text-primary);
@@ -960,8 +960,8 @@ async function deleteNotebook() {
 
 .reminder-badge {
   margin-left: auto;
-  background: #ff6b6b;
-  color: white;
+  background: var(--status-error);
+  color: #ffffff;
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
@@ -1019,7 +1019,7 @@ async function deleteNotebook() {
 }
 .footer-btn:hover {
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-strong);
 }
 .footer-btn.active {
   background-color: rgba(58, 134, 255, 0.12);

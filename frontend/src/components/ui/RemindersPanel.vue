@@ -185,7 +185,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideSn
 .reminders-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--overlay-modal);
   display: flex;
   justify-content: center;
   padding-top: 10vh;
@@ -248,7 +248,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideSn
   color: var(--text-muted);
 }
 
-.overdue-label { color: #ff6b6b; }
+.overdue-label { color: var(--status-error); }
 
 .reminder-item {
   display: flex;
@@ -256,10 +256,10 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideSn
   padding: 10px 16px;
   transition: background-color 0.1s;
 }
-.reminder-item:hover { background: rgba(255, 255, 255, 0.04); }
+.reminder-item:hover { background: var(--hover-bg); }
 
 .reminder-item.overdue {
-  border-left: 3px solid #ff6b6b;
+  border-left: 3px solid var(--status-error);
 }
 
 .reminder-body {
@@ -286,7 +286,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideSn
 }
 
 .reminder-time { font-weight: 500; }
-.overdue .reminder-time { color: #ff6b6b; }
+.overdue .reminder-time { color: var(--status-error); }
 
 .reminder-note {
   display: flex;
@@ -317,8 +317,8 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideSn
   padding: 4px;
   border-radius: 4px;
 }
-.action-snooze:hover { color: var(--accent-primary); background: rgba(58, 134, 255, 0.08); }
-.action-dismiss:hover { color: #ff6b6b; background: rgba(255, 107, 107, 0.08); }
+.action-snooze:hover { color: var(--accent-primary); background: var(--hover-bg); }
+.action-dismiss:hover { color: var(--status-error); background: var(--status-error-bg); }
 
 .snooze-wrapper {
   position: relative;
@@ -350,7 +350,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutsideSn
   cursor: pointer;
 }
 .snooze-dropdown button:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hover-bg);
   color: var(--text-primary);
 }
 

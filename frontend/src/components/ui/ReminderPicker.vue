@@ -255,7 +255,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
   transition: background 0.1s;
 }
 .preset-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hover-bg);
   color: var(--text-primary);
 }
 
@@ -308,10 +308,10 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
   background: none;
   border: none;
   border-top: 1px solid var(--border-subtle);
-  color: #ff6b6b;
+  color: var(--status-error);
   font-family: 'Inter', sans-serif;
   font-size: 12px;
   cursor: pointer;
 }
-.clear-btn:hover { background: rgba(255, 107, 107, 0.08); }
+.clear-btn:hover { background: var(--status-error-bg); }
 </style>

@@ -15,6 +15,23 @@ const svgRef = ref(null);
 const expanded = ref(false);
 let simulation = null;
 
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function themeColors() {
+  return {
+    primary: cssVar('--accent-primary') || '#3a86ff',
+    success: cssVar('--accent-success') || '#4cc9f0',
+    warn: cssVar('--accent-warn') || '#ff9f1c',
+    textPrimary: cssVar('--text-primary') || '#ffffff'
+  };
+}
+
+function onThemeChange() {
+  if (expanded.value) renderGraph();
+}
+
 function renderGraph() {
   if (!svgRef.value) return;
 
@@ -50,11 +67,14 @@ function renderGraph() {
     .force('center', d3.forceCenter(width / 2, height / 2))
     .force('collision', d3.forceCollide().radius(15));
 
+  const colors = themeColors();
+
   const link = g.append('g')
     .selectAll('line')
     .data(edgeData)
     .join('line')
-    .attr('stroke', d => d.type === 'tag' ? 'rgba(255, 159, 28, 0.45)' : 'rgba(58, 134, 255, 0.5)')
+    .attr('stroke', d => d.type === 'tag' ? colors.warn : colors.primary)
+    .attr('stroke-opacity', d => d.type === 'tag' ? 0.45 : 0.5)
     .attr('stroke-width', d => d.type === 'tag' ? 1.5 : 2)
     .attr('stroke-dasharray', d => d.type === 'tag' ? '6,4' : null);
 
@@ -67,11 +87,11 @@ function renderGraph() {
       return d.type === 'tag' ? 4 : 6;
     })
     .attr('fill', d => {
-      if (d.id === props.noteId) return '#ff9f1c';
-      if (d.type === 'tag') return d.color || '#4cc9f0';
-      return '#3a86ff';
+      if (d.id === props.noteId) return colors.warn;
+      if (d.type === 'tag') return d.color || colors.success;
+      return colors.primary;
     })
-    .attr('stroke', d => d.id === props.noteId ? '#ffffff' : 'none')
+    .attr('stroke', d => d.id === props.noteId ? colors.textPrimary : 'none')
     .attr('stroke-width', d => d.id === props.noteId ? 2 : 0)
     .style('cursor', 'pointer')
     .on('click', (event, d) => {
@@ -115,8 +135,13 @@ watch(() => props.noteId, () => {
   graphStore.fetchLocalGraph(props.noteId);
 });
 
+onMounted(() => {
+  window.addEventListener('noted:theme-change', onThemeChange);
+});
+
 onBeforeUnmount(() => {
   if (simulation) simulation.stop();
+  window.removeEventListener('noted:theme-change', onThemeChange);
 });
 </script>
 
@@ -164,7 +189,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--hover-bg);
 }
 
 .graph-container svg {

@@ -125,7 +125,7 @@ Browser / PWA
 | 2.8 | Sidebar component | `AppSidebar.vue` — collapsible stacks → notebooks tree with note counts |
 | 2.9 | Note list panel | `NoteListPanel.vue` — filterable note list, sorted by updated_at |
 | 2.10 | CodeMirror 6 editor | `CodeMirrorEditor.vue` — Markdown editing with Sapphire theme integration |
-| 2.11 | Normal Mode rendering | Inline Markdown rendering (headings, bold, italic, lists, checkboxes, code blocks, tables) |
+| 2.11 | Normal Mode rendering | Inline Markdown rendering (headings, bold, italic, lists, checkboxes, code blocks, tables). Table cells render GFM inline formatting (`**bold**`, `*italic*`, `` `code` ``, `~~strike~~`, links) via `markdown-it`'s `renderInline`. |
 | 2.12 | Source Mode toggle | Toggle between rendered and raw Markdown view |
 | 2.13 | Editor toolbar | `EditorToolbar.vue` — formatting buttons, mode toggle, save indicator |
 | 2.14 | Autosave | Debounced save (500ms after last keystroke) with visual save indicator |
@@ -455,6 +455,7 @@ These items are out of scope for Stages 1–2 but documented for future planning
 - [x] ~~Graph view missing labels on orphan notes~~ — fixed 2026-04-15 (`GraphView.vue` label selection previously filtered to `linkCount > 0 || type === 'tag'`, leaving unlinked note dots unlabeled; now labels all nodes).
 - [x] ~~[High] Search returned trashed notes~~ — fixed 2026-04-14 (`backend/src/routes/search.js` now filters `n.deleted_at IS NULL` alongside the user_id + tsv conditions, matching notes/graph/backlinks routes).
 - [x] ~~AI Assist (desktop)~~ — completed 2026-04-17 (Phase 8.12).
+- [x] ~~Theme picker (Sapphire / Dark / Light)~~ — completed 2026-04-18. `frontend/src/styles/theme.css` defines three palettes under `:root[data-theme="sapphire|dark|light"]` selectors; new semantic vars (`--status-error/-warning/-success` + matching `-bg`, `--overlay-modal`, `--selection-bg`, `--hover-bg`, `--border-strong`, `--on-accent-warn`) replace the ~30 hardcoded `#ff6b6b` / `rgba(0,0,0,0.5)` / `rgba(255,255,255,0.06)` spots that previously pinned the UI to the dark navy base. `ui.js` store gains `theme` + `setTheme()` with localStorage persistence; `main.js` applies the saved theme before Vue mounts. SettingsView adds a 3-card picker with live swatch previews. CodeMirror (`sapphireTheme.js`) and D3 graphs (`GraphView.vue`, `LocalGraph.vue`) now read CSS vars — graphs subscribe to a `noted:theme-change` window event and re-render SVG on theme flip.
 - [x] ~~Print / Save as PDF~~ — completed 2026-04-16. EditorToolbar gains a Printer button; `frontend/src/lib/printNote.js` renders markdown to HTML via `markdown-it`, opens a styled print window (Inter/Plus Jakarta Sans/JetBrains Mono typography, white background, proper page-break rules), and triggers `window.print()`. Attachment images include auth token for the print window. Wikilinks render as plain text. Works on both desktop (EditorToolbar) and mobile (MobileEditor header). "Save as PDF" comes free via the browser's print dialog.
 - [ ] User settings page — email, display preferences
 - [ ] Multi-user workspaces (shared notebooks)

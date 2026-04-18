@@ -405,7 +405,7 @@ function formatReminderTime(dateStr) {
   border-radius: 6px;
   transition: background 0.1s;
 }
-.task-item:hover { background: rgba(255, 255, 255, 0.03); }
+.task-item:hover { background: var(--hover-bg); }
 .task-item.done { opacity: 0.5; }
 
 .task-check {
@@ -445,7 +445,7 @@ function formatReminderTime(dateStr) {
   font-size: 11px;
   color: var(--text-muted);
 }
-.task-due.overdue { color: #ff6b6b; }
+.task-due.overdue { color: var(--status-error); }
 
 .task-note-link {
   display: flex;
@@ -468,7 +468,7 @@ function formatReminderTime(dateStr) {
   font-size: 11px;
   color: var(--accent-warn);
 }
-.task-reminder.overdue { color: #ff6b6b; }
+.task-reminder.overdue { color: var(--status-error); }
 
 .task-delete {
   background: none;
@@ -480,5 +480,5 @@ function formatReminderTime(dateStr) {
   transition: opacity 0.1s;
 }
 .task-item:hover .task-delete { opacity: 1; }
-.task-delete:hover { color: #ff6b6b; }
+.task-delete:hover { color: var(--status-error); }
 </style>

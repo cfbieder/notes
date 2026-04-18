@@ -237,8 +237,8 @@ function openNote(noteId) {
   color: var(--text-primary);
 }
 .delete-btn:hover {
-  border-color: #ff6b6b;
-  color: #ff6b6b;
+  border-color: var(--status-error);
+  color: var(--status-error);
 }
 
 .move-dropdown {

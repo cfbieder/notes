@@ -68,7 +68,7 @@ const toastsStore = useToastsStore();
 }
 
 .toast-item.warning { border-left-color: var(--accent-warn); }
-.toast-item.error { border-left-color: #ff6b6b; }
+.toast-item.error { border-left-color: var(--status-error); }
 .toast-item.success { border-left-color: var(--accent-success); }
 
 .toast-message {

@@ -163,16 +163,16 @@ function formatDate(dateStr) {
   gap: 6px;
   padding: 6px 14px;
   background: none;
-  border: 1px solid #ff6b6b;
+  border: 1px solid var(--status-error);
   border-radius: 6px;
-  color: #ff6b6b;
+  color: var(--status-error);
   font-family: 'Inter', sans-serif;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
 }
 .empty-btn:hover {
-  background: rgba(255, 107, 107, 0.1);
+  background: var(--status-error-bg);
 }
 
 .empty {
@@ -251,14 +251,14 @@ function formatDate(dateStr) {
   border-color: var(--accent-success);
 }
 .restore-btn:hover {
-  background: rgba(76, 201, 240, 0.1);
+  background: var(--hover-bg);
 }
 
 .delete-btn {
-  color: #ff6b6b;
-  border-color: #ff6b6b;
+  color: var(--status-error);
+  border-color: var(--status-error);
 }
 .delete-btn:hover {
-  background: rgba(255, 107, 107, 0.1);
+  background: var(--status-error-bg);
 }
 </style>

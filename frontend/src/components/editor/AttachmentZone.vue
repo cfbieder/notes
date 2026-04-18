@@ -237,7 +237,7 @@ function formatSize(bytes) {
   border-radius: 4px;
   font-size: 12px;
 }
-.attachment-item:hover { background: rgba(255, 255, 255, 0.04); }
+.attachment-item:hover { background: var(--hover-bg); }
 
 .att-icon { color: var(--text-muted); flex-shrink: 0; }
 
@@ -265,5 +265,5 @@ function formatSize(bytes) {
   padding: 2px;
   flex-shrink: 0;
 }
-.att-delete:hover { color: #ff6b6b; }
+.att-delete:hover { color: var(--status-error); }
 </style>

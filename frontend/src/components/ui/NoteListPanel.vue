@@ -212,7 +212,7 @@ function getPreview(content) {
   transition: background-color 0.1s;
   font-family: 'Inter', sans-serif;
 }
-.note-item:hover { background-color: rgba(255, 255, 255, 0.04); }
+.note-item:hover { background-color: var(--hover-bg); }
 .note-item.active { background-color: rgba(58, 134, 255, 0.12); }
 
 .note-title-row {
@@ -284,12 +284,12 @@ function getPreview(content) {
   text-align: left;
 }
 .context-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover-bg);
   color: var(--text-primary);
 }
 .context-item.trash:hover {
-  background: rgba(255, 107, 107, 0.1);
-  color: #ff6b6b;
+  background: var(--status-error-bg);
+  color: var(--status-error);
 }
 
 .context-submenu-wrapper {

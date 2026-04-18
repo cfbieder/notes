@@ -285,7 +285,7 @@ onMounted(async () => {
   min-width: 20px;
   text-align: center;
 }
-.overdue-badge { background: #ff6b6b; }
+.overdue-badge { background: var(--status-error); }
 
 .recent-section {
   margin-top: 8px;
@@ -327,7 +327,7 @@ onMounted(async () => {
   transition: background-color 0.1s;
   color: var(--text-primary);
 }
-.recent-item:hover { background: rgba(255, 255, 255, 0.06); }
+.recent-item:hover { background: var(--hover-bg); }
 
 .recent-title {
   font-size: 14px;

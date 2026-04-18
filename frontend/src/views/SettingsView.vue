@@ -2,15 +2,23 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useIntegrationsStore } from '../stores/integrations.js';
+import { useUIStore } from '../stores/ui.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import { useMobile } from '../composables/useMobile.js';
-import { Settings, HardDrive, RefreshCw, CheckCircle, XCircle, Loader2, Unplug, ExternalLink, Lock } from 'lucide-vue-next';
+import { Settings, HardDrive, RefreshCw, CheckCircle, XCircle, Loader2, Unplug, ExternalLink, Lock, Palette } from 'lucide-vue-next';
 import { api } from '../api/client.js';
 
 const { isMobile } = useMobile();
 const router = useRouter();
 const integrationsStore = useIntegrationsStore();
+const uiStore = useUIStore();
+
+const themeOptions = [
+  { value: 'sapphire', label: 'Sapphire Slate', hint: 'Deep navy + amber accents (default)' },
+  { value: 'dark', label: 'Dark', hint: 'Neutral charcoal dark mode' },
+  { value: 'light', label: 'Light', hint: 'Neutral light mode' }
+];
 
 // Password change
 const currentPassword = ref('');
@@ -143,6 +151,30 @@ function formatDate(dateStr) {
   <MobileLayout v-if="isMobile" title="Settings">
     <main class="settings-main" style="padding: 16px;">
       <div class="settings-content">
+        <!-- Appearance / Theme -->
+        <section class="settings-section">
+          <h3><Palette :size="16" /> Appearance</h3>
+          <p class="section-desc">Pick a color scheme for the app.</p>
+          <div class="theme-grid">
+            <button
+              v-for="opt in themeOptions"
+              :key="opt.value"
+              type="button"
+              :class="['theme-card', `theme-preview-${opt.value}`, { selected: uiStore.theme === opt.value }]"
+              @click="uiStore.setTheme(opt.value)"
+            >
+              <span class="theme-swatch">
+                <span class="swatch-sidebar" />
+                <span class="swatch-main" />
+                <span class="swatch-card" />
+                <span class="swatch-accent" />
+              </span>
+              <span class="theme-label">{{ opt.label }}</span>
+              <span class="theme-hint">{{ opt.hint }}</span>
+            </button>
+          </div>
+        </section>
+
         <!-- Change Password -->
         <section class="settings-section">
           <h3><Lock :size="16" /> Change Password</h3>
@@ -264,6 +296,30 @@ function formatDate(dateStr) {
       <div v-if="integrationsStore.loading" class="loading">Loading...</div>
 
       <div v-else class="settings-content">
+        <!-- Appearance / Theme -->
+        <section class="settings-section">
+          <h3><Palette :size="16" /> Appearance</h3>
+          <p class="section-desc">Pick a color scheme for the app. Applied immediately and remembered across sessions.</p>
+          <div class="theme-grid">
+            <button
+              v-for="opt in themeOptions"
+              :key="opt.value"
+              type="button"
+              :class="['theme-card', `theme-preview-${opt.value}`, { selected: uiStore.theme === opt.value }]"
+              @click="uiStore.setTheme(opt.value)"
+            >
+              <span class="theme-swatch">
+                <span class="swatch-sidebar" />
+                <span class="swatch-main" />
+                <span class="swatch-card" />
+                <span class="swatch-accent" />
+              </span>
+              <span class="theme-label">{{ opt.label }}</span>
+              <span class="theme-hint">{{ opt.hint }}</span>
+            </button>
+          </div>
+        </section>
+
         <!-- Change Password -->
         <section class="settings-section">
           <h3><Lock :size="16" /> Change Password</h3>
@@ -473,15 +529,15 @@ function formatDate(dateStr) {
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  background: rgba(34, 197, 94, 0.08);
-  border: 1px solid rgba(34, 197, 94, 0.2);
+  background: var(--status-success-bg);
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
   margin-bottom: 16px;
   font-size: 13px;
   color: var(--text-primary);
 }
 
-.status-connected { color: #22c55e; }
+.status-connected { color: var(--status-success); }
 
 .status-row .btn { margin-left: auto; }
 .status-row .btn + .btn { margin-left: 4px; }
@@ -536,11 +592,11 @@ function formatDate(dateStr) {
 
 .config-msg {
   font-size: 12px;
-  color: #22c55e;
+  color: var(--status-success);
 }
 
 .config-msg-error {
-  color: #ef4444;
+  color: var(--status-error);
 }
 
 /* Scan section */
@@ -561,7 +617,7 @@ function formatDate(dateStr) {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: #22c55e;
+  color: var(--status-success);
   width: 100%;
   margin-top: 4px;
 }
@@ -588,8 +644,9 @@ function formatDate(dateStr) {
 
 .btn-primary {
   background: var(--accent-primary);
-  color: #fff;
+  color: var(--text-primary);
 }
+[data-theme="light"] .btn-primary { color: #ffffff; }
 .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
 
 .btn-secondary {
@@ -611,7 +668,7 @@ function formatDate(dateStr) {
   padding: 4px 8px;
 }
 
-.btn-danger:hover { color: #ef4444; }
+.btn-danger:hover { color: var(--status-error); }
 
 /* History */
 .history-list {
@@ -668,18 +725,18 @@ function formatDate(dateStr) {
 }
 
 .status-success {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+  background: var(--status-success-bg);
+  color: var(--status-success);
 }
 
 .status-error {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+  background: var(--status-error-bg);
+  color: var(--status-error);
 }
 
 .status-skipped {
-  background: rgba(234, 179, 8, 0.15);
-  color: #eab308;
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
 }
 
 /* Spinner */
@@ -690,5 +747,79 @@ function formatDate(dateStr) {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* Theme picker */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  background: var(--bg-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.theme-card:hover { border-color: var(--accent-primary); }
+
+.theme-card.selected {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--accent-primary) inset;
+}
+
+.theme-swatch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  width: 100%;
+  height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  margin-bottom: 6px;
+}
+
+.swatch-sidebar, .swatch-main, .swatch-card, .swatch-accent {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Each preview card renders its own palette, regardless of the active theme */
+.theme-preview-sapphire .swatch-sidebar { background: #102a50; }
+.theme-preview-sapphire .swatch-main    { background: #1a3a6d; }
+.theme-preview-sapphire .swatch-card    { background: #244a85; }
+.theme-preview-sapphire .swatch-accent  { background: #ff9f1c; }
+
+.theme-preview-dark .swatch-sidebar { background: #141414; }
+.theme-preview-dark .swatch-main    { background: #1e1e1e; }
+.theme-preview-dark .swatch-card    { background: #2a2a2a; }
+.theme-preview-dark .swatch-accent  { background: #5b9dff; }
+
+.theme-preview-light .swatch-sidebar { background: #f3f5f8; }
+.theme-preview-light .swatch-main    { background: #ffffff; }
+.theme-preview-light .swatch-card    { background: #e5e8ec; }
+.theme-preview-light .swatch-accent  { background: #2563eb; }
+
+.theme-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.theme-hint {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 </style>

@@ -53,7 +53,7 @@ async function createAndAddTag() {
       v-for="tag in currentTags"
       :key="tag.id"
       class="tag-pill"
-      :style="{ '--tag-color': tag.color || '#3a86ff' }"
+      :style="{ '--tag-color': tag.color || 'var(--accent-primary)' }"
     >
       <Tag :size="10" />
       {{ tag.name }}
@@ -191,7 +191,7 @@ async function createAndAddTag() {
   text-align: left;
 }
 .tag-option:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover-bg);
   color: var(--text-primary);
 }
 

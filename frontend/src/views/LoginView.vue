@@ -84,8 +84,8 @@ async function handleLogin() {
 }
 
 .error-msg {
-  background: rgba(255, 80, 80, 0.15);
-  color: #ff6b6b;
+  background: var(--status-error-bg);
+  color: var(--status-error);
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 13px;
@@ -113,7 +113,7 @@ input:focus {
 .btn-primary {
   width: 100%;
   background-color: var(--accent-warn);
-  color: #1a1a1a;
+  color: var(--on-accent-warn);
   border: none;
   border-radius: 8px;
   padding: 10px 20px;

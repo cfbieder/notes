@@ -418,8 +418,8 @@ function onTitleInput(e) {
   transition: all 0.1s;
 }
 .trash-btn:hover {
-  border-color: #ff6b6b;
-  color: #ff6b6b;
+  border-color: var(--status-error);
+  color: var(--status-error);
 }
 
 .panel-toggle {

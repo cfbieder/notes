@@ -189,7 +189,7 @@ async function createAndSelect() {
   text-align: left;
 }
 .notebook-option:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover-bg);
   color: var(--text-primary);
 }
 .notebook-option.active {

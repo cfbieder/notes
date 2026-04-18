@@ -395,15 +395,15 @@ function getPreview(content) {
 }
 .promote-btn { padding: 5px 10px; }
 .delete-btn:hover {
-  border-color: #ff6b6b;
-  color: #ff6b6b;
+  border-color: var(--status-error);
+  color: var(--status-error);
 }
 
 /* Picker modals */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-modal);
   display: flex;
   justify-content: center;
   padding-top: 15vh;

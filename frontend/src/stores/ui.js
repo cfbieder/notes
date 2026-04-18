@@ -3,12 +3,30 @@ import { ref } from 'vue';
 
 const LS_NOTE_LIST = 'noted.ui.noteListCollapsed';
 const LS_CONTEXT = 'noted.ui.contextPanelsCollapsed';
+const LS_THEME = 'noted.ui.theme';
+
+export const THEMES = ['sapphire', 'dark', 'light'];
+export const DEFAULT_THEME = 'sapphire';
 
 function loadBool(key) {
   try { return localStorage.getItem(key) === '1'; } catch { return false; }
 }
 function saveBool(key, val) {
   try { localStorage.setItem(key, val ? '1' : '0'); } catch {}
+}
+
+export function loadTheme() {
+  try {
+    const v = localStorage.getItem(LS_THEME);
+    return THEMES.includes(v) ? v : DEFAULT_THEME;
+  } catch {
+    return DEFAULT_THEME;
+  }
+}
+
+export function applyTheme(theme) {
+  const t = THEMES.includes(theme) ? theme : DEFAULT_THEME;
+  document.documentElement.setAttribute('data-theme', t);
 }
 
 export const useUIStore = defineStore('ui', () => {
@@ -19,6 +37,8 @@ export const useUIStore = defineStore('ui', () => {
   const noteListCollapsed = ref(loadBool(LS_NOTE_LIST));
   const contextPanelsCollapsed = ref(loadBool(LS_CONTEXT));
   const showHelp = ref(false);
+
+  const theme = ref(loadTheme());
 
   function toggleSidebar() {
     sidebarCollapsed.value = !sidebarCollapsed.value;
@@ -59,10 +79,20 @@ export const useUIStore = defineStore('ui', () => {
     showHelp.value = !showHelp.value;
   }
 
+  function setTheme(next) {
+    const t = THEMES.includes(next) ? next : DEFAULT_THEME;
+    theme.value = t;
+    applyTheme(t);
+    try { localStorage.setItem(LS_THEME, t); } catch {}
+    window.dispatchEvent(new CustomEvent('noted:theme-change', { detail: { theme: t } }));
+  }
+
   return {
     sidebarCollapsed, editorMode, saveStatus,
     noteListCollapsed, contextPanelsCollapsed, showHelp,
+    theme,
     toggleSidebar, toggleEditorMode, setEditorMode, setSaveStatus,
-    toggleNoteList, toggleContextPanels, toggleFocusMode, toggleHelp
+    toggleNoteList, toggleContextPanels, toggleFocusMode, toggleHelp,
+    setTheme
   };
 });

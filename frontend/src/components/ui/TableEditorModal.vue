@@ -304,7 +304,7 @@ function cellStyle(col) {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-modal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -445,7 +445,7 @@ function cellStyle(col) {
   cursor: pointer;
 }
 .btn-cancel:hover {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-strong);
   color: var(--text-primary);
 }
 

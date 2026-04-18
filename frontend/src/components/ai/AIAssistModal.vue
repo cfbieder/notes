@@ -420,7 +420,7 @@ function insertAtCursor() {
 .ai-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--overlay-modal);
   display: flex;
   justify-content: center;
   padding-top: 8vh;
@@ -497,7 +497,7 @@ function insertAtCursor() {
   text-align: center;
 }
 .ai-disabled code {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover-bg);
   padding: 1px 5px;
   border-radius: 3px;
 }
@@ -590,7 +590,7 @@ function insertAtCursor() {
   font-size: 11px;
   cursor: pointer;
 }
-.history-clear:hover { color: #ff6b6b; }
+.history-clear:hover { color: var(--status-error); }
 
 .ai-prompt, .ai-input {
   width: 100%;
@@ -645,7 +645,7 @@ function insertAtCursor() {
 .ai-token-bar {
   width: 100%;
   height: 4px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover-bg);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -655,14 +655,14 @@ function insertAtCursor() {
 }
 .ai-token-fill.level-ok { background: var(--accent-primary); }
 .ai-token-fill.level-warn { background: var(--accent-warn); }
-.ai-token-fill.level-over { background: #ff6b6b; }
+.ai-token-fill.level-over { background: var(--status-error); }
 
 .ai-token-label {
   font-size: 11px;
   color: var(--text-muted);
 }
 .ai-token-label.level-warn { color: var(--accent-warn); }
-.ai-token-label.level-over { color: #ff6b6b; }
+.ai-token-label.level-over { color: var(--status-error); }
 
 .condense-toggle {
   display: inline-flex;
@@ -710,7 +710,7 @@ function insertAtCursor() {
   color: var(--text-secondary);
   border-color: var(--border-subtle);
 }
-.btn-secondary:hover:not(:disabled) { color: var(--text-primary); border-color: rgba(255, 255, 255, 0.2); }
+.btn-secondary:hover:not(:disabled) { color: var(--text-primary); border-color: var(--border-strong); }
 .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .insert-btn { color: var(--accent-primary); border-color: rgba(58, 134, 255, 0.4); }

@@ -164,7 +164,7 @@ The core editing experience is inspired by TypeDown:
 - **Wikilinks:** Typing `[[` triggers an autocomplete dropdown of existing note titles. Selecting creates a bidirectional link.
 - **Hashtags:** Typing `#` triggers tag autocomplete. Tags are stored relationally and render as styled pills in Normal Mode.
 - **Checkboxes:** `- [ ]` and `- [x]` render as interactive checkboxes. Checking one updates note content.
-- **Tables:** Full Markdown table support with tab-navigation between cells.
+- **Tables:** Full Markdown table support with tab-navigation between cells. GFM inline formatting (`**bold**`, `*italic*`, `` `code` ``, `~~strike~~`, `[text](url)`) renders inside cells in Normal Mode via `markdown-it`'s `renderInline`.
 - **Code blocks:** Syntax highlighting via CodeMirror's language packages.
 - **Autosave:** Debounced autosave (500ms after last keystroke). Save indicator in toolbar.
 - **Collapsible panels / focus mode:** The desktop three-pane layout supports collapsing the middle note list (`Alt+[`) and the bottom backlinks/graph/attachments stack (`Alt+]`) independently, or both at once via focus mode (`Alt+\`). Toggles are available in the editor toolbar (per-panel, when a note is open) and as a persistent Focus button in the sidebar footer. Collapsed state is persisted to `localStorage`.
@@ -353,7 +353,8 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 
 ### 5.15 Settings (implemented)
 
-- **Settings view (`/settings`):** Password change, Google Drive integration config/scan, and account-level preferences.
+- **Settings view (`/settings`):** Theme picker (Sapphire Slate / Dark / Light), password change, Google Drive integration config/scan, and account-level preferences.
+- **Theme picker:** Three palettes selectable via a card grid with live swatch previews. Selection persists to `localStorage` (`noted.ui.theme`) and is applied before Vue mounts via `applyTheme()` in `main.js`. See §13 for the palette definitions.
 
 ### 5.16 Note Export & API Tokens (implemented)
 
@@ -930,9 +931,19 @@ The following are explicitly out of scope and will not be built:
 
 ---
 
-## 13. UI Design System — "Sapphire Slate" Theme
+## 13. UI Design System — Themes
 
-The app uses a custom **Sapphire Slate** theme: a deep navy palette with high-contrast amber/orange accents for CTA elements. It balances the focus-friendly qualities of dark mode with the readability of a lighter navy base — avoiding the harshness of pure-black dark themes while remaining easy on the eyes for long writing sessions.
+The app ships with **three selectable themes**, chosen in Settings → Appearance. `Sapphire Slate` (default) is the signature brand theme; `Dark` and `Light` are neutral alternates for users who prefer a plainer palette. All three are defined as CSS custom-property sets under `:root[data-theme="..."]` in `frontend/src/styles/theme.css` — no rebuild needed to switch.
+
+- **Sapphire Slate (default):** deep navy + amber accents ("Sapphire Slate")
+- **Dark:** neutral charcoal dark mode
+- **Light:** neutral light mode
+
+All UI components (including CodeMirror's editor theme and the D3 graph renderers) read colors from the same shared variables, so each theme is complete and consistent end-to-end. The D3 graphs subscribe to a `noted:theme-change` window event and re-render SVG strokes/fills on theme flip.
+
+### Signature theme: Sapphire Slate
+
+Deep navy palette with high-contrast amber/orange accents for CTA elements. It balances the focus-friendly qualities of dark mode with the readability of a lighter navy base — avoiding the harshness of pure-black dark themes while remaining easy on the eyes for long writing sessions.
 
 > **Design character:** Corporate yet modern. Clean, thin-stroke iconography. Minimal decoration. Depth created through layered navy backgrounds, not gradients or shadows.
 
@@ -940,34 +951,38 @@ The app uses a custom **Sapphire Slate** theme: a deep navy palette with high-co
 
 ### 13.1 Color Palette (CSS Custom Properties)
 
-Add to your global CSS or `src/styles/theme.css`:
+The full palette lives in `frontend/src/styles/theme.css`, with each theme defined as a separate `:root[data-theme="..."]` selector. Sapphire is the `:root` default.
+
+**Shared token set (defined per-theme):**
+
+| Token | Purpose |
+|---|---|
+| `--bg-main` / `--bg-sidebar` / `--bg-card` | Three-tier depth hierarchy |
+| `--text-primary` / `--text-secondary` / `--text-muted` | Text colors |
+| `--accent-primary` / `--accent-hover` / `--accent-warn` / `--accent-success` | Links, hover, CTA, success states |
+| `--status-error` / `--status-warning` / `--status-success` + `-bg` variants | Semantic status colors + soft badge backgrounds |
+| `--border-subtle` / `--border-strong` | Dividers |
+| `--overlay-modal` | Modal scrim color |
+| `--selection-bg` / `--hover-bg` | Editor selection + list-item hover |
+| `--shadow-sm` / `--shadow-md` | Elevation |
+| `--on-accent-warn` | Text color to pair with the amber CTA (dark on amber in sapphire/dark; white on deep-amber in light) |
+
+**Sapphire (default):**
 
 ```css
-:root {
-  /* Backgrounds — three-tier depth hierarchy */
-  --bg-main:    #1a3a6d;   /* Main app background */
-  --bg-sidebar: #102a50;   /* Sidebar (darkest layer) */
-  --bg-card:    #244a85;   /* Cards / containers (lightest layer) */
-
-  /* Text */
-  --text-primary:   #ffffff;   /* Primary headers and body */
-  --text-secondary: #c4d9ff;   /* Muted labels / descriptions (adjusted for WCAG AA contrast) */
-  --text-muted:     #6b8dbb;   /* Disabled / background text */
-
-  /* Accents & Interaction */
-  --accent-primary: #3a86ff;   /* Active links, buttons, focus rings */
-  --accent-warn:    #ff9f1c;   /* High priority indicators / primary CTA buttons */
-  --accent-success: #4cc9f0;   /* Progress bars, checkmarks, success states */
-
-  /* Borders & Dividers */
-  --border-subtle: rgba(255, 255, 255, 0.1);
-
-  /* Shadows — use on static containers only, not on the editor wrapper */
-  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.15);
+:root, :root[data-theme="sapphire"] {
+  --bg-main: #1a3a6d;  --bg-sidebar: #102a50;  --bg-card: #244a85;
+  --text-primary: #ffffff;  --text-secondary: #c4d9ff;  --text-muted: #6b8dbb;
+  --accent-primary: #3a86ff;  --accent-warn: #ff9f1c;  --accent-success: #4cc9f0;
+  /* ...status, overlays, shadows — see theme.css for the full set */
 }
 ```
 
-> **Contrast note:** `--text-secondary` has been adjusted from `#a0c4ff` to `#c4d9ff` to ensure WCAG AA compliance (4.5:1 ratio) against `--bg-card`. Always verify contrast when placing secondary text on card backgrounds.
+**Dark** uses a neutral charcoal base (`--bg-main: #1e1e1e`) with a slightly desaturated blue primary (`#5b9dff`).
+
+**Light** flips to white-on-dark-text (`--bg-main: #ffffff`, `--text-primary: #1a1a1a`) with a saturated blue primary (`#2563eb`) and desaturated status colors tuned for contrast on light backgrounds.
+
+> **Contrast note:** `--text-secondary` in Sapphire is `#c4d9ff` (not the originally-proposed `#a0c4ff`) to ensure WCAG AA compliance (4.5:1 ratio) against `--bg-card`. Always verify contrast when placing secondary text on card backgrounds, especially in Light mode where the soft backgrounds are near-white.
 
 ---
 

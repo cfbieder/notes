@@ -1,12 +1,19 @@
 import { ViewPlugin, Decoration, WidgetType, EditorView } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import { RangeSetBuilder, StateField } from '@codemirror/state';
+import MarkdownIt from 'markdown-it';
 import { getAccessToken } from '../../api/client.js';
 import {
   splitRowCells,
   isSeparatorCells,
   parseAlignFromSeparatorCell
 } from '../tableParser.js';
+
+// Inline-only markdown renderer for table cells. GFM allows `**bold**`,
+// `*italic*`, `` `code` ``, `~~strike~~`, and `[text](url)` inside cells.
+// `html: false` escapes raw HTML; markdown-it's default link validator blocks
+// `javascript:` / `vbscript:` / `data:` schemes, so innerHTML is safe here.
+const cellMd = new MarkdownIt({ html: false, linkify: false, breaks: false });
 
 // Widget for rendering interactive checkboxes
 class CheckboxWidget extends WidgetType {
@@ -22,7 +29,7 @@ class CheckboxWidget extends WidgetType {
     cb.type = 'checkbox';
     cb.checked = this.checked;
     cb.classList.add('cm-checkbox');
-    cb.style.cssText = 'margin: 0 6px 0 0; vertical-align: middle; accent-color: #4cc9f0; cursor: pointer;';
+    cb.style.cssText = 'margin: 0 6px 0 0; vertical-align: middle; accent-color: var(--accent-success); cursor: pointer;';
 
     cb.addEventListener('mousedown', (e) => {
       e.preventDefault();
@@ -77,20 +84,20 @@ class ImageWidget extends WidgetType {
     const sizeCSS = this.width
       ? `width: ${this.width}px; max-width: 100%; height: auto;`
       : 'max-width: 100%; max-height: 400px;';
-    img.style.cssText = sizeCSS + ' border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); display: block;';
+    img.style.cssText = sizeCSS + ' border-radius: 8px; border: 1px solid var(--border-subtle); display: block;';
 
     img.onerror = () => {
       img.style.display = 'none';
       const fallback = document.createElement('span');
       fallback.textContent = `[Image: ${this.alt}]`;
-      fallback.style.cssText = 'color: #6b8dbb; font-size: 12px; font-style: italic;';
+      fallback.style.cssText = 'color: var(--text-muted); font-size: 12px; font-style: italic;';
       wrapper.appendChild(fallback);
     };
 
     // Resize handle (bottom-right corner)
     const handle = document.createElement('div');
     handle.classList.add('cm-image-resize-handle');
-    handle.style.cssText = 'position: absolute; right: -2px; bottom: -2px; width: 14px; height: 14px; background: #4cc9f0; border: 2px solid #0b1220; border-radius: 50%; cursor: nwse-resize; opacity: 0; transition: opacity 0.15s; z-index: 2;';
+    handle.style.cssText = 'position: absolute; right: -2px; bottom: -2px; width: 14px; height: 14px; background: var(--accent-success); border: 2px solid var(--bg-sidebar); border-radius: 50%; cursor: nwse-resize; opacity: 0; transition: opacity 0.15s; z-index: 2;';
     wrapper.addEventListener('mouseenter', () => { handle.style.opacity = '1'; });
     wrapper.addEventListener('mouseleave', () => { handle.style.opacity = '0'; });
 
@@ -126,12 +133,12 @@ class ImageWidget extends WidgetType {
 
       const menu = document.createElement('div');
       menu.classList.add('cm-image-context-menu');
-      menu.style.cssText = `position: fixed; left: ${e.clientX}px; top: ${e.clientY}px; background: #0f1e38; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 4px 0; z-index: 10000; box-shadow: 0 6px 24px rgba(0,0,0,0.5); font-family: Inter, sans-serif; font-size: 13px; color: var(--text-primary); min-width: 140px;`;
+      menu.style.cssText = `position: fixed; left: ${e.clientX}px; top: ${e.clientY}px; background: var(--bg-sidebar); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 4px 0; z-index: 10000; box-shadow: var(--shadow-md); font-family: Inter, sans-serif; font-size: 13px; color: var(--text-primary); min-width: 140px;`;
 
       const item = document.createElement('div');
       item.textContent = 'Delete image';
       item.style.cssText = 'padding: 8px 14px; cursor: pointer;';
-      item.addEventListener('mouseenter', () => { item.style.background = 'rgba(58,134,255,0.18)'; });
+      item.addEventListener('mouseenter', () => { item.style.background = 'var(--hover-bg)'; });
       item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
       item.addEventListener('mousedown', (ev) => {
         ev.preventDefault();
@@ -209,14 +216,14 @@ class TableWidget extends WidgetType {
 
     const table = document.createElement('table');
     table.classList.add('cm-rendered-table');
-    table.style.cssText = 'border-collapse: collapse; width: auto; min-width: 50%; font-family: Inter, sans-serif; font-size: 13px; color: var(--text-primary); background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; overflow: hidden;';
+    table.style.cssText = 'border-collapse: collapse; width: auto; min-width: 50%; font-family: Inter, sans-serif; font-size: 13px; color: var(--text-primary); background: var(--hover-bg); border: 1px solid var(--border-subtle); border-radius: 6px; overflow: hidden;';
 
     const thead = document.createElement('thead');
     const hrow = document.createElement('tr');
     this.header.forEach((cell, i) => {
       const th = document.createElement('th');
-      th.textContent = cell;
-      th.style.cssText = `padding: 6px 12px; text-align: ${this.aligns[i] || 'left'}; background: rgba(58,134,255,0.12); border-bottom: 1px solid rgba(255,255,255,0.15); font-weight: 600;`;
+      th.innerHTML = cellMd.renderInline(cell || '');
+      th.style.cssText = `padding: 6px 12px; text-align: ${this.aligns[i] || 'left'}; background: var(--hover-bg); border-bottom: 1px solid var(--border-subtle); font-weight: 600;`;
       hrow.appendChild(th);
     });
     thead.appendChild(hrow);
@@ -227,8 +234,8 @@ class TableWidget extends WidgetType {
       const tr = document.createElement('tr');
       for (let i = 0; i < this.header.length; i++) {
         const td = document.createElement('td');
-        td.textContent = row[i] ?? '';
-        td.style.cssText = `padding: 6px 12px; text-align: ${this.aligns[i] || 'left'}; border-top: 1px solid rgba(255,255,255,0.06);`;
+        td.innerHTML = cellMd.renderInline(row[i] ?? '');
+        td.style.cssText = `padding: 6px 12px; text-align: ${this.aligns[i] || 'left'}; border-top: 1px solid var(--border-subtle);`;
         tr.appendChild(td);
       }
       tbody.appendChild(tr);
@@ -313,7 +320,7 @@ class BulletWidget extends WidgetType {
   toDOM() {
     const span = document.createElement('span');
     span.textContent = '\u2022';
-    span.style.cssText = 'color: #ff9f1c; font-weight: bold; margin-right: 4px;';
+    span.style.cssText = 'color: var(--accent-warn); font-weight: bold; margin-right: 4px;';
     return span;
   }
 

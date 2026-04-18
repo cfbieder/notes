@@ -20,15 +20,34 @@ const searchQuery = ref('');
 
 let simulation = null;
 
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function themeColors() {
+  const primary = cssVar('--accent-primary') || '#3a86ff';
+  const success = cssVar('--accent-success') || '#4cc9f0';
+  const warn = cssVar('--accent-warn') || '#ff9f1c';
+  const textMuted = cssVar('--text-muted') || 'rgba(255,255,255,0.6)';
+  const borderStrong = cssVar('--border-strong') || 'rgba(255,255,255,0.2)';
+  return { primary, success, warn, textMuted, borderStrong };
+}
+
+function onThemeChange() {
+  renderGraph();
+}
+
 onMounted(async () => {
   await graphStore.fetchFullGraph();
   renderGraph();
   window.addEventListener('resize', onResize);
+  window.addEventListener('noted:theme-change', onThemeChange);
 });
 
 onBeforeUnmount(() => {
   if (simulation) simulation.stop();
   window.removeEventListener('resize', onResize);
+  window.removeEventListener('noted:theme-change', onThemeChange);
 });
 
 watch([showTags, showOrphans], () => {
@@ -111,6 +130,8 @@ function renderGraph() {
 
   if (simulation) simulation.stop();
 
+  const colors = themeColors();
+
   simulation = d3.forceSimulation(nodeData)
     .force('link', d3.forceLink(edgeData).id(d => d.id).distance(80))
     .force('charge', d3.forceManyBody().strength(-120))
@@ -122,7 +143,8 @@ function renderGraph() {
     .selectAll('line')
     .data(edgeData)
     .join('line')
-    .attr('stroke', d => d.type === 'tag' ? 'rgba(255, 159, 28, 0.45)' : 'rgba(58, 134, 255, 0.5)')
+    .attr('stroke', d => d.type === 'tag' ? colors.warn : colors.primary)
+    .attr('stroke-opacity', d => d.type === 'tag' ? 0.45 : 0.5)
     .attr('stroke-width', d => d.type === 'tag' ? 1.5 : 2)
     .attr('stroke-dasharray', d => d.type === 'tag' ? '6,4' : null);
 
@@ -133,10 +155,10 @@ function renderGraph() {
     .join('circle')
     .attr('r', d => getRadius(d))
     .attr('fill', d => {
-      if (d.type === 'tag') return d.color || '#4cc9f0';
-      return '#3a86ff';
+      if (d.type === 'tag') return d.color || colors.success;
+      return colors.primary;
     })
-    .attr('stroke', d => d.type === 'note' ? 'rgba(255, 255, 255, 0.2)' : 'none')
+    .attr('stroke', d => d.type === 'note' ? colors.borderStrong : 'none')
     .attr('stroke-width', 1)
     .style('cursor', 'pointer')
     .on('click', (event, d) => {
@@ -164,7 +186,7 @@ function renderGraph() {
     .join('text')
     .text(d => d.title.length > 20 ? d.title.slice(0, 18) + '...' : d.title)
     .attr('font-size', d => d.type === 'tag' ? '9px' : '10px')
-    .attr('fill', 'rgba(255, 255, 255, 0.6)')
+    .attr('fill', colors.textMuted)
     .attr('text-anchor', 'middle')
     .attr('dy', d => getRadius(d) + 12)
     .attr('font-family', "'Inter', sans-serif")

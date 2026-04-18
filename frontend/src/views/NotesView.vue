@@ -637,7 +637,7 @@ function onMobileVoiceCapture() {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-modal);
   display: flex;
   justify-content: center;
   padding-top: 15vh;
@@ -769,11 +769,11 @@ function onMobileVoiceCapture() {
   line-height: 1.5;
 }
 .translate-modal .translate-error {
-  background: rgba(255, 90, 90, 0.12);
-  border: 1px solid rgba(255, 90, 90, 0.4);
+  background: var(--status-error-bg);
+  border: 1px solid var(--status-error);
   border-radius: 6px;
   padding: 8px 10px;
-  color: #ff7a7a;
+  color: var(--status-error);
   font-size: 12px;
 }
 .translate-modal .translate-actions {
@@ -816,7 +816,7 @@ function onMobileVoiceCapture() {
 .mobile-sidebar-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-modal);
   z-index: 1000;
 }
 

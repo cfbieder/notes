@@ -38,7 +38,9 @@ Update all applicable:
 | `frontend/src/main.js` | Vue app entry point |
 | `frontend/src/router/index.js` | Route definitions |
 | `frontend/src/api/client.js` | API fetch wrapper with JWT handling |
-| `frontend/src/styles/theme.css` | Sapphire Slate theme variables |
+| `frontend/src/styles/theme.css` | Sapphire/Dark/Light theme palettes (CSS vars under `:root[data-theme="..."]`) |
+| `frontend/src/stores/ui.js` | UI store — includes `theme` + `setTheme()`, `applyTheme()` + `loadTheme()` helpers, dispatches `noted:theme-change` event |
+| `frontend/src/lib/codemirror/sapphireTheme.js` | CodeMirror editor theme (uses CSS vars, adapts to active theme) |
 | `docker-compose.dev.yml` | Dev PostgreSQL container |
 | `docker-compose.prod.yml` | Production stack (DB + API + Nginx) |
 | `backend/Dockerfile` | Backend multi-stage build |
@@ -52,7 +54,7 @@ Update all applicable:
 | `backend/src/services/driveImporter.js` | Google Drive file import logic |
 | `backend/src/services/drivePoller.js` | Google Drive polling scheduler |
 | `backend/src/routes/integrations.js` | Google Drive OAuth + config + scan API |
-| `frontend/src/views/SettingsView.vue` | Settings page (Google Drive integration) |
+| `frontend/src/views/SettingsView.vue` | Settings page (theme picker, password, Google Drive integration) |
 | `backend/src/services/wikilinkParser.js` | Wikilink extraction and resolution |
 | `backend/src/routes/links.js` | Backlinks, unlinked mentions, local graph APIs |
 | `backend/src/routes/graph.js` | Full knowledge graph API |

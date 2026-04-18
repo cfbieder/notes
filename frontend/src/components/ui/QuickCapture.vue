@@ -339,7 +339,7 @@ async function handleCapture() {
 .capture-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-modal);
   display: flex;
   justify-content: center;
   padding-top: 20vh;
