@@ -38,7 +38,7 @@ async function integrationRoutes(fastify) {
            VALUES ($1, 'google_drive', $2, $3, $4, '{"poll_interval_minutes": 5}')
            ON CONFLICT (user_id, provider) DO UPDATE
            SET access_token = $2, refresh_token = COALESCE($3, integrations.refresh_token),
-               token_expiry = $4, updated_at = NOW()`,
+               token_expiry = $4, auth_error = NULL, auth_error_at = NULL, updated_at = NOW()`,
           [userId, tokens.access_token, tokens.refresh_token, tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null]
         );
 
@@ -106,7 +106,10 @@ async function integrationRoutes(fastify) {
           folderName: integration.config.folder_name || null,
           folderId: integration.config.folder_id || null,
           pollIntervalMinutes: integration.config.poll_interval_minutes || 5,
-          lastImport: lastImportResult.rows[0]?.last_import || null
+          lastImport: lastImportResult.rows[0]?.last_import || null,
+          needsReconnect: Boolean(integration.auth_error),
+          authError: integration.auth_error || null,
+          authErrorAt: integration.auth_error_at || null
         }
       };
     });
@@ -214,8 +217,22 @@ async function integrationRoutes(fastify) {
         return reply.code(400).send({ error: 'Bad Request', message: 'No folder configured', statusCode: 400 });
       }
 
-      const scanResult = await fastify.drivePoller.scanForUser(integration);
-      return { data: scanResult };
+      try {
+        const scanResult = await fastify.drivePoller.scanForUser(integration);
+        return { data: scanResult };
+      } catch (err) {
+        if (err.code === 'AUTH_REQUIRED') {
+          // 409 Conflict — state requires reconnect. Using 409 (not 401) so the
+          // API client doesn't try to refresh the app JWT.
+          return reply.code(409).send({
+            error: 'AuthRequired',
+            message: err.message,
+            needsReconnect: true,
+            statusCode: 409
+          });
+        }
+        throw err;
+      }
     });
 
     // DELETE /google-drive — disconnect

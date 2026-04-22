@@ -3,6 +3,14 @@ const { importDriveFile, moveToProcessed, ensureProcessedFolder } = require('./d
 
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE, 10) || 10485760;
 
+function isAuthError(err) {
+  if (!err) return false;
+  const code = err.response?.data?.error || err.code;
+  if (code === 'invalid_grant' || code === 'invalid_token' || code === 'unauthorized_client') return true;
+  const msg = (err.message || '').toLowerCase();
+  return msg.includes('invalid_grant') || msg.includes('token has been expired or revoked');
+}
+
 class DrivePoller {
   constructor(fastify) {
     this.fastify = fastify;
@@ -29,8 +37,12 @@ class DrivePoller {
     this.scanning = true;
 
     try {
+      // Skip integrations whose refresh token has been revoked — they'll just
+      // re-fail every tick and spam Google's token endpoint until the user
+      // reconnects.
       const result = await this.fastify.db.query(
-        `SELECT * FROM integrations WHERE provider = 'google_drive' AND enabled = TRUE`
+        `SELECT * FROM integrations
+         WHERE provider = 'google_drive' AND enabled = TRUE AND auth_error IS NULL`
       );
 
       for (const integration of result.rows) {
@@ -50,6 +62,30 @@ class DrivePoller {
       this.fastify.log.error(err, 'Drive poller tick error');
     } finally {
       this.scanning = false;
+    }
+  }
+
+  async markAuthError(integrationId, err) {
+    const message = err.response?.data?.error_description || err.message || 'Authorization failed';
+    try {
+      await this.fastify.db.query(
+        `UPDATE integrations SET auth_error = $1, auth_error_at = NOW() WHERE id = $2`,
+        [message, integrationId]
+      );
+    } catch (dbErr) {
+      this.fastify.log.error(dbErr, 'Failed to record integration auth_error');
+    }
+  }
+
+  async clearAuthError(integrationId) {
+    try {
+      await this.fastify.db.query(
+        `UPDATE integrations SET auth_error = NULL, auth_error_at = NULL
+         WHERE id = $1 AND auth_error IS NOT NULL`,
+        [integrationId]
+      );
+    } catch (dbErr) {
+      this.fastify.log.error(dbErr, 'Failed to clear integration auth_error');
     }
   }
 
@@ -102,6 +138,21 @@ class DrivePoller {
   }
 
   async scanForUser(integration) {
+    try {
+      return await this._scanForUser(integration);
+    } catch (err) {
+      if (isAuthError(err)) {
+        await this.markAuthError(integration.id, err);
+        const wrapped = new Error('Google Drive authorization expired — please reconnect.');
+        wrapped.code = 'AUTH_REQUIRED';
+        wrapped.cause = err;
+        throw wrapped;
+      }
+      throw err;
+    }
+  }
+
+  async _scanForUser(integration) {
     const folderId = integration.config.folder_id;
     if (!folderId) {
       this.fastify.log.warn({ integrationId: integration.id }, 'No folder configured, skipping scan');
@@ -201,6 +252,9 @@ class DrivePoller {
     }
 
     this.fastify.log.info({ imported, errors: errors.length }, 'Drive scan completed');
+    if (integration.auth_error) {
+      await this.clearAuthError(integration.id);
+    }
     return { imported, errors };
   }
 

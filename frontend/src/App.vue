@@ -109,12 +109,22 @@ function onFABClick() {
   }
 }
 
+function onQuickCaptureEvent(e) {
+  if (!authStore.isAuthenticated) return;
+  const type = e.detail?.type || 'note';
+  captureInitialType.value = type;
+  showCapture.value = true;
+  showSearch.value = false;
+}
+
 onMounted(() => {
   window.addEventListener('keydown', onKeydown);
+  window.addEventListener('noted:quick-capture', onQuickCaptureEvent);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown);
+  window.removeEventListener('noted:quick-capture', onQuickCaptureEvent);
 });
 </script>
 

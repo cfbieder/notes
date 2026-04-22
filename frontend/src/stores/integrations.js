@@ -9,7 +9,10 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     folderName: null,
     folderId: null,
     pollIntervalMinutes: 5,
-    lastImport: null
+    lastImport: null,
+    needsReconnect: false,
+    authError: null,
+    authErrorAt: null
   });
   const history = ref([]);
   const historyMeta = ref({ total: 0, limit: 20, offset: 0 });
@@ -47,7 +50,25 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     try {
       const res = await api.post('/integrations/google-drive/scan');
       scanResult.value = res.data;
+      // A successful scan clears auth_error on the backend; reflect that here.
+      if (googleDrive.value.needsReconnect) {
+        googleDrive.value = {
+          ...googleDrive.value,
+          needsReconnect: false,
+          authError: null,
+          authErrorAt: null
+        };
+      }
       return res.data;
+    } catch (err) {
+      if (err.body?.needsReconnect) {
+        googleDrive.value = {
+          ...googleDrive.value,
+          needsReconnect: true,
+          authError: err.body.message
+        };
+      }
+      throw err;
     } finally {
       scanning.value = false;
     }
@@ -61,7 +82,10 @@ export const useIntegrationsStore = defineStore('integrations', () => {
       folderName: null,
       folderId: null,
       pollIntervalMinutes: 5,
-      lastImport: null
+      lastImport: null,
+      needsReconnect: false,
+      authError: null,
+      authErrorAt: null
     };
     history.value = [];
     historyMeta.value = { total: 0, limit: 20, offset: 0 };

@@ -5,8 +5,9 @@ import { useIntegrationsStore } from '../stores/integrations.js';
 import { useUIStore } from '../stores/ui.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
+import SystemStatusCard from '../components/ui/SystemStatusCard.vue';
 import { useMobile } from '../composables/useMobile.js';
-import { Settings, HardDrive, RefreshCw, CheckCircle, XCircle, Loader2, Unplug, ExternalLink, Lock, Palette } from 'lucide-vue-next';
+import { Settings, HardDrive, RefreshCw, CheckCircle, XCircle, Loader2, Unplug, ExternalLink, Lock, Palette, AlertTriangle } from 'lucide-vue-next';
 import { api } from '../api/client.js';
 
 const { isMobile } = useMobile();
@@ -132,9 +133,21 @@ async function toggleEnabled() {
   await integrationsStore.fetchStatus();
 }
 
+const scanError = ref('');
+
 async function scanNow() {
-  await integrationsStore.scanNow();
-  await integrationsStore.fetchHistory();
+  scanError.value = '';
+  try {
+    await integrationsStore.scanNow();
+  } catch (err) {
+    scanError.value = err.body?.needsReconnect
+      ? 'Google Drive authorization expired. Click Reconnect to re-authorize.'
+      : (err.message || 'Scan failed');
+  }
+  await Promise.all([
+    integrationsStore.fetchStatus(),
+    integrationsStore.fetchHistory()
+  ]);
 }
 
 function openNote(noteId) {
@@ -215,6 +228,17 @@ function formatDate(dateStr) {
             </button>
           </div>
           <template v-else>
+            <div v-if="integrationsStore.googleDrive.needsReconnect" class="reconnect-banner">
+              <AlertTriangle :size="16" />
+              <div class="reconnect-text">
+                <strong>Reconnect required</strong>
+                <span>{{ integrationsStore.googleDrive.authError || 'Google revoked access.' }} Sync is paused until you re-authorize.</span>
+              </div>
+              <button class="btn btn-primary btn-sm" @click="connectGoogleDrive" :disabled="connectPolling">
+                <Loader2 v-if="connectPolling" :size="14" class="spin" />
+                <span>{{ connectPolling ? 'Waiting...' : 'Reconnect' }}</span>
+              </button>
+            </div>
             <div class="status-row">
               <CheckCircle :size="16" class="status-connected" />
               <span>Google Drive connected</span>
@@ -261,6 +285,10 @@ function formatDate(dateStr) {
                 {{ integrationsStore.scanResult.imported }} file(s) imported
                 <span v-if="integrationsStore.scanResult.errors?.length">, {{ integrationsStore.scanResult.errors.length }} error(s)</span>
               </div>
+              <div v-if="scanError" class="scan-error">
+                <AlertTriangle :size="14" />
+                {{ scanError }}
+              </div>
             </div>
           </template>
         </section>
@@ -281,6 +309,8 @@ function formatDate(dateStr) {
             </div>
           </div>
         </section>
+
+        <SystemStatusCard />
       </div>
     </main>
   </MobileLayout>
@@ -364,6 +394,18 @@ function formatDate(dateStr) {
 
           <!-- Connected -->
           <template v-else>
+            <!-- Reconnect banner -->
+            <div v-if="integrationsStore.googleDrive.needsReconnect" class="reconnect-banner">
+              <AlertTriangle :size="16" />
+              <div class="reconnect-text">
+                <strong>Reconnect required</strong>
+                <span>{{ integrationsStore.googleDrive.authError || 'Google revoked access.' }} Sync is paused until you re-authorize.</span>
+              </div>
+              <button class="btn btn-primary btn-sm" @click="connectGoogleDrive" :disabled="connectPolling">
+                <Loader2 v-if="connectPolling" :size="14" class="spin" />
+                <span>{{ connectPolling ? 'Waiting...' : 'Reconnect' }}</span>
+              </button>
+            </div>
             <!-- Status -->
             <div class="status-row">
               <CheckCircle :size="16" class="status-connected" />
@@ -425,6 +467,10 @@ function formatDate(dateStr) {
                 {{ integrationsStore.scanResult.imported }} file(s) imported
                 <span v-if="integrationsStore.scanResult.errors?.length">, {{ integrationsStore.scanResult.errors.length }} error(s)</span>
               </div>
+              <div v-if="scanError" class="scan-error">
+                <AlertTriangle :size="14" />
+                {{ scanError }}
+              </div>
             </div>
           </template>
         </section>
@@ -447,6 +493,8 @@ function formatDate(dateStr) {
             </div>
           </div>
         </section>
+
+        <SystemStatusCard />
       </div>
     </main>
   </div>
@@ -621,6 +669,41 @@ function formatDate(dateStr) {
   width: 100%;
   margin-top: 4px;
 }
+
+.scan-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--status-error);
+  width: 100%;
+  margin-top: 4px;
+}
+
+.reconnect-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--status-warning-bg);
+  border: 1px solid var(--status-warning);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+
+.reconnect-banner > svg { color: var(--status-warning); flex-shrink: 0; }
+
+.reconnect-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  font-size: 13px;
+}
+
+.reconnect-text strong { font-size: 13px; }
+.reconnect-text span { font-size: 12px; color: var(--text-secondary); }
 
 /* Buttons */
 .btn {

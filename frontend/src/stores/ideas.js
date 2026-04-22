@@ -60,5 +60,15 @@ export const useIdeasStore = defineStore('ideas', () => {
     return res.data;
   }
 
-  return { ideas, meta, loading, count, fetchIdeas, createIdea, updateIdea, deleteIdea, promoteIdea, mergeIdea };
+  async function convertToTask(id) {
+    const res = await api.post(`/notes/${id}/convert-to-task`);
+    ideas.value = ideas.value.filter(n => n.id !== id);
+    count.value = Math.max(0, count.value - 1);
+    // Idea is soft-deleted; refresh notes list so any view filtered to ideas
+    // (All Notes, etc.) drops it. Lazy import avoids circular dependency.
+    import('./notes.js').then(m => m.useNotesStore().fetchNotes().catch(() => {}));
+    return res.data;
+  }
+
+  return { ideas, meta, loading, count, fetchIdeas, createIdea, updateIdea, deleteIdea, promoteIdea, mergeIdea, convertToTask };
 });

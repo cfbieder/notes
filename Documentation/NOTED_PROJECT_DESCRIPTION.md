@@ -202,7 +202,7 @@ A GTD-inspired frictionless capture system:
 - **Global capture shortcut:** Keyboard shortcut (e.g., `Ctrl+Shift+N`) opens a floating capture modal from anywhere in the app.
 - **Capture types:** Plain note, task/to-do, idea, or voice. Ideas are a distinct `note_type` and live in a dedicated **Ideas** section rather than the Inbox. Voice captures are recorded via MediaRecorder, transcribed via Whisper, and saved as ideas.
 - **Inbox view:** A dedicated "Inbox" view shows all unallocated *note* captures in reverse chronological order.
-- **Ideas view:** A dedicated **💡 Ideas** view (sidebar entry + `Alt+I` shortcut, mobile home card) for notebook-less, pre-allocation captures. Each idea can be **promoted** to a regular note in a chosen notebook, **moved to a note** (appended as a bullet to an existing note's body, source soft-deleted), opened, or trashed — all actions available both from the Ideas list and from the editor toolbar when viewing an idea. Ideas are first-class across the app — they appear in All Notes, Search, Graph, and Tag views, distinguished by a 💡 chip rendered from `note_type`.
+- **Ideas view:** A dedicated **💡 Ideas** view (sidebar entry + `Alt+I` shortcut, mobile home card) for notebook-less, pre-allocation captures. Each idea can be **promoted** to a regular note in a chosen notebook, **moved to a note** (appended as a bullet to an existing note's body, source soft-deleted), **moved to a task** (creates a standalone inbox task with the idea's content, source soft-deleted), opened, or trashed — all actions available both from the Ideas list (the `→` button opens a Move popover with both options) and from the editor toolbar when viewing an idea. Ideas are first-class across the app — they appear in All Notes, Search, Graph, and Tag views, distinguished by a 💡 chip rendered from `note_type`.
 - **Processing:** Each inbox item can be: converted to a full note, added as a task to an existing note, moved to a notebook, or discarded.
 - **No friction:** The capture modal requires zero allocation decisions upfront.
 
@@ -291,7 +291,7 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **PDF preview:** PDFs show a thumbnail; clicking opens in a panel or browser tab.
 - **Storage:** Files stored on VM filesystem in a structured directory (`/attachments/{year}/{month}/{note_id}/`).
 - **Metadata:** File size, type, and original filename stored in `attachments` table.
-- **Upload:** Drag-and-drop into note body or via toolbar button.
+- **Upload:** Drag-and-drop into note body, via toolbar button, or paste from clipboard (Win+Shift+S / screenshot tools). Pasted images are uploaded as attachments and the markdown reference is inserted at the current cursor position in the editor.
 
 ### 5.8 Bidirectional Links & Backlinks (Stage 2)
 
@@ -353,8 +353,9 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 
 ### 5.15 Settings (implemented)
 
-- **Settings view (`/settings`):** Theme picker (Sapphire Slate / Dark / Light), password change, Google Drive integration config/scan, and account-level preferences.
+- **Settings view (`/settings`):** Theme picker (Sapphire Slate / Dark / Light), password change, Google Drive integration config/scan, account-level preferences, and a **System Status** card at the bottom.
 - **Theme picker:** Three palettes selectable via a card grid with live swatch previews. Selection persists to `localStorage` (`noted.ui.theme`) and is applied before Vue mounts via `applyTheme()` in `main.js`. See §13 for the palette definitions.
+- **System Status:** Single-card dashboard backed by `GET /api/v1/system/stats`. Reports storage (attachments size, DB size, filesystem total/free with a colour-coded usage bar), content counts (notes / ideas / trashed / tasks / attachments / OCR'd / tags), server info (app version, Node, env, uptime, RSS), integration health (LLM gateway reachable + model count, Google Drive connection), and backup status (last backup timestamp + size + count from `BACKUP_DIR`). Fetched once on mount with a manual Refresh button — no polling. Component: [SystemStatusCard.vue](frontend/src/components/ui/SystemStatusCard.vue).
 
 ### 5.16 Note Export & API Tokens (implemented)
 
@@ -489,6 +490,8 @@ CREATE TABLE integrations (
   token_expiry   TIMESTAMPTZ,
   config         JSONB NOT NULL DEFAULT '{}',    -- folder IDs, target notebook, poll interval
   enabled        BOOLEAN DEFAULT TRUE,
+  auth_error     TEXT,                           -- migration 013: last OAuth failure (e.g. invalid_grant)
+  auth_error_at  TIMESTAMPTZ,                    -- when auth_error was recorded; cleared on successful reconnect
   created_at     TIMESTAMPTZ DEFAULT NOW(),
   updated_at     TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id, provider)
@@ -556,6 +559,9 @@ DELETE /api/v1/notes/:id?hard=true  Permanent delete (removes row + attachments 
 GET    /api/v1/notes/:id/backlinks  Returns notes linking to this note
 GET    /api/v1/notes/:id/graph      Returns local graph data (nodes + edges, 1 degree)
 POST   /api/v1/notes/voice          Multipart audio upload → transcribe via Whisper → create idea + attachment
+POST   /api/v1/notes/:id/promote        Body: { notebook_id } — flip idea → note (409 if not idea)
+POST   /api/v1/notes/:id/merge-into     Body: { target_note_id } — append idea content as bullet to target, soft-delete source
+POST   /api/v1/notes/:id/convert-to-task  Convert an idea to a standalone task (note_id=null), soft-delete source (409 if not idea)
 ```
 
 `client_id` on `POST /notes` supports the offline outbox: replays with the same `(user_id, client_id)` resolve to the existing note instead of creating a duplicate.
@@ -647,6 +653,16 @@ POST   /api/v1/ai-assist/generate           Body: { prompt, noteIds?, model?, co
                                             stream=true: NDJSON chunks ({chunk:"..."}) then a final
                                             {done:true, model, sources, ...} line.
                                             Does NOT create a note — frontend previews then calls POST /notes.
+```
+
+### System
+
+```
+GET    /api/v1/system/stats          Dashboard for the Settings page —
+                                     storage (attachments/db/disk), content counts,
+                                     server (version, uptime, memory), integrations
+                                     (LLM gateway, Drive), and backup status.
+                                     Single round-trip; per-collector failures degrade to nulls.
 ```
 
 ### Integrations — Google Drive
@@ -926,7 +942,7 @@ The following are explicitly out of scope and will not be built:
 
 ---
 
-*Last updated: 2026-04-16*
+*Last updated: 2026-04-19*
 *Status: Stages 1–2 shipped and deployed to production. Phase 7 (Web Clipper & OCR) complete. Phase 8.10 (voice capture) and 8.11 (note translate) shipped. Next up: remaining Phase 8 tasks (pgvector, semantic search, summarization, task extraction, "ask my notes").*
 
 ---

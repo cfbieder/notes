@@ -152,6 +152,42 @@ async function run() {
   assert(badMerge.status === 404, 'Merge into missing target returns 404');
 
   // -----------------------------------------------------------------
+  console.log('\nConvert idea → standalone task:');
+  const ideaForTask = (await apiFetch('/notes', {
+    method: 'POST',
+    body: { title: 'Idea for task', content: 'Pick up groceries', note_type: 'idea' }
+  })).data?.data;
+
+  const convertRes = await apiFetch(`/notes/${ideaForTask.id}/convert-to-task`, {
+    method: 'POST'
+  });
+  assert(convertRes.status === 201, 'POST /convert-to-task returns 201');
+  assert(convertRes.data?.data?.content === 'Pick up groceries', 'Task content matches idea content');
+  assert(convertRes.data?.data?.note_id === null, 'Task note_id is null (inbox/standalone)');
+  assert(convertRes.data?.data?.is_done === false, 'Task starts not-done');
+
+  // Source idea is soft-deleted
+  const ideaCheck = await apiFetch(`/notes/${ideaForTask.id}`);
+  assert(ideaCheck.data?.data?.deleted_at != null, 'Source idea soft-deleted after convert');
+
+  // Cleanup the task we just made
+  if (convertRes.data?.data?.id) {
+    await apiFetch(`/tasks/${convertRes.data.data.id}`, { method: 'DELETE' });
+  }
+
+  // Convert a non-idea (the promoted note from earlier) → 409
+  const convertNonIdea = await apiFetch(`/notes/${ideaForPromote.id}/convert-to-task`, {
+    method: 'POST'
+  });
+  assert(convertNonIdea.status === 409, 'Convert non-idea returns 409');
+
+  // Convert missing → 404
+  const convertMissing = await apiFetch('/notes/00000000-0000-0000-0000-000000000000/convert-to-task', {
+    method: 'POST'
+  });
+  assert(convertMissing.status === 404, 'Convert missing idea returns 404');
+
+  // -----------------------------------------------------------------
   console.log('\nUpdate note_type via PUT:');
   const newIdea = (await apiFetch('/notes', {
     method: 'POST',

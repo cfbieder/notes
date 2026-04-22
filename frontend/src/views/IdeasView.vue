@@ -1,30 +1,38 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useIdeasStore } from '../stores/ideas.js';
 import { useNotebooksStore } from '../stores/notebooks.js';
 import { useNotesStore } from '../stores/notes.js';
+import { useToastsStore } from '../stores/toasts.js';
 import { api } from '../api/client.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import { useMobile } from '../composables/useMobile.js';
-import { Lightbulb, ArrowRight, FileText, Trash2, X, Search } from 'lucide-vue-next';
+import { Lightbulb, ArrowRight, FileText, Trash2, X, Search, Plus, CheckSquare } from 'lucide-vue-next';
 
 const { isMobile } = useMobile();
 const router = useRouter();
 const ideasStore = useIdeasStore();
 const notebooksStore = useNotebooksStore();
 const notesStore = useNotesStore();
+const toastsStore = useToastsStore();
 
 const searchQuery = ref('');
 const promoteModal = ref({ show: false, ideaId: null });
 const mergeModal = ref({ show: false, ideaId: null, query: '', results: [], loading: false });
+const moveMenuFor = ref(null); // idea id whose move-menu is open
 
 onMounted(async () => {
   await ideasStore.fetchIdeas();
   if (notebooksStore.notebooks.length === 0) {
     await notebooksStore.fetchNotebooks();
   }
+  document.addEventListener('click', onDocClickClose);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClickClose);
 });
 
 const filteredIdeas = computed(() => {
@@ -57,6 +65,31 @@ async function confirmPromote(notebookId) {
 
 function openMergeModal(id) {
   mergeModal.value = { show: true, ideaId: id, query: '', results: [], loading: false };
+}
+
+function toggleMoveMenu(id) {
+  moveMenuFor.value = moveMenuFor.value === id ? null : id;
+}
+
+function chooseMoveToNote(id) {
+  moveMenuFor.value = null;
+  openMergeModal(id);
+}
+
+async function chooseMoveToTask(id) {
+  moveMenuFor.value = null;
+  try {
+    await ideasStore.convertToTask(id);
+    toastsStore.addToast({ message: 'Idea converted to task', type: 'success' });
+  } catch (e) {
+    toastsStore.addToast({ message: e.message || 'Failed to convert idea', type: 'error' });
+  }
+}
+
+function onDocClickClose(e) {
+  if (!moveMenuFor.value) return;
+  if (e.target.closest('.move-menu-anchor')) return;
+  moveMenuFor.value = null;
 }
 
 let mergeSearchTimer = null;
@@ -92,6 +125,10 @@ function getPreview(content) {
   if (!content) return '';
   return content.replace(/\n/g, ' ').slice(0, 140);
 }
+
+function openNewIdea() {
+  window.dispatchEvent(new CustomEvent('noted:quick-capture', { detail: { type: 'idea' } }));
+}
 </script>
 
 <template>
@@ -120,7 +157,17 @@ function getPreview(content) {
             <div class="idea-time">{{ formatDate(idea.created_at) }}</div>
           </div>
           <div class="idea-actions">
-            <button class="action-btn" @click.stop="openMergeModal(idea.id)" title="Move to note"><ArrowRight :size="14" /></button>
+            <div class="move-menu-anchor">
+              <button class="action-btn" @click.stop="toggleMoveMenu(idea.id)" title="Move…"><ArrowRight :size="14" /></button>
+              <div v-if="moveMenuFor === idea.id" class="move-menu" @click.stop>
+                <button class="move-menu-item" @click="chooseMoveToNote(idea.id)">
+                  <FileText :size="14" /> Move to note
+                </button>
+                <button class="move-menu-item" @click="chooseMoveToTask(idea.id)">
+                  <CheckSquare :size="14" /> Move to task
+                </button>
+              </div>
+            </div>
             <button class="action-btn promote-btn" @click.stop="openPromoteModal(idea.id)" title="Promote">Promote</button>
             <button class="action-btn delete-btn" @click.stop="discardIdea(idea.id)" title="Delete"><Trash2 :size="14" /></button>
           </div>
@@ -136,6 +183,10 @@ function getPreview(content) {
         <span class="ideas-emoji">💡</span>
         <h2>Ideas</h2>
         <span class="ideas-count">{{ ideasStore.count }} item{{ ideasStore.count === 1 ? '' : 's' }}</span>
+        <button class="new-idea-btn" @click="openNewIdea" title="New idea (Alt+I)">
+          <Plus :size="14" />
+          New Idea
+        </button>
       </div>
 
       <div class="ideas-search">
@@ -157,7 +208,11 @@ function getPreview(content) {
         <Lightbulb :size="48" />
         <p v-if="searchQuery">No ideas match "{{ searchQuery }}"</p>
         <p v-else>No ideas yet</p>
-        <span v-if="!searchQuery">Press Alt+I to capture one</span>
+        <button v-if="!searchQuery" class="new-idea-btn" @click="openNewIdea">
+          <Plus :size="14" />
+          New Idea
+        </button>
+        <span v-if="!searchQuery">or press Alt+I</span>
       </div>
 
       <div v-else class="ideas-list">
@@ -174,9 +229,19 @@ function getPreview(content) {
             <button class="action-btn" @click.stop="openIdea(idea.id)" title="Open">
               <FileText :size="14" />
             </button>
-            <button class="action-btn" @click.stop="openMergeModal(idea.id)" title="Move to note">
-              <ArrowRight :size="14" />
-            </button>
+            <div class="move-menu-anchor">
+              <button class="action-btn" @click.stop="toggleMoveMenu(idea.id)" title="Move…">
+                <ArrowRight :size="14" />
+              </button>
+              <div v-if="moveMenuFor === idea.id" class="move-menu" @click.stop>
+                <button class="move-menu-item" @click="chooseMoveToNote(idea.id)">
+                  <FileText :size="14" /> Move to note
+                </button>
+                <button class="move-menu-item" @click="chooseMoveToTask(idea.id)">
+                  <CheckSquare :size="14" /> Move to task
+                </button>
+              </div>
+            </div>
             <button class="action-btn promote-btn" @click.stop="openPromoteModal(idea.id)" title="Promote to note">
               Promote
             </button>
@@ -278,6 +343,23 @@ function getPreview(content) {
   margin-left: auto;
 }
 
+.new-idea-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--accent-warn);
+  color: var(--on-accent-warn, #1a1a1a);
+  border: none;
+  border-radius: 6px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.new-idea-btn:hover { opacity: 0.88; }
+
 .ideas-search {
   display: flex;
   align-items: center;
@@ -374,6 +456,45 @@ function getPreview(content) {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+}
+
+.move-menu-anchor {
+  position: relative;
+}
+
+.move-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1200;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.3));
+  padding: 4px;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+}
+
+.move-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+.move-menu-item:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
 }
 
 .action-btn {

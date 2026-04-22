@@ -79,6 +79,8 @@ Update all applicable:
 | `frontend/src/lib/printNote.js` | Print/PDF export — renders markdown to HTML via markdown-it, opens styled print window |
 
 | `backend/src/routes/export.js` | Note export endpoint (`GET /api/v1/notes/export/:title`) |
+| `backend/src/routes/system.js` | System stats endpoint (`GET /api/v1/system/stats`) — storage, content, server, integrations, backup |
+| `frontend/src/components/ui/SystemStatusCard.vue` | Settings-page System Status card (fetch on mount + manual refresh) |
 
 ## Dev Environment
 

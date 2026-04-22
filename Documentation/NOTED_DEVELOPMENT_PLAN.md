@@ -1,7 +1,7 @@
 # Development Plan — Noted
 
 > Personal Knowledge & Task Management App
-> Status: Phases 0–6, 9 complete; 8.10, 8.11, 9.10–9.12 shipped | Last updated: 2026-04-17
+> Status: Phases 0–6, 9 complete; 8.10, 8.11, 8.12, 9.10–9.12, Phase 10 (Ideas) shipped | Last updated: 2026-04-19
 
 ---
 
@@ -435,6 +435,11 @@ Completed: 2026-04-15
 - Drag-and-drop ideas → notes (was not in the original spec; can be added later for desktop power users).
 - Editor-level idea actions shipped as follow-up after initial deploy (originally deferred in 10.9 — the "no editor modal" decision was reversed once manual QA showed the UX gap).
 
+**Follow-ups:**
+- **New Idea button on Ideas view** (2026-04-19): added a `+ New Idea` button to the `IdeasView` header and empty state so desktop users don't need to know `Alt+I`. Implemented via a `noted:quick-capture` window event (matches the `noted:theme-change` pattern); `App.vue` listens and opens Quick Capture with the requested initial type, avoiding a new store.
+- **Move idea to task** (2026-04-19): the `→` button on each idea row now opens a popover with two options — "Move to note" (existing merge-into-bullet flow) and "Move to task" (new). Move-to-task creates a standalone task (`note_id=null`, lands in Tasks view) with the idea's content, then soft-deletes the source idea. Editor toolbar gets a parallel "Move to task" button when viewing an idea. **Backend:** `POST /api/v1/notes/:id/convert-to-task` (404 if missing, 409 if not an idea). **Frontend:** `ideasStore.convertToTask`, popover in `IdeasView`, new `convert-to-task` emit on `EditorToolbar`. Tests in `phase10-ideas.test.js` (33 assertions, all green).
+- **System Status panel on Settings** (2026-04-19): added a "System Status" card at the bottom of Settings (mobile + desktop) showing storage (attachments dir size, DB size, disk total/free with a usage bar that turns amber at 75% and red at 90%), content counts (notes / ideas / trashed / tasks open+done / attachments+OCR / tags), server info (app version, Node, env, uptime, RSS memory), integrations (LLM gateway reachable + model count, Google Drive connection state), and backup info (last backup timestamp/size + count, scanned from `BACKUP_DIR`). **Backend:** new `GET /api/v1/system/stats` ([backend/src/routes/system.js](backend/src/routes/system.js)) — single round-trip, all collectors run in parallel, individual failures degrade to nulls; LLM ping uses 2s AbortController timeout so a down gateway doesn't hang the page. Disk usage via `fs.statfs` (Node 20+); attachments size via async recursive walk (no shell). Backup dir scan looks for `noted_*.sql(.gz)?` files. **Frontend:** new `SystemStatusCard.vue` component fetches once on mount with manual Refresh button (no polling — settings page is visited occasionally, not a dashboard). **Env:** `BACKUP_DIR` added to `.env.prod.example` (defaults to `./backups`). **Tests:** `backend/tests/system-stats.test.js` (24 assertions including 401 for unauth, all green).
+
 ---
 
 ## 11. Backlog & Future (Stage 3)
@@ -512,6 +517,8 @@ These items are out of scope for Stages 1–2 but documented for future planning
 | 2026-04-11 | PWA install on all platforms | Full PWA installability: Apple Touch Icon + iOS meta tags, branded PNG icons (orange "N"), manifest screenshots for rich install dialog, Nginx `application/manifest+json` MIME type, separate `any`/`maskable` icon purposes (Chrome deprecated combined value), in-app install banner (`InstallBanner.vue`) with `beforeinstallprompt` interception. Install via Chrome menu → Cast, save, and share → Install Noted (PC/Android) or Safari → Add to Home Screen (iOS). |
 | 2026-04-11 | Sidebar notebook count stale after delete | `GET /notebooks` SQL counted all notes including soft-deleted (trashed) ones. Fixed by adding `deleted_at IS NULL` to the JOIN. Also added `fetchNotebooks()` call after trashing from editor toolbar (NoteListPanel already had it). |
 | 2026-04-17 | Normal Mode gap on blockquotes | `QuoteMark` decoration in `frontend/src/lib/codemirror/markdownRendering.js` extended its replace range by `node.to + 1` to hide the space after `>`. On a bare `>` line (`>\n`), that extra character is the newline — an inline `Decoration.replace` spanning a line break broke CodeMirror's height measurement and produced a huge empty gap between the blockquote and subsequent content. Fixed by only extending the range when the next char is a space. Also added `estimatedHeight` to `TableWidget` to stabilize block-widget layout. |
+| 2026-04-19 | Paste image inserts at cursor | `onPasteImage` in `NotesView.vue` previously delegated to `onInsertImage`, which appends to `editorContent.value` — pasted images always landed at the end of the note. Switched the paste path to call `editorRef.value.insertAtCursor(markdown)` (already exposed by `CodeMirrorEditor.vue` for table/AI-assist insertion). `onInsertImage` / AttachmentZone click-to-insert retains append behavior. |
+| 2026-04-22 | Drive refresh-token expiry surfaced to UI | Google OAuth consent screen in "Testing" status issues refresh tokens that expire after 7 days. Prior behavior: poller silently failed with `invalid_grant` every 60s (6000+ errors logged over 5 days), manual scan returned generic 500, user had no indication anything was wrong. Migration `013_integration_auth_error.sql` adds `auth_error` + `auth_error_at` to `integrations`. `drivePoller.scanForUser` now detects `invalid_grant` / `invalid_token` / `unauthorized_client`, records the error on the row, and throws an `AUTH_REQUIRED` typed error. Poller `tick()` skips integrations with `auth_error IS NOT NULL`. `POST /integrations/google-drive/scan` returns 409 with `needsReconnect: true`. `GET /integrations/google-drive/status` exposes `needsReconnect`, `authError`, `authErrorAt`. Settings page shows a warning banner with a Reconnect button. OAuth callback clears the flag on successful reconnect. Long-term fix: move Google Cloud OAuth consent screen from Testing → In Production so refresh tokens don't expire at 7 days. |
 
 ---
 
@@ -620,7 +627,7 @@ All Phase 4 features tested and passing:
 - [x] Inline image rendering in Normal Mode (regex-based, cursor-aware)
 - [x] Attachment reference cleanup on delete
 - [x] Token-based attachment access for `<img>` tags (`?token=` query param)
-- [x] Clipboard image paste (Win+Shift+S etc.) uploads as attachment + inserts markdown (2026-04-15)
+- [x] Clipboard image paste (Win+Shift+S etc.) uploads as attachment + inserts markdown at cursor position (2026-04-15, cursor-at-insert fix 2026-04-19)
 - [x] Inline image resize via drag handle; persists as Obsidian-style `![alt|width](src)` (2026-04-15)
 - [x] Reminders panel — overdue (red), upcoming, empty state, badge count
 - [x] Reminders 60s background polling (deferred start)

@@ -1,7 +1,7 @@
 <script setup>
 import { useUIStore } from '../../stores/ui.js';
 import { computed } from 'vue';
-import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom, Printer, RefreshCw, Download } from 'lucide-vue-next';
+import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom, Printer, RefreshCw, Download, CheckSquare } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
 import NoteNotebooks from './NoteNotebooks.vue';
 import ReminderPicker from '../ui/ReminderPicker.vue';
@@ -17,7 +17,7 @@ const props = defineProps({
   autoUpdate: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'translate', 'insert-table', 'set-reminder', 'print', 'toggle-auto-update', 'download']);
+const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'convert-to-task', 'translate', 'insert-table', 'set-reminder', 'print', 'toggle-auto-update', 'download']);
 
 const isIdea = computed(() => props.noteType === 'idea');
 
@@ -84,6 +84,16 @@ function onTitleInput(e) {
       >
         <ArrowRight :size="14" />
         <span>Move to note</span>
+      </button>
+
+      <button
+        v-if="isIdea"
+        class="idea-btn"
+        @click="$emit('convert-to-task')"
+        title="Convert this idea into a standalone task"
+      >
+        <CheckSquare :size="14" />
+        <span>Move to task</span>
       </button>
 
       <button

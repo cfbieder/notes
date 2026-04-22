@@ -23,12 +23,14 @@ import { useAttachmentsStore } from '../stores/attachments.js';
 import { useNotebooksStore } from '../stores/notebooks.js';
 import { useGraphStore } from '../stores/graph.js';
 import { useAIAssistStore } from '../stores/aiAssist.js';
+import { useToastsStore } from '../stores/toasts.js';
 import { printNote } from '../lib/printNote.js';
 
 const attachmentsStore = useAttachmentsStore();
 const notebooksStore = useNotebooksStore();
 const graphStore = useGraphStore();
 const aiAssistStore = useAIAssistStore();
+const toastsStore = useToastsStore();
 
 const route = useRoute();
 const router = useRouter();
@@ -158,6 +160,18 @@ async function confirmMerge(targetNoteId) {
   mergeModal.value.show = false;
   await ideasStore.mergeIdea(id, targetNoteId);
   router.push(`/notes/${targetNoteId}`);
+}
+
+async function convertIdeaToTask() {
+  if (!notesStore.currentNote) return;
+  const id = notesStore.currentNote.id;
+  try {
+    await ideasStore.convertToTask(id);
+    toastsStore.addToast({ message: 'Idea converted to task', type: 'success' });
+    router.push('/tasks');
+  } catch (e) {
+    toastsStore.addToast({ message: e.message || 'Failed to convert idea', type: 'error' });
+  }
 }
 
 function getMergePreview(content) {
@@ -365,7 +379,13 @@ async function onPasteImage(file) {
       : `pasted-${new Date().toISOString().replace(/[:.]/g, '-')}.${ext}`;
     const namedFile = new File([file], name, { type: file.type });
     const attachment = await attachmentsStore.uploadFile(notesStore.currentNote.id, namedFile);
-    onInsertImage(attachment);
+    const markdownImg = `![${attachment.filename}](/api/v1/attachments/${attachment.id})`;
+    if (editorRef.value && typeof editorRef.value.insertAtCursor === 'function') {
+      editorRef.value.insertAtCursor(markdownImg);
+      scheduleSave();
+    } else {
+      onInsertImage(attachment);
+    }
   } catch (err) {
     console.error('Paste image upload failed', err);
   }
@@ -446,6 +466,7 @@ function onMobileVoiceCapture() {
           @reset-checkboxes="resetCheckboxes"
           @promote="openPromoteModal"
           @merge="openMergeModal"
+          @convert-to-task="convertIdeaToTask"
           @translate="openTranslateModal"
           @insert-table="openInsertTable"
           @set-reminder="setNoteReminder"

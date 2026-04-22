@@ -471,6 +471,41 @@ async function noteRoutes(fastify) {
     return { data: updated.rows[0] };
   });
 
+  // POST /api/v1/notes/:id/convert-to-task — convert an idea into a standalone task
+  // (note_id=null, lands in Tasks/Inbox). Soft-deletes the source idea.
+  fastify.post('/:id/convert-to-task', async (request, reply) => {
+    const { id } = request.params;
+    const userId = request.user.id;
+
+    const existing = await fastify.db.query(
+      `SELECT note_type, title, content FROM notes
+       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [id, userId]
+    );
+    if (existing.rows.length === 0) {
+      return reply.code(404).send({ error: 'Not Found', message: 'Note not found', statusCode: 404 });
+    }
+    if (existing.rows[0].note_type !== 'idea') {
+      return reply.code(409).send({ error: 'Conflict', message: 'Note is not an idea', statusCode: 409 });
+    }
+
+    const content = (existing.rows[0].content || '').trim() || existing.rows[0].title || 'Untitled task';
+
+    const taskResult = await fastify.db.query(
+      `INSERT INTO tasks (user_id, note_id, content)
+       VALUES ($1, NULL, $2)
+       RETURNING *`,
+      [userId, content]
+    );
+
+    await fastify.db.query(
+      `UPDATE notes SET deleted_at = NOW() WHERE id = $1 AND user_id = $2`,
+      [id, userId]
+    );
+
+    return reply.code(201).send({ data: taskResult.rows[0] });
+  });
+
   // POST /api/v1/notes/:id/translate — translate note content via the LLM
   // gateway and append the translated block below the original (preserves
   // both versions for search). Long content is truncated by llmService.

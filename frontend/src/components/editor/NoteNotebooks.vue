@@ -46,7 +46,11 @@ async function selectNotebook(notebook) {
     notebook_id: notebook.id,
     is_inbox: false
   });
-  await notesStore.fetchNote(notesStore.currentNote.id);
+  await Promise.all([
+    notesStore.fetchNote(notesStore.currentNote.id),
+    notesStore.fetchNotes(),
+    notebooksStore.fetchNotebooks()
+  ]);
   showDropdown.value = false;
 }
 
