@@ -111,11 +111,19 @@ async function importDriveFile(fastify, drive, file, userId, integrationId) {
     const stat = await fsp.stat(filePath);
     const storagePath = path.join(year, month, noteId, storedName);
 
-    await fastify.db.query(
+    const attachmentResult = await fastify.db.query(
       `INSERT INTO attachments (note_id, user_id, filename, mime_type, size_bytes, storage_path)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
       [noteId, userId, file.name, downloadMimeType, stat.size, storagePath]
     );
+
+    if (downloadMimeType.startsWith('image/')) {
+      const attachmentId = attachmentResult.rows[0].id;
+      await fastify.db.query(
+        `UPDATE notes SET content = content || $1 WHERE id = $2`,
+        [`\n\n![${file.name}](/api/v1/attachments/${attachmentId})`, noteId]
+      );
+    }
 
     await logImport(fastify, userId, integrationId, file, noteId, 'success');
     return noteResult.rows[0];

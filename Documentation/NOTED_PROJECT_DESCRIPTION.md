@@ -201,7 +201,7 @@ A GTD-inspired frictionless capture system:
 
 - **Global capture shortcut:** Keyboard shortcut (e.g., `Ctrl+Shift+N`) opens a floating capture modal from anywhere in the app.
 - **Capture types:** Plain note, task/to-do, idea, or voice. Ideas are a distinct `note_type` and live in a dedicated **Ideas** section rather than the Inbox. Voice captures are recorded via MediaRecorder, transcribed via Whisper, and saved as ideas.
-- **Inbox view:** A dedicated "Inbox" view shows all unallocated *note* captures in reverse chronological order.
+- **Inbox view:** A dedicated "Inbox" view shows all unallocated *note* captures in reverse chronological order. Filter is `notes.is_inbox = TRUE`. Each user also has a default notebook (conventionally named "Inbox", `notebooks.is_default = TRUE`) — assigning a note to that notebook (via the notebook picker or sidebar drag-drop) sets `is_inbox = TRUE`; assigning to any other notebook sets `is_inbox = FALSE`. Migration `015_inbox_default_notebook_sync.sql` backfilled this invariant after a picker bug was fixed.
 - **Ideas view:** A dedicated **💡 Ideas** view (sidebar entry + `Alt+I` shortcut, mobile home card) for notebook-less, pre-allocation captures. Each idea can be **promoted** to a regular note in a chosen notebook, **moved to a note** (appended as a bullet to an existing note's body, source soft-deleted), **moved to a task** (creates a standalone inbox task with the idea's content, source soft-deleted), opened, or trashed — all actions available both from the Ideas list (the `→` button opens a Move popover with both options) and from the editor toolbar when viewing an idea. Ideas are first-class across the app — they appear in All Notes, Search, Graph, and Tag views, distinguished by a 💡 chip rendered from `note_type`.
 - **Processing:** Each inbox item can be: converted to a full note, added as a task to an existing note, moved to a notebook, or discarded.
 - **No friction:** The capture modal requires zero allocation decisions upfront.
@@ -286,8 +286,9 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 
 ### 5.7 File Attachments (Stage 1)
 
-- **Supported types:** Images (PNG, JPG, GIF, WebP), PDFs, and common document types (DOCX, XLSX, TXT).
-- **Inline images:** Images render inline in Normal Mode.
+- **Supported types:** Images (PNG, JPG, GIF, WebP, SVG), PDFs, and common document types (DOCX, XLSX, TXT).
+- **Inline images:** Images render inline in Normal Mode when a markdown `![](...)` reference exists in the note body. The `AttachmentZone` component also shows an always-on thumbnail grid for every image attachment (rendered above the collapsible file list) regardless of whether the body references them — so uploads, clipper screenshots, and Drive imports all display a preview even when no markdown reference exists.
+- **SVG on dark themes:** SVGs authored for light backgrounds often use dark ink and disappear on the dark editor. Both the editor's `ImageWidget` and the `AttachmentZone` preview grid give a white backing (with padding) to image references whose alt/filename ends in `.svg` or whose `mime_type` is `image/svg+xml`. Other image types keep the transparent theme background.
 - **PDF preview:** PDFs show a thumbnail; clicking opens in a panel or browser tab.
 - **Storage:** Files stored on VM filesystem in a structured directory (`/attachments/{year}/{month}/{note_id}/`).
 - **Metadata:** File size, type, and original filename stored in `attachments` table.
@@ -342,6 +343,7 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **Polling:** `drivePoller` runs on an interval and imports new/changed files idempotently.
 - **Manual scan:** A "Scan now" action in Settings triggers an immediate sync.
 - **Auto-update:** Per-note toggle (visible only on Drive-imported notes). When enabled, the poller detects Drive file modifications (via `modifiedTime`) and overwrites the note content, preserving tags, folder assignment, and wikilinks. Auto-update files remain in the import folder (not moved to Processed) so future changes are detected. Migration: `010_note_auto_update.sql`.
+- **Image imports:** When a Drive file's MIME type starts with `image/` (including `image/svg+xml`), the importer appends a markdown image reference (`![filename](/api/v1/attachments/{id})`) to the note body after saving the attachment, so the image renders inline in Normal Mode and travels with exports/prints. Non-image binaries (PDFs, Office docs, etc.) remain attachment-only with the `"Imported from Google Drive: ..."` placeholder text.
 - **Code:** `backend/src/services/driveImporter.js`, `backend/src/services/drivePoller.js`, `backend/src/routes/integrations.js`, `frontend/src/views/SettingsView.vue`.
 
 ### 5.14 Offline Quick Capture (implemented)
@@ -350,6 +352,7 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **Idempotent replay:** Each outbox entry carries a client-generated UUID (`client_id`). The backend `notes` table has a unique index on `(user_id, client_id)` (migration `006_offline_client_id.sql`) so replayed captures cannot create duplicates.
 - **UX:** Quick capture modal surfaces pending-outbox state and replay progress.
 - **PWA status:** Works reliably in a Chrome tab; installed Android PWA support is degraded and de-prioritized.
+- **Update prompt:** `vite-plugin-pwa` is configured with `registerType: 'prompt'` (see [vite.config.js](frontend/vite.config.js)). When a new service worker is waiting, `main.js` calls `registerSW({ onNeedRefresh })` and surfaces a sticky toast ("A new version of Noted is available." + **Reload** action) via the toasts store. Clicking Reload calls `updateSW(true)` which triggers `skipWaiting` + `clientsClaim` and refreshes the page onto the new bundle.
 
 ### 5.15 Settings (implemented)
 

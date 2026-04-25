@@ -132,7 +132,11 @@ async function onNotebookDrop(e, nbId) {
   dragOverNotebook.value = null;
   const noteId = e.dataTransfer.getData('text/plain');
   if (!noteId) return;
-  await notesStore.updateNote(noteId, { notebook_id: nbId, is_inbox: false });
+  const targetNb = notebooksStore.notebooks.find(n => n.id === nbId);
+  await notesStore.updateNote(noteId, {
+    notebook_id: nbId,
+    is_inbox: !!targetNb?.is_default
+  });
   await notesStore.fetchNotes();
   await notebooksStore.fetchNotebooks();
 }

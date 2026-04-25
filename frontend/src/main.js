@@ -1,9 +1,11 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
+import { registerSW } from 'virtual:pwa-register';
 import router from './router/index.js';
 import App from './App.vue';
 import './styles/theme.css';
 import { applyTheme, loadTheme } from './stores/ui.js';
+import { useToastsStore } from './stores/toasts.js';
 
 applyTheme(loadTheme());
 
@@ -28,3 +30,15 @@ if (isDev) {
 }
 
 app.mount('#app');
+
+const updateSW = registerSW({
+  onNeedRefresh() {
+    useToastsStore().addToast({
+      message: 'A new version of Noted is available.',
+      type: 'info',
+      duration: 0,
+      action: () => updateSW(true),
+      actionLabel: 'Reload'
+    });
+  }
+});

@@ -321,6 +321,10 @@ Browser / PWA
 | 9.10 | ✅ Auto-update from Drive | `010_note_auto_update.sql` — `auto_update` boolean on notes. Per-note toggle (shown only for Drive-imported notes). When enabled, Drive scans overwrite note content if the Drive file was modified since last import. Preserves tags, folder, wikilinks. File stays in Drive folder (not moved to Processed). |
 | 9.11 | ✅ Search prefix filters | `from:drive` and `is:auto-update` prefix filters in search. Parsed client-side, passed as query params to `GET /search`. Filter-only queries (no text) return notes sorted by `updated_at`. Quick-filter buttons + removable chips in SearchView UI. HelpModal (Alt+/) updated with search filter reference section. |
 | 9.12 | ✅ Note export & API tokens | Download button in editor toolbar (browser `.md` download). `GET /api/v1/notes/export/:title` endpoint returns raw markdown (supports Bearer header and `?token=` query param). Long-lived API tokens (`noted_` prefix, SHA-256 hashed in DB) via `POST /api/v1/auth/token`, `GET /api/v1/auth/tokens`, `DELETE /api/v1/auth/token/:id`. Migration `011_api_tokens.sql`. |
+| 9.13 | ✅ Inline attachment previews | Image-type Drive imports (incl. `image/svg+xml`) get an `![filename](/api/v1/attachments/{id})` reference appended to note content so the editor renders them in Normal Mode. `AttachmentZone.vue` also shows an always-on thumbnail grid for every image attachment (uploads + Drive + clipper), rendered above the collapsible file list. Migration `014_drive_image_inline_backfill.sql` backfills the markdown reference for Drive-imported image notes created before this change. |
+| 9.14 | ✅ SVG legibility on dark themes | `ImageWidget` (editor) and the `AttachmentZone` preview grid give a white backing + padding to `.svg` / `image/svg+xml` images so dark-ink SVGs remain legible on dark themes. Other image types keep the transparent theme background. |
+| 9.15 | ✅ PWA update prompt | `vite-plugin-pwa` switched from `registerType: 'autoUpdate'` to `'prompt'`. `main.js` registers the SW with `onNeedRefresh` → sticky toast ("New version available" + **Reload**); clicking Reload calls `updateSW(true)` → `skipWaiting` + `clientsClaim` + page refresh. Replaces the silent auto-update + reload-twice gotcha. |
+| 9.16 | ✅ Inbox/default-notebook sync | The notebook picker was unconditionally setting `is_inbox = FALSE` when any notebook was chosen, including the user's default (Inbox) notebook — so filing a note to Inbox made it disappear from the Inbox view. Fixed in `NoteNotebooks.vue` and `AppSidebar.vue` drag-drop: `is_inbox` now tracks `notebook.is_default`. Migration `015_inbox_default_notebook_sync.sql` backfills existing notes in each user's default notebook to `is_inbox = TRUE`. |
 
 **Prerequisites:** Google Cloud project with Drive API enabled + OAuth2 credentials (Web application type). Redirect URI must include Tailscale domain.
 
@@ -332,6 +336,8 @@ Browser / PWA
 - Import history shows file name, status, timestamp, and link to created note
 - Imported files moved to "Processed" subfolder in Drive (best-effort; import succeeds even if move fails)
 - `.md`/`.txt` content imported as note body; other files attached to inbox notes
+- Image-type Drive imports render inline in the note body (markdown image reference appended during import)
+- Image attachments (from any source) display as always-on previews in the attachment zone
 - App works normally when Google credentials are not configured (graceful degradation)
 - Drive-imported notes show an "Auto Update" toggle in the editor toolbar
 - When auto-update is enabled and the Drive file is modified, note content is replaced on next scan (tags, folder, wikilinks preserved)

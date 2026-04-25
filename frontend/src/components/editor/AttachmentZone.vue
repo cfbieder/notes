@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useAttachmentsStore } from '../../stores/attachments.js';
 import { useNotesStore } from '../../stores/notes.js';
 import { Paperclip, Upload, Trash2, FileText, Image, File } from 'lucide-vue-next';
@@ -10,6 +10,10 @@ const notesStore = useNotesStore();
 const dragging = ref(false);
 const fileInput = ref(null);
 const expanded = ref(false);
+
+const imageAttachments = computed(() =>
+  attachmentsStore.attachments.filter(a => a.mime_type.startsWith('image/'))
+);
 
 const emit = defineEmits(['insert-image', 'remove-reference']);
 
@@ -120,6 +124,21 @@ function formatSize(bytes) {
 
     <div v-if="attachmentsStore.uploading" class="upload-progress">
       Uploading...
+    </div>
+
+    <div v-if="imageAttachments.length > 0" class="preview-grid">
+      <a
+        v-for="att in imageAttachments"
+        :key="att.id"
+        :href="attachmentsStore.getUrl(att.id)"
+        target="_blank"
+        rel="noopener"
+        class="preview-item"
+        :class="{ 'is-svg': att.mime_type === 'image/svg+xml' }"
+        :title="att.filename"
+      >
+        <img :src="attachmentsStore.getUrl(att.id)" :alt="att.filename" loading="lazy" />
+      </a>
     </div>
 
     <div v-if="expanded && attachmentsStore.attachments.length > 0" class="attachment-list">
@@ -266,4 +285,35 @@ function formatSize(bytes) {
   flex-shrink: 0;
 }
 .att-delete:hover { color: var(--status-error); }
+
+.preview-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.preview-item {
+  display: block;
+  max-width: 240px;
+  max-height: 180px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+.preview-item.is-svg {
+  background: #ffffff;
+  padding: 4px;
+}
+.preview-item:hover { border-color: var(--accent-primary); }
+
+.preview-item img {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
 </style>

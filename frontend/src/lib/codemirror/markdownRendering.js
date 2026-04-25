@@ -84,7 +84,11 @@ class ImageWidget extends WidgetType {
     const sizeCSS = this.width
       ? `width: ${this.width}px; max-width: 100%; height: auto;`
       : 'max-width: 100%; max-height: 400px;';
-    img.style.cssText = sizeCSS + ' border-radius: 8px; border: 1px solid var(--border-subtle); display: block;';
+    // SVGs often use dark ink designed for light backgrounds — give them a
+    // white backing so they remain legible in dark themes.
+    const isSvg = /\.svg(\b|$)/i.test(this.alt) || /\.svg(\?|$)/i.test(this.src);
+    const bgCSS = isSvg ? ' background: #ffffff; padding: 8px;' : '';
+    img.style.cssText = sizeCSS + ' border-radius: 8px; border: 1px solid var(--border-subtle); display: block;' + bgCSS;
 
     img.onerror = () => {
       img.style.display = 'none';

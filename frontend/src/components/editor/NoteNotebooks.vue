@@ -44,7 +44,7 @@ async function selectNotebook(notebook) {
   if (!notesStore.currentNote) return;
   await notesStore.updateNote(notesStore.currentNote.id, {
     notebook_id: notebook.id,
-    is_inbox: false
+    is_inbox: !!notebook.is_default
   });
   await Promise.all([
     notesStore.fetchNote(notesStore.currentNote.id),
