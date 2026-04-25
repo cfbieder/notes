@@ -1,8 +1,10 @@
-# NOTED_PROJECT_DESCRIPTION.md
+# NOTED_CURRENT_STATE.md
 
 # Noted — Personal Knowledge & Task Management App
 
 > Self-hosted, Markdown-first note-taking app combining Evernote's organizational depth with Obsidian's knowledge graph model. Built for personal use first, designed to scale to multi-user collaboration.
+
+> **Document role:** Authoritative description of the project's *current* state — what is built, how it works, the data model and APIs. Outstanding work lives in [NOTED_NEXT_STEPS.md](NOTED_NEXT_STEPS.md) and the [CR/](CR/) folder. The pre-reorg historical record of completed phases lives in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
 
 ---
 
@@ -740,7 +742,7 @@ useAIAssistStore    — AI Assist modal isOpen + last prompt (persisted to local
 
 ## 9. Development Stages
 
-> **Note:** See `Documentation/NOTED_DEVELOPMENT_PLAN.md` for the authoritative, in-progress tracker. This section is a high-level snapshot.
+> **Note:** See [NOTED_NEXT_STEPS.md](NOTED_NEXT_STEPS.md) and the [CR/](CR/) folder for the authoritative, in-progress tracker. This section is a high-level snapshot.
 
 ### Stage 1 — Web App MVP ✅ (shipped)
 
@@ -858,7 +860,12 @@ noted/
 │   └── noted.conf
 │
 ├── CLAUDE.md                    # Claude Code project context
-├── NOTED_PROJECT_DESCRIPTION.md  # This file
+├── Documentation/
+│   ├── NOTED_CURRENT_STATE.md   # This file
+│   ├── NOTED_NEXT_STEPS.md
+│   ├── CR/                      # Change Requests (Open / In progress / Completed)
+│   ├── Reference/               # External guides + API docs
+│   └── Archive/                 # Stale / historical material
 └── docker-compose.yml           # Optional: local dev environment
 ```
 

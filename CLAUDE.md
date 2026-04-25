@@ -1,15 +1,24 @@
 # Noted — Claude Code Project Context
 
+## Documentation Layout
+
+- **`Documentation/NOTED_CURRENT_STATE.md`** — Authoritative description of what's built (features, data model, APIs).
+- **`Documentation/NOTED_NEXT_STEPS.md`** — Roadmap of outstanding work; indexes into `Documentation/CR/`.
+- **`Documentation/CR/CR00X_*.md`** — One Change Request per outstanding (or recently completed) work item. Each has a `Status:` header (Open / In progress / Completed). New work gets the next sequential number.
+- **`Documentation/Reference/`** — External templates and API docs reused by this project.
+- **`Documentation/Archive/`** — Stale / historical material no longer maintained.
+
 ## Before Starting Any Task
 
-Read `Documentation/NOTED_PROJECT_DESCRIPTION.md` for the full spec and `Documentation/NOTED_DEVELOPMENT_PLAN.md` for current phase and backlog.
+Read `Documentation/NOTED_CURRENT_STATE.md` for the full description of the current system, and `Documentation/NOTED_NEXT_STEPS.md` (plus the relevant CR file under `Documentation/CR/`) for the work currently planned or in progress.
 
 ## After Completing Any Task
 
 Update all applicable:
-1. **`Documentation/NOTED_DEVELOPMENT_PLAN.md`** — Mark completed items, add new issues/backlog items
-2. **`Documentation/NOTED_PROJECT_DESCRIPTION.md`** — Update feature descriptions, data model, API docs
-3. If schema, routes, or structure changed, note it in the relevant section of both docs
+1. **The relevant CR file** (`Documentation/CR/CR00X_*.md`) — flip `Status:` to `Completed` (or `In progress`), update scope/acceptance notes if they evolved during the work. Do not delete completed CRs.
+2. **`Documentation/NOTED_CURRENT_STATE.md`** — Update feature descriptions, data model, API docs to reflect what shipped.
+3. **`Documentation/NOTED_NEXT_STEPS.md`** — If new work was discovered, add a new CR file with the next sequential number and link it from this index.
+4. If schema, routes, or structure changed, note it in the relevant section of `NOTED_CURRENT_STATE.md`.
 
 ## Tech Stack
 

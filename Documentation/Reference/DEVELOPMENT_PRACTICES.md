@@ -1,5 +1,7 @@
 # Development Practices Reference
 
+> **Document role:** External reference template (Node/Express + React/Vite + PostgreSQL) that seeded Noter's infrastructure conventions (Docker layout, env separation, dev/prod visual differentiation, backup tiers, deploy script structure). It is **not** Noter-specific — paths like `Project_Documentation/...`, `CURRENT_STATE.md`, and the React/Express stack reflect the *source* template, not Noter's actual layout. For Noter's real structure see [../NOTED_CURRENT_STATE.md](../NOTED_CURRENT_STATE.md) and [../../CLAUDE.md](../../CLAUDE.md).
+
 A comprehensive guide for setting up a new Node.js/Express + React/Vite + PostgreSQL project with production-grade infrastructure. Based on proven patterns from a working project. Adapt names, ports, and paths to your new project.
 
 ---
