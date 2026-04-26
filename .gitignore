@@ -54,3 +54,4 @@ backups/
 # Production env (keep example)
 backend/.env.prod
 !backend/.env.prod.example
+ocr-llm/
