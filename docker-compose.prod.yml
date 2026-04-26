@@ -52,6 +52,7 @@ services:
       LLM_OCR_TIMEOUT_MS: ${LLM_OCR_TIMEOUT_MS:-120000}
       LLM_TRANSLATE_TIMEOUT_MS: ${LLM_TRANSLATE_TIMEOUT_MS:-150000}
       LLM_TRANSLATE_MAX_CHARS: ${LLM_TRANSLATE_MAX_CHARS:-8000}
+      LLM_TASK_ENABLED: ${LLM_TASK_ENABLED:-false}
     volumes:
       - noted_uploads:/app/uploads
       - noted_logs:/app/logs

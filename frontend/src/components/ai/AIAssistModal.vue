@@ -398,6 +398,9 @@ const submitLabel = computed(() => {
         <div v-if="mode === 'deep'" class="deep-hint">
           Deep think runs on the largest local model. You can close this window — the result will appear as a new note in your inbox.
         </div>
+        <div v-if="mode === 'deep' && config?.heavyAvailable === false" class="deep-warn">
+          Heavy tier is offline — deep think will fall through to the cloud model. Expect ~5–10s longer than usual.
+        </div>
         <div v-if="submitError" class="submit-error">{{ submitError }}</div>
 
         <div class="ai-actions">
@@ -761,6 +764,16 @@ const submitLabel = computed(() => {
   border-radius: 4px;
   padding: 8px 10px;
   margin-top: 6px;
+  line-height: 1.45;
+}
+
+.deep-warn {
+  font-size: 11px;
+  color: var(--accent-warn);
+  background: rgba(255, 159, 28, 0.08);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-top: 4px;
   line-height: 1.45;
 }
 

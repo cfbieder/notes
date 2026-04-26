@@ -66,8 +66,11 @@ async function aiAssistRoutes(fastify) {
   // Expose so app.js can call failOrphanedJobs() once after boot.
   fastify.decorate('aiAssistJobRunner', runner);
 
-  // GET /api/v1/ai-assist/config — context window + model defaults.
+  // GET /api/v1/ai-assist/config — context window + model defaults + tier health.
   fastify.get('/config', async () => {
+    // Best-effort tier health snapshot. If the gateway is unreachable we
+    // simply omit the field; modal will assume nothing about heavy state.
+    const health = await llmService.getGatewayHealth();
     return {
       data: {
         enabled: llmService.isEnabled(),
@@ -77,7 +80,9 @@ async function aiAssistRoutes(fastify) {
         deepModel: llmService.getDeepModel(),
         taskRouting: llmService.isTaskRoutingEnabled(),
         condenseModel: CONDENSE_MODEL,
-        warnTokens: Math.floor(llmService.getContextWindow() * 0.85)
+        warnTokens: Math.floor(llmService.getContextWindow() * 0.85),
+        heavyAvailable: health ? health.ollama_heavy === 'connected' : null,
+        gatewayHealth: health || null
       }
     };
   });

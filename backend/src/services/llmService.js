@@ -360,6 +360,27 @@ async function listModels() {
   }
 }
 
+// Snapshot of gateway tier health. Used by /ai-assist/config so the AI Assist
+// modal can warn the user when deep-think is falling through to a slower hop
+// (e.g. ollama_heavy offline → claude). Best-effort: returns null on failure
+// so a flaky gateway doesn't break the modal.
+async function getGatewayHealth() {
+  if (!ENABLED) return null;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    try {
+      const res = await fetch(`${GATEWAY_URL}/health`, { signal: controller.signal });
+      if (!res.ok) return null;
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   ocrFile, isOcrCandidate, isEnabled,
   translateText,
@@ -368,5 +389,6 @@ module.exports = {
   getContextWindow, getGenerationModel, getQuickModel, getDeepModel,
   isTaskRoutingEnabled,
   GENERATE_DEEP_TIMEOUT_MS,
-  listModels
+  listModels,
+  getGatewayHealth
 };
