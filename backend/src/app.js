@@ -104,6 +104,14 @@ const start = async () => {
 
     await fastify.listen({ port, host });
     fastify.log.info(`Noted API running on ${host}:${port}`);
+
+    // Mark any AI Assist jobs left in pending/running as failed — their
+    // upstream gateway requests don't survive a restart.
+    if (fastify.aiAssistJobRunner) {
+      fastify.aiAssistJobRunner.failOrphanedJobs().catch((err) => {
+        fastify.log.error({ err }, 'failed to clean up orphaned ai-assist jobs');
+      });
+    }
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

@@ -43,6 +43,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | CR | Title |
 |----|-------|
 | [CR010](CR/CR010_user_settings_email_display.md) | User Settings — Email & Display Preferences |
+| [CR019](CR/CR019_ai_assist_modes.md) | AI Assist — Quick / Deep-Think Modes + Async Inbox Delivery — **Completed** (awaits `LLM_TASK_ENABLED=true` flip when ocr-llm ships the new tasks) |
 
 ### Stage 3 — Multi-User & Beyond
 

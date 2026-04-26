@@ -7,7 +7,7 @@ import { useAIAssistStore } from '../../stores/aiAssist.js';
 import { useNotesStore } from '../../stores/notes.js';
 import { useToastsStore } from '../../stores/toasts.js';
 import NoteMultiPicker from './NoteMultiPicker.vue';
-import { Sparkles, X, Loader2, ArrowLeft, History, FilePlus, ClipboardEdit } from 'lucide-vue-next';
+import { Sparkles, Loader2, ArrowLeft, History, FilePlus, ClipboardEdit, Zap, Brain } from 'lucide-vue-next';
 
 const emit = defineEmits(['close']);
 const router = useRouter();
@@ -15,7 +15,7 @@ const aiStore = useAIAssistStore();
 const notesStore = useNotesStore();
 const toasts = useToastsStore();
 
-// Stage: 'compose' | 'preview'
+// Stage: 'compose' | 'preview' (preview only used by quick mode)
 const stage = ref('compose');
 
 const prompt = ref(aiStore.lastPrompt || '');
@@ -23,28 +23,29 @@ const selectedNotes = ref([]); // [{ id, title }]
 const promptRef = ref(null);
 
 const config = ref(null);
-const models = ref([]);
-const selectedModel = ref(aiStore.selectedModel || '');
+const mode = ref(aiStore.mode || 'quick');
 const condense = ref(aiStore.condense);
 
 const generating = ref(false);
+const submitting = ref(false);
 const saving = ref(false);
 const showHistory = ref(false);
+const submitError = ref('');
 
 // Whether an editor is currently registered — drives "Insert at cursor"
-// availability. Captured at modal open so the Insert button is shown
-// consistently throughout the session even if the editor unmounts mid-stream.
+// availability in quick mode. Captured at modal open so the Insert button
+// is shown consistently throughout the session even if the editor unmounts
+// mid-stream.
 const editorAvailableAtOpen = ref(false);
 
-// Preview state
+// Preview state (quick mode only)
 const previewTitle = ref('');
 const previewBody = ref('');
 const previewSources = ref([]);
 const previewModel = ref('');
-const streamingOutput = ref('');  // accumulates as tokens arrive
-const streamSourcesPending = ref([]);  // captured before stream completes
+const streamingOutput = ref('');
+const streamSourcesPending = ref([]);
 
-// Live token estimate
 const estimate = ref({ tokens: 0, characters: 0 });
 let estimateTimer = null;
 let streamAbort = null;
@@ -59,23 +60,17 @@ const tokenLevel = computed(() => {
   return 'ok';
 });
 
-const canGenerate = computed(() => prompt.value.trim().length > 0 && !generating.value);
+const canGenerate = computed(() =>
+  prompt.value.trim().length > 0 && !generating.value && !submitting.value
+);
 const enabled = computed(() => config.value?.enabled !== false);
 
 async function loadConfig() {
   try {
-    const [cfgRes, modelsRes] = await Promise.all([
-      aiAssistApi.config(),
-      aiAssistApi.models()
-    ]);
+    const cfgRes = await aiAssistApi.config();
     config.value = cfgRes.data;
-    models.value = modelsRes.data || [];
-    // Default to user's last choice if it's still available, else config default.
-    if (!selectedModel.value || !models.value.includes(selectedModel.value)) {
-      selectedModel.value = config.value.model || models.value[0] || '';
-    }
   } catch {
-    config.value = { enabled: false, contextWindow: 32000, warnTokens: 27000, model: null };
+    config.value = { enabled: false, contextWindow: 32000, warnTokens: 27000 };
   }
 }
 
@@ -99,7 +94,7 @@ function scheduleEstimate() {
 
 watch(prompt, scheduleEstimate);
 watch(selectedNotes, scheduleEstimate, { deep: true });
-watch(selectedModel, (v) => aiStore.setSelectedModel(v));
+watch(mode, (v) => aiStore.setMode(v));
 watch(condense, (v) => aiStore.setCondense(v));
 
 onMounted(async () => {
@@ -121,11 +116,12 @@ function close() {
 }
 
 function onKeydown(e) {
-  if (e.key === 'Escape') {
-    close();
-  } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && stage.value === 'compose' && canGenerate.value) {
+  // Modal is dismissable only via the Cancel / Generate / Discard / Save buttons.
+  // Escape and click-outside are intentionally inert so accidental dismissals
+  // don't lose a typed prompt or in-flight generation.
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && stage.value === 'compose' && canGenerate.value) {
     e.preventDefault();
-    generate();
+    submit();
   }
 }
 
@@ -142,7 +138,44 @@ function buildSourcesBlock(sources) {
   return `\n\n## Sources\n\n${lines.join('\n')}`;
 }
 
-async function generate() {
+function submit() {
+  submitError.value = '';
+  if (mode.value === 'deep') return submitDeepThink();
+  return generateQuick();
+}
+
+async function submitDeepThink() {
+  if (!canGenerate.value) return;
+  submitting.value = true;
+  aiStore.setLastPrompt(prompt.value);
+  aiStore.addToHistory(prompt.value);
+  showHistory.value = false;
+  try {
+    await aiAssistApi.submitJob({
+      prompt: prompt.value,
+      noteIds: selectedNotes.value.map(n => n.id),
+      condense: condense.value
+    });
+    // Refresh the pending pill immediately and show a confirmation toast.
+    aiStore.pollJobs();
+    toasts.addToast({
+      message: 'Deep-think started — you can close this window. The result will land in your inbox.',
+      type: 'info',
+      duration: 6000
+    });
+    close();
+  } catch (err) {
+    if (err?.body?.code === 'job_in_progress') {
+      submitError.value = 'Another deep-think is already running. Cancel it from the sidebar pill or wait for it to finish.';
+    } else {
+      submitError.value = err?.body?.message || err?.message || 'Failed to start deep-think';
+    }
+  } finally {
+    submitting.value = false;
+  }
+}
+
+async function generateQuick() {
   if (!canGenerate.value) return;
   generating.value = true;
   aiStore.setLastPrompt(prompt.value);
@@ -154,7 +187,7 @@ async function generate() {
   streamingOutput.value = '';
   previewBody.value = '';
   previewSources.value = [];
-  previewModel.value = selectedModel.value;
+  previewModel.value = '';
   streamSourcesPending.value = selectedNotes.value.map(n => ({ id: n.id, title: n.title }));
   stage.value = 'preview';
 
@@ -164,7 +197,6 @@ async function generate() {
       {
         prompt: prompt.value,
         noteIds: selectedNotes.value.map(n => n.id),
-        model: selectedModel.value || undefined,
         condense: condense.value
       },
       {
@@ -178,7 +210,6 @@ async function generate() {
     previewBody.value = streamingOutput.value.trim() + buildSourcesBlock(sources);
   } catch (err) {
     if (err.name === 'AbortError') {
-      // User cancelled — keep whatever streamed so far in the editor.
       previewBody.value = streamingOutput.value.trim() + buildSourcesBlock(streamSourcesPending.value);
       previewSources.value = streamSourcesPending.value;
     } else {
@@ -248,10 +279,15 @@ function insertAtCursor() {
   toasts.addToast({ message: 'Inserted into note', type: 'success' });
   close();
 }
+
+const submitLabel = computed(() => {
+  if (mode.value === 'deep') return submitting.value ? 'Sending…' : 'Send to deep think';
+  return 'Generate';
+});
 </script>
 
 <template>
-  <div class="ai-overlay" @click.self="close" @keydown="onKeydown" tabindex="-1">
+  <div class="ai-overlay" @keydown="onKeydown" tabindex="-1">
     <div class="ai-modal">
       <header class="ai-header">
         <div class="ai-title">
@@ -259,18 +295,37 @@ function insertAtCursor() {
           <h2>AI Assist</h2>
         </div>
         <div class="ai-header-right">
-          <select
-            v-if="enabled && models.length > 0"
-            v-model="selectedModel"
-            class="ai-model-select"
-            :disabled="generating"
-            title="Model"
+          <div
+            v-if="enabled && stage === 'compose'"
+            class="mode-toggle"
+            role="tablist"
+            aria-label="Generation mode"
           >
-            <option v-for="m in models" :key="m" :value="m">{{ m }}</option>
-          </select>
-          <button class="ai-close" @click="close" title="Close (Esc)">
-            <X :size="18" />
-          </button>
+            <button
+              class="mode-btn"
+              :class="{ active: mode === 'quick' }"
+              role="tab"
+              :aria-selected="mode === 'quick'"
+              :disabled="generating || submitting"
+              @click="mode = 'quick'"
+              :title="`Quick note — fast tier (${config?.quickModel || 'phi4:14b'}). Streams into preview.`"
+            >
+              <Zap :size="13" />
+              Quick
+            </button>
+            <button
+              class="mode-btn"
+              :class="{ active: mode === 'deep' }"
+              role="tab"
+              :aria-selected="mode === 'deep'"
+              :disabled="generating || submitting"
+              @click="mode = 'deep'"
+              :title="`Deep think — heavy tier (${config?.deepModel || 'qwen3.6:35b-a3b'}). Runs in background, lands in inbox.`"
+            >
+              <Brain :size="13" />
+              Deep think
+            </button>
+          </div>
         </div>
       </header>
 
@@ -334,27 +389,33 @@ function insertAtCursor() {
               <span v-else-if="tokenLevel === 'over'">— over limit; output may be truncated</span>
             </span>
             <label class="condense-toggle" :title="`Pre-summarize each source via ${config?.condenseModel || 'fast model'} before generation. Slower but fits more notes.`">
-              <input type="checkbox" v-model="condense" :disabled="generating" />
+              <input type="checkbox" v-model="condense" :disabled="generating || submitting" />
               Condense sources first
             </label>
           </div>
         </div>
+
+        <div v-if="mode === 'deep'" class="deep-hint">
+          Deep think runs on the largest local model. You can close this window — the result will appear as a new note in your inbox.
+        </div>
+        <div v-if="submitError" class="submit-error">{{ submitError }}</div>
 
         <div class="ai-actions">
           <button class="btn-secondary" @click="close">Cancel</button>
           <button
             class="btn-primary"
             :disabled="!canGenerate"
-            @click="generate"
-            :title="canGenerate ? 'Generate (⌘/Ctrl+Enter)' : 'Enter a prompt first'"
+            @click="submit"
+            :title="canGenerate ? 'Submit (⌘/Ctrl+Enter)' : 'Enter a prompt first'"
           >
-            <Sparkles :size="14" />
-            Generate
+            <Loader2 v-if="submitting" :size="14" class="spin" />
+            <Sparkles v-else :size="14" />
+            {{ submitLabel }}
           </button>
         </div>
       </div>
 
-      <!-- Preview stage -->
+      <!-- Preview stage (quick mode only) -->
       <div v-else class="ai-body">
         <div class="preview-header">
           <button class="btn-link" @click="backToCompose">
@@ -466,19 +527,35 @@ function insertAtCursor() {
   gap: 10px;
 }
 
-.ai-model-select {
+.mode-toggle {
+  display: inline-flex;
   background: var(--bg-main);
-  color: var(--text-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  font-family: 'SF Mono', monospace;
-  cursor: pointer;
-  outline: none;
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
 }
-.ai-model-select:focus { border-color: var(--accent-primary); }
-.ai-model-select:disabled { opacity: 0.5; cursor: not-allowed; }
+.mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.mode-btn:hover:not(:disabled) { color: var(--text-primary); }
+.mode-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.mode-btn.active {
+  background: var(--accent-primary);
+  color: white;
+}
 
 .ai-close {
   background: none;
@@ -676,6 +753,25 @@ function insertAtCursor() {
 }
 .condense-toggle input { margin: 0; cursor: pointer; }
 .condense-toggle:hover { color: var(--text-secondary); }
+
+.deep-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(58, 134, 255, 0.06);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  line-height: 1.45;
+}
+
+.submit-error {
+  font-size: 12px;
+  color: var(--status-error);
+  background: rgba(220, 53, 69, 0.08);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-top: 4px;
+}
 
 .ai-actions {
   display: flex;

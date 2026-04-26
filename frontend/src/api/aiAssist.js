@@ -2,16 +2,17 @@ import { api, getAccessToken } from './client.js';
 
 export const aiAssistApi = {
   config: () => api.get('/ai-assist/config'),
-  models: () => api.get('/ai-assist/models'),
   estimate: ({ prompt, noteIds }) => api.post('/ai-assist/estimate', { prompt, noteIds }),
-  generate: ({ prompt, noteIds, model, condense }) =>
-    api.post('/ai-assist/generate', { prompt, noteIds, model, condense }),
 
-  // Streaming variant — uses fetch + ReadableStream so we don't need EventSource.
+  // Quick mode — synchronous JSON response. Kept for parity / non-streaming clients.
+  generate: ({ prompt, noteIds, condense }) =>
+    api.post('/ai-assist/generate', { prompt, noteIds, condense, mode: 'quick' }),
+
+  // Quick mode streaming — uses fetch + ReadableStream so we don't need EventSource.
   // onChunk(text) is invoked for each token as it arrives.
   // Returns the final {model, sources, ...} metadata when the stream completes.
   // Throws on network error or if the server emits an {error: ...} line.
-  async generateStream({ prompt, noteIds, model, condense }, { onChunk, signal } = {}) {
+  async generateStream({ prompt, noteIds, condense }, { onChunk, signal } = {}) {
     const headers = { 'Content-Type': 'application/json' };
     const token = getAccessToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -20,7 +21,7 @@ export const aiAssistApi = {
       method: 'POST',
       headers,
       credentials: 'include',
-      body: JSON.stringify({ prompt, noteIds, model, condense, stream: true }),
+      body: JSON.stringify({ prompt, noteIds, condense, stream: true, mode: 'quick' }),
       signal
     });
     if (!res.ok) {
@@ -53,5 +54,15 @@ export const aiAssistApi = {
       }
     }
     return meta;
-  }
+  },
+
+  // Deep-think jobs (async)
+  submitJob: ({ prompt, noteIds, condense }) =>
+    api.post('/ai-assist/jobs', { prompt, noteIds, condense, mode: 'deep' }),
+  listJobs: (status) => {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    return api.get(`/ai-assist/jobs${qs}`);
+  },
+  getJob: (id) => api.get(`/ai-assist/jobs/${id}`),
+  cancelJob: (id) => api.delete(`/ai-assist/jobs/${id}`)
 };

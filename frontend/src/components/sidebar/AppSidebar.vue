@@ -9,6 +9,7 @@ import { useAuthStore } from '../../stores/auth.js';
 import { api } from '../../api/client.js';
 import ConfirmModal from '../ui/ConfirmModal.vue';
 import RemindersPanel from '../ui/RemindersPanel.vue';
+import AIAssistPendingPill from '../ai/AIAssistPendingPill.vue';
 import { useRemindersStore } from '../../stores/reminders.js';
 import {
   FileText, Inbox, CheckSquare, Search, Network, Trash2, Bell,
@@ -56,6 +57,8 @@ onMounted(async () => {
   remindersStore.startPolling(60000);
   // Initial due check after a short delay (auth is already complete at this point)
   setTimeout(() => remindersStore.checkDue(), 3000);
+  // Same cadence for AI Assist deep-think jobs — sidebar pill + completion toasts.
+  aiAssistStore.startJobsPolling(60000);
 });
 
 const unstackedNotebooks = computed(() =>
@@ -381,6 +384,7 @@ async function deleteNotebook() {
       <button v-if="!isMobile" class="nav-item" @click="aiAssistStore.open()" title="AI Assist (⌘/Ctrl+Shift+A)">
         <Sparkles :size="16" />
         <span>AI Assist</span>
+        <AIAssistPendingPill />
       </button>
       <button class="nav-item" @click="showReminders = true">
         <Bell :size="16" />

@@ -153,9 +153,18 @@ async function transcribeAudio({ filePath, filename, mimeType }) {
 // Text generation — used by AI Assist. Keep timeout well below nginx's
 // proxy timeout so long prompts fail visibly instead of dropping the socket.
 const GENERATE_TIMEOUT_MS = parseInt(process.env.LLM_GENERATE_TIMEOUT_MS, 10) || 180_000;
+// Deep-think runs on ollama_heavy and can take several minutes. Separate
+// timeout so quick-tier failures don't have to wait the heavy budget.
+const GENERATE_DEEP_TIMEOUT_MS = parseInt(process.env.LLM_GENERATE_DEEP_TIMEOUT_MS, 10) || 600_000;
 // Default to qwen3:32b — best quality model on the gateway. Override with
 // LLM_GENERATION_MODEL if a faster/smaller model is preferred.
 const GENERATE_MODEL = process.env.LLM_GENERATION_MODEL || 'qwen3:32b';
+// Bridging defaults until ocr-llm ships noted_ai_assist_quick / _deep tasks.
+// When LLM_TASK_ENABLED=true (set after server-side handoff is acknowledged),
+// generateText/generateTextStream route via /task and ignore these names.
+const QUICK_MODEL = process.env.LLM_QUICK_MODEL || 'phi4:14b';
+const DEEP_MODEL = process.env.LLM_DEEP_MODEL || 'qwen3.6:35b-a3b-q4_K_M';
+const TASK_ENABLED = process.env.LLM_TASK_ENABLED === 'true';
 const CONTEXT_WINDOW_TOKENS = parseInt(process.env.LLM_CONTEXT_WINDOW, 10) || 32_000;
 
 function getContextWindow() {
@@ -166,39 +175,91 @@ function getGenerationModel() {
   return GENERATE_MODEL;
 }
 
-async function generateText({ prompt, model, system, maxTokens, temperature }) {
+function getQuickModel() {
+  return QUICK_MODEL;
+}
+
+function getDeepModel() {
+  return DEEP_MODEL;
+}
+
+function isTaskRoutingEnabled() {
+  return TASK_ENABLED;
+}
+
+// Map a Noted-side task name to the corresponding bridging model when /task
+// routing is disabled. Used by AI Assist while waiting for ocr-llm to ship
+// noted_ai_assist_quick / noted_ai_assist_deep.
+function bridgingModelForTask(taskName) {
+  if (taskName === 'noted_ai_assist_deep') return DEEP_MODEL;
+  if (taskName === 'noted_ai_assist_quick') return QUICK_MODEL;
+  return null;
+}
+
+// generateText
+//   { prompt, model?, taskName?, system?, maxTokens?, temperature?, signal?, timeoutMs? }
+// When taskName is provided AND LLM_TASK_ENABLED=true, routes via POST /task
+// (the gateway picks the model + fallback chain). Otherwise calls
+// /llm/generate with the resolved model name (taskName is mapped to a
+// bridging model name when /task is disabled).
+async function generateText({ prompt, model, taskName, system, maxTokens, temperature, signal, timeoutMs }) {
   if (!ENABLED) return null;
   if (!prompt || typeof prompt !== 'string') return null;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), GENERATE_TIMEOUT_MS);
+  const useTask = TASK_ENABLED && taskName;
+  const effectiveTimeout = timeoutMs || GENERATE_TIMEOUT_MS;
+
+  // Compose an AbortSignal that fires on either the caller's signal or our
+  // own timeout. AbortSignal.any is Node 22+; fall back to a manual bridge.
+  const timeoutController = new AbortController();
+  const timer = setTimeout(() => timeoutController.abort(), effectiveTimeout);
+  const compositeSignal = signal
+    ? (typeof AbortSignal.any === 'function'
+        ? AbortSignal.any([signal, timeoutController.signal])
+        : timeoutController.signal)
+    : timeoutController.signal;
+  if (signal && typeof AbortSignal.any !== 'function') {
+    signal.addEventListener('abort', () => timeoutController.abort(), { once: true });
+  }
 
   try {
-    const payload = {
-      model: model || GENERATE_MODEL,
-      prompt,
-      stream: false
-    };
-    if (system) payload.system = system;
-    if (maxTokens) payload.max_tokens = maxTokens;
-    if (temperature !== undefined) payload.temperature = temperature;
+    let url;
+    let payload;
+    if (useTask) {
+      url = `${GATEWAY_URL}/task`;
+      payload = { task: taskName, prompt };
+      if (maxTokens) payload.max_tokens = maxTokens;
+    } else {
+      url = `${GATEWAY_URL}/llm/generate`;
+      payload = {
+        model: model || bridgingModelForTask(taskName) || GENERATE_MODEL,
+        prompt,
+        stream: false
+      };
+      if (system) payload.system = system;
+      if (maxTokens) payload.max_tokens = maxTokens;
+      if (temperature !== undefined) payload.temperature = temperature;
+    }
 
-    const res = await fetch(`${GATEWAY_URL}/llm/generate`, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      signal: controller.signal
+      signal: compositeSignal
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       throw new Error(`Generate gateway ${res.status}: ${body.slice(0, 200)}`);
     }
     const json = await res.json();
-    // Ollama returns { response: "..." }; cover other common shapes too.
+    // Gateway /task returns { response, model, provider, ... };
+    // /llm/generate returns Ollama-style { response }. Cover both.
     const out = json.response || json.text || json.output || json.generated_text || json.completion || null;
     return {
       text: out,
       model: json.model || payload.model,
+      provider: json.provider || null,
+      disclaimer: json.disclaimer || null,
       promptTokens: json.prompt_eval_count || json.prompt_tokens || null,
       completionTokens: json.eval_count || json.completion_tokens || null
     };
@@ -209,24 +270,34 @@ async function generateText({ prompt, model, system, maxTokens, temperature }) {
 
 // Streaming variant — calls the gateway with stream=true and invokes
 // onChunk(text) for each token as it arrives. Returns final metadata.
-async function generateTextStream({ prompt, model, system, maxTokens, temperature }, onChunk) {
+async function generateTextStream({ prompt, model, taskName, system, maxTokens, temperature }, onChunk) {
   if (!ENABLED) return null;
   if (!prompt || typeof prompt !== 'string') return null;
 
+  const useTask = TASK_ENABLED && taskName;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GENERATE_TIMEOUT_MS);
 
   try {
-    const payload = {
-      model: model || GENERATE_MODEL,
-      prompt,
-      stream: true
-    };
-    if (system) payload.system = system;
-    if (maxTokens) payload.max_tokens = maxTokens;
-    if (temperature !== undefined) payload.temperature = temperature;
+    let url;
+    let payload;
+    if (useTask) {
+      url = `${GATEWAY_URL}/task`;
+      payload = { task: taskName, prompt, stream: true };
+      if (maxTokens) payload.max_tokens = maxTokens;
+    } else {
+      url = `${GATEWAY_URL}/llm/generate`;
+      payload = {
+        model: model || bridgingModelForTask(taskName) || GENERATE_MODEL,
+        prompt,
+        stream: true
+      };
+      if (system) payload.system = system;
+      if (maxTokens) payload.max_tokens = maxTokens;
+      if (temperature !== undefined) payload.temperature = temperature;
+    }
 
-    const res = await fetch(`${GATEWAY_URL}/llm/generate`, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -293,6 +364,9 @@ module.exports = {
   ocrFile, isOcrCandidate, isEnabled,
   translateText,
   transcribeAudio, isAudioCandidate,
-  generateText, generateTextStream, getContextWindow, getGenerationModel,
+  generateText, generateTextStream,
+  getContextWindow, getGenerationModel, getQuickModel, getDeepModel,
+  isTaskRoutingEnabled,
+  GENERATE_DEEP_TIMEOUT_MS,
   listModels
 };
