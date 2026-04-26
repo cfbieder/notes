@@ -1,6 +1,6 @@
 # CR019 — AI Assist: Quick / Deep-Think Modes + Async Inbox Delivery
 
-**Status:** Completed (2026-04-26) — pending `LLM_TASK_ENABLED=true` flip once ocr-llm ships the two requested tasks
+**Status:** Completed (2026-04-26)
 **Origin:** Phase 8.12.x (extension of shipped AI Assist)
 **Depends on:** ocr-llm tasks `noted_ai_assist_quick` + `noted_ai_assist_deep` (handoff filed 2026-04-25, commit `96a379d` on `cfbieder/ocr-llm`)
 **Blocks:** none
@@ -84,6 +84,15 @@ Replace the model dropdown with a two-button mode toggle:
 ### UX follow-up (2026-04-26)
 
 - Modal can no longer be dismissed via `Escape`, click-outside, or a header **×**. Only the explicit Cancel / Generate / Send to deep think / Discard / Save as note / Insert at cursor buttons close it. Reason: the prompt textarea is too easy to lose to a stray click, and an in-flight quick-mode stream shouldn't be killed by hitting Esc on the wrong window. Submit shortcut `⌘/Ctrl+Enter` is preserved.
+
+### Task routing flip + heavy-tier hint (2026-04-26)
+
+ocr-llm shipped `noted_ai_assist_quick` and `noted_ai_assist_deep` (handoff response in `~/ocr-llm/HANDOFFS.md` 2026-04-26 entry; `GET /task/routes` confirms 37 tasks now). Follow-on changes:
+
+- **`LLM_TASK_ENABLED=true`** in `backend/.env.dev` and `backend/.env.prod`; new `LLM_TASK_ENABLED: ${LLM_TASK_ENABLED:-false}` line in `docker-compose.prod.yml`. Both modes now route via `POST /task` with the registered fallback chain (`ollama_fast → ollama_mid → claude` for quick; `ollama_heavy → claude → ollama_mid` for deep).
+- **Heavy-tier-offline defensive UI:** `llmService.getGatewayHealth()` hits `GET /health` (3s timeout, fails to `null`); `/ai-assist/config` now returns `heavyAvailable` + the full `gatewayHealth` snapshot. When the modal is in deep mode and `heavyAvailable === false`, an extra warn line appears: *"Heavy tier is offline — deep think will fall through to the cloud model. Expect ~5–10s longer than usual."* Hint disappears automatically when the heavy tier reconnects.
+
+End-to-end test confirmed: deep submission lands on `qwen3.6:35b-a3b-q4_K_M` via the heavy primary; `taskRouting: true` in the config response.
 
 ## Acceptance Criteria
 
