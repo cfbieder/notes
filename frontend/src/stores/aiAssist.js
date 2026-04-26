@@ -7,7 +7,8 @@ const LS_HISTORY = 'noted.aiAssist.history';
 const LS_MODE = 'noted.aiAssist.mode';
 const LS_CONDENSE = 'noted.aiAssist.condense';
 const HISTORY_MAX = 20;
-const SS_SEEN_JOBS = 'noted.aiAssist.seenJobs';
+const LS_SEEN_JOBS = 'noted.aiAssist.seenJobs';
+const SEEN_JOBS_MAX = 200;
 
 function loadJSON(key, fallback) {
   try {
@@ -37,13 +38,16 @@ export const useAIAssistStore = defineStore('aiAssist', () => {
   // status in ('pending','running')
   const pendingJobs = ref([]);
   // Recently completed/failed jobs we've already shown a toast for. Persisted
-  // in sessionStorage so a reload doesn't re-fire the same toast.
+  // in localStorage so dismissed toasts don't re-fire on reload or in a new
+  // browser session. Capped to avoid unbounded growth.
   const seenJobIds = new Set(
-    JSON.parse(sessionStorage.getItem(SS_SEEN_JOBS) || '[]')
+    JSON.parse(localStorage.getItem(LS_SEEN_JOBS) || '[]')
   );
   function persistSeen() {
     try {
-      sessionStorage.setItem(SS_SEEN_JOBS, JSON.stringify([...seenJobIds]));
+      const arr = [...seenJobIds];
+      const trimmed = arr.length > SEEN_JOBS_MAX ? arr.slice(-SEEN_JOBS_MAX) : arr;
+      localStorage.setItem(LS_SEEN_JOBS, JSON.stringify(trimmed));
     } catch {}
   }
 

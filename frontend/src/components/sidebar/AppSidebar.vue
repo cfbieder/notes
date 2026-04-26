@@ -145,10 +145,16 @@ async function onNotebookDrop(e, nbId) {
 }
 
 async function handleNewNote() {
-  const note = await notesStore.createNote({
-    title: 'Untitled',
-    content: ''
-  });
+  const payload = { title: 'Untitled', content: '' };
+  if (route.name === 'NotebookNotes' && route.params.id) {
+    const nbId = route.params.id;
+    const nb = notebooksStore.notebooks.find(n => n.id === nbId);
+    if (nb) {
+      payload.notebook_id = nbId;
+      payload.is_inbox = !!nb.is_default;
+    }
+  }
+  const note = await notesStore.createNote(payload);
   router.push(`/notes/${note.id}`);
 }
 
