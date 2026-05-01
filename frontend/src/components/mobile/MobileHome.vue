@@ -5,7 +5,7 @@ import { useNotesStore } from '../../stores/notes.js';
 import { useTasksStore } from '../../stores/tasks.js';
 import { useRemindersStore } from '../../stores/reminders.js';
 import { useIdeasStore } from '../../stores/ideas.js';
-import { Plus, CheckSquare, Inbox, Search, ChevronDown, ChevronRight, Menu, Bell, Mic } from 'lucide-vue-next';
+import { Plus, CheckSquare, Inbox, Search, ChevronDown, ChevronRight, Menu, Bell, Mic, KeyRound } from 'lucide-vue-next';
 import RemindersPanel from '../ui/RemindersPanel.vue';
 
 const emit = defineEmits(['open-sidebar', 'open-capture', 'open-voice-capture']);
@@ -51,6 +51,10 @@ function goToSearch() {
 
 function goToIdeas() {
   router.push('/ideas');
+}
+
+function goToVault() {
+  router.push('/vault');
 }
 
 function openNote(note) {
@@ -141,6 +145,10 @@ onMounted(async () => {
         <button class="card small-card" @click="$emit('open-voice-capture')">
           <Mic :size="22" />
           <span class="card-label">Voice</span>
+        </button>
+        <button class="card small-card" @click="goToVault">
+          <KeyRound :size="22" />
+          <span class="card-label">Vault</span>
         </button>
       </div>
     </div>

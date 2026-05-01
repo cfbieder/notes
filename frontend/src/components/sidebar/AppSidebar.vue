@@ -14,7 +14,7 @@ import { useRemindersStore } from '../../stores/reminders.js';
 import {
   FileText, Inbox, CheckSquare, Search, Network, Trash2, Bell,
   ChevronRight, ChevronDown, Plus, LogOut, FolderOpen, Tag, Settings, HelpCircle, Maximize2, Minimize2,
-  Sparkles
+  Sparkles, KeyRound
 } from 'lucide-vue-next';
 import { useUIStore } from '../../stores/ui.js';
 import { useAIAssistStore } from '../../stores/aiAssist.js';
@@ -110,6 +110,10 @@ function goToGraph() {
 
 function goToTrash() {
   router.push('/trash');
+}
+
+function goToVault() {
+  router.push('/vault');
 }
 
 async function handleLogout() {
@@ -396,6 +400,10 @@ async function deleteNotebook() {
         <Bell :size="16" />
         <span>Reminders</span>
         <span v-if="remindersStore.overdueCount > 0" class="reminder-badge">{{ remindersStore.overdueCount }}</span>
+      </button>
+      <button class="nav-item" :class="{ active: route.path === '/vault' }" @click="goToVault">
+        <KeyRound :size="16" />
+        <span>Vault</span>
       </button>
       <button class="nav-item" :class="{ active: route.path === '/trash' }" @click="goToTrash">
         <Trash2 :size="16" />

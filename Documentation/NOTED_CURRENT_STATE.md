@@ -378,6 +378,17 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **Script workflow:** Users create a token via the API, then use `curl -H "Authorization: Bearer noted_..."` or `?token=noted_...` in shell scripts (e.g. `getDocs.sh`) to pull notes from remote machines over Tailscale.
 - **Code:** `backend/src/routes/export.js`, `backend/src/routes/auth.js` (token endpoints), `backend/src/plugins/auth.js` (token verification), `backend/migrations/011_api_tokens.sql`.
 
+### 5.17 Encrypted Vault (CR020, implemented)
+
+Client-side, zero-knowledge password & key vault. Server stores opaque ciphertext only — the master password and derived key never leave the browser. Reachable via the sidebar (lock-key icon) or `/vault`.
+
+- **Crypto:** Argon2id (m=64 MiB, t=3, p=1) → 32-byte AES-256-GCM key. Per-entry payload `{name, username, password, url, notes}` is JSON-encoded then encrypted with a fresh 12-byte IV. A small known-plaintext "verifier" ciphertext lets the client check the master password without involving the server.
+- **Lifecycle:** First visit prompts for master-password setup (with explicit "no recovery" warning). Subsequent visits prompt for unlock. Unlocked state holds the master key in a JS module closure (not Pinia state, never localStorage). Auto-locks after 15 minutes of vault inactivity; a manual lock button is always visible. Navigating away from the route also locks.
+- **Entries UI:** Searchable list (client-side filter on decrypted name/username/URL) with copy-to-clipboard buttons that auto-clear the clipboard after 30 s. Password generator uses `crypto.getRandomValues`. Reveal toggle per row.
+- **API:** `/api/v1/vault/meta` (GET/POST) for KDF salt/params and verifier ciphertext; `/api/v1/vault/entries` (GET/POST/PUT/DELETE) for opaque ciphertext blobs. BYTEA fields are exchanged as base64 in JSON.
+- **Storage:** Tables `vault_meta` and `vault_entries` (UUID `user_id`, `bytea ciphertext`, `bytea iv`). No plaintext metadata is stored anywhere on the server.
+- **Code:** `backend/migrations/017_vault.sql`, `backend/src/routes/vault.js`, `backend/tests/phase12-vault.test.js` (26 assertions including a server-side plaintext-leak check), `frontend/src/lib/vaultCrypto.js`, `frontend/src/stores/vault.js`, `frontend/src/views/VaultView.vue`, `frontend/src/components/ui/VaultEntryModal.vue`. Dependency: `hash-wasm` (Argon2id).
+
 ---
 
 ## 6. Data Model
@@ -538,6 +549,28 @@ CREATE TABLE api_tokens (
   expires_at  TIMESTAMPTZ,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Encrypted vault (CR020) — strict zero-knowledge: server only stores ciphertext.
+-- Master password / derived key never leave the client.
+CREATE TABLE vault_meta (
+  user_id              UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  kdf_salt             BYTEA NOT NULL,             -- random per-user, generated on setup
+  kdf_params           JSONB NOT NULL,             -- {algo: 'argon2id', m, t, p}
+  verifier_ciphertext  BYTEA NOT NULL,             -- AES-GCM("vault-v1-ok") — used to check master password
+  verifier_iv          BYTEA NOT NULL,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE vault_entries (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ciphertext  BYTEA NOT NULL,                       -- AES-256-GCM of JSON {name, username, password, url, notes}
+  iv          BYTEA NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX vault_entries_user_idx ON vault_entries (user_id, updated_at DESC);
 ```
 
 ---
@@ -632,6 +665,21 @@ GET    /api/v1/graph                Full graph: all notes, tags, and edges for u
 POST   /api/v1/notes/:id/attachments  Multipart form upload (triggers async OCR)
 GET    /api/v1/attachments/:id        Streams file (accepts bearer token via ?token= for inline rendering)
 DELETE /api/v1/attachments/:id
+```
+
+### Vault (CR020)
+
+All bytea fields are exchanged as base64 strings in JSON.
+
+```
+GET    /api/v1/vault/meta              KDF salt/params + verifier ciphertext, or 404 if not initialised
+POST   /api/v1/vault/meta              Body: { kdf_salt, kdf_params, verifier_ciphertext, verifier_iv }
+                                        409 if already initialised. KDF must be argon2id.
+
+GET    /api/v1/vault/entries           List of { id, ciphertext, iv, created_at, updated_at }
+POST   /api/v1/vault/entries           Body: { ciphertext, iv } — 409 until vault is initialised
+PUT    /api/v1/vault/entries/:id       Body: { ciphertext, iv }
+DELETE /api/v1/vault/entries/:id
 ```
 
 > **Security note:** `GET /attachments/:id` currently accepts the JWT access token as a query-string parameter so `<img>` / `<iframe>` tags can render attachments inline without custom headers. This leaks the token into browser history, proxy logs, referrer headers, and any screenshot of the URL bar. This should either be replaced with short-lived signed attachment URLs (opaque token distinct from the JWT) or with cookie-based auth for this endpoint. *(Open issue — see §9 Backlog.)*

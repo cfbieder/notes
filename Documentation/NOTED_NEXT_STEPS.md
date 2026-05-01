@@ -37,6 +37,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | CR | Title |
 |----|-------|
 | [CR009](CR/CR009_signed_attachment_urls.md) | Replace Attachment Query-String JWT with Signed URLs |
+| [CR020](CR/CR020_encrypted_password_vault.md) | Encrypted Password & Key Vault (client-side, zero-knowledge) — **Completed** |
 
 ### Settings & UX
 

@@ -90,6 +90,12 @@ Update all applicable:
 | `backend/src/routes/export.js` | Note export endpoint (`GET /api/v1/notes/export/:title`) |
 | `backend/src/routes/system.js` | System stats endpoint (`GET /api/v1/system/stats`) — storage, content, server, integrations, backup |
 | `frontend/src/components/ui/SystemStatusCard.vue` | Settings-page System Status card (fetch on mount + manual refresh) |
+| `backend/src/routes/vault.js` | Encrypted vault endpoints (CR020) — `/api/v1/vault/{meta,entries}` |
+| `backend/migrations/017_vault.sql` | `vault_meta` + `vault_entries` schema (zero-knowledge ciphertext storage) |
+| `frontend/src/lib/vaultCrypto.js` | Argon2id KDF + AES-256-GCM encrypt/decrypt for vault entries |
+| `frontend/src/stores/vault.js` | Vault Pinia store — master key in module closure, 15-min idle timer |
+| `frontend/src/views/VaultView.vue` | Vault setup / unlock / list view |
+| `frontend/src/components/ui/VaultEntryModal.vue` | Vault entry create/edit modal |
 
 ## Dev Environment
 
