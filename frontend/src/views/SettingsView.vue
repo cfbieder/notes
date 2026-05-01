@@ -7,13 +7,15 @@ import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import SystemStatusCard from '../components/ui/SystemStatusCard.vue';
 import { useMobile } from '../composables/useMobile.js';
-import { Settings, HardDrive, RefreshCw, CheckCircle, XCircle, Loader2, Unplug, ExternalLink, Lock, Palette, AlertTriangle } from 'lucide-vue-next';
+import { Settings, HardDrive, RefreshCw, CheckCircle, XCircle, Loader2, Unplug, ExternalLink, Lock, Palette, AlertTriangle, KeyRound } from 'lucide-vue-next';
 import { api } from '../api/client.js';
+import { useVaultStore } from '../stores/vault.js';
 
 const { isMobile } = useMobile();
 const router = useRouter();
 const integrationsStore = useIntegrationsStore();
 const uiStore = useUIStore();
+const vault = useVaultStore();
 
 const themeOptions = [
   { value: 'sapphire', label: 'Sapphire Slate', hint: 'Deep navy + amber accents (default)' },
@@ -61,6 +63,43 @@ async function changePassword() {
 const canSubmitPassword = () =>
   currentPassword.value && newPassword.value.length >= 8 && confirmPassword.value;
 
+// Vault master-password change
+const vaultCurrentPassword = ref('');
+const vaultNewPassword = ref('');
+const vaultConfirmPassword = ref('');
+const vaultPasswordSaving = ref(false);
+const vaultPasswordMessage = ref('');
+const vaultPasswordError = ref(false);
+
+const canSubmitVaultPassword = () =>
+  vaultCurrentPassword.value &&
+  vaultNewPassword.value.length >= 6 &&
+  vaultNewPassword.value === vaultConfirmPassword.value;
+
+async function changeVaultPassword() {
+  vaultPasswordMessage.value = '';
+  vaultPasswordError.value = false;
+  if (!canSubmitVaultPassword()) return;
+  vaultPasswordSaving.value = true;
+  try {
+    const ok = await vault.changePassword(vaultCurrentPassword.value, vaultNewPassword.value);
+    if (!ok) {
+      vaultPasswordMessage.value = 'Incorrect current vault password';
+      vaultPasswordError.value = true;
+      return;
+    }
+    vaultPasswordMessage.value = 'Vault password updated';
+    vaultCurrentPassword.value = '';
+    vaultNewPassword.value = '';
+    vaultConfirmPassword.value = '';
+  } catch (err) {
+    vaultPasswordMessage.value = err.message || 'Failed to update vault password';
+    vaultPasswordError.value = true;
+  } finally {
+    vaultPasswordSaving.value = false;
+  }
+}
+
 const folderName = ref('');
 const pollInterval = ref(5);
 const configSaving = ref(false);
@@ -74,6 +113,10 @@ onMounted(async () => {
     pollInterval.value = integrationsStore.googleDrive.pollIntervalMinutes || 5;
     await integrationsStore.fetchHistory();
   }
+  // Determine whether the vault is set up so we know whether to show the
+  // change-vault-password card. Failures are silent — the vault store will
+  // surface its own errors when the card is interacted with.
+  try { await vault.loadMeta(); } catch { /* ignore */ }
 });
 
 async function connectGoogleDrive() {
@@ -211,6 +254,36 @@ function formatDate(dateStr) {
                 {{ passwordSaving ? 'Updating...' : 'Update Password' }}
               </button>
               <span v-if="passwordMessage" :class="['config-msg', { 'config-msg-error': passwordError }]">{{ passwordMessage }}</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Change Vault Password (only when a vault exists) -->
+        <section v-if="vault.isSetUp" class="settings-section">
+          <h3><KeyRound :size="16" /> Change Vault Password</h3>
+          <p class="section-desc">
+            Rotates the master password for your encrypted vault. All entries are re-encrypted in your browser
+            with the new key — the server never sees either password.
+          </p>
+          <div class="config-form">
+            <div class="form-group">
+              <label>Current vault password</label>
+              <input v-model="vaultCurrentPassword" type="password" class="form-input" autocomplete="current-password" />
+            </div>
+            <div class="form-group">
+              <label>New vault password</label>
+              <input v-model="vaultNewPassword" type="password" class="form-input" autocomplete="new-password" />
+              <span class="form-hint">Minimum 6 characters. There is no recovery if you forget it.</span>
+            </div>
+            <div class="form-group">
+              <label>Confirm new vault password</label>
+              <input v-model="vaultConfirmPassword" type="password" class="form-input" autocomplete="new-password" />
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" @click="changeVaultPassword" :disabled="vaultPasswordSaving || !canSubmitVaultPassword()">
+                {{ vaultPasswordSaving ? 'Re-encrypting…' : 'Update Vault Password' }}
+              </button>
+              <span v-if="vaultPasswordMessage" :class="['config-msg', { 'config-msg-error': vaultPasswordError }]">{{ vaultPasswordMessage }}</span>
             </div>
           </div>
         </section>
@@ -373,6 +446,36 @@ function formatDate(dateStr) {
                 {{ passwordSaving ? 'Updating...' : 'Update Password' }}
               </button>
               <span v-if="passwordMessage" :class="['config-msg', { 'config-msg-error': passwordError }]">{{ passwordMessage }}</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Change Vault Password (only when a vault exists) -->
+        <section v-if="vault.isSetUp" class="settings-section">
+          <h3><KeyRound :size="16" /> Change Vault Password</h3>
+          <p class="section-desc">
+            Rotates the master password for your encrypted vault. All entries are re-encrypted in your browser
+            with the new key — the server never sees either password.
+          </p>
+          <div class="config-form">
+            <div class="form-group">
+              <label>Current vault password</label>
+              <input v-model="vaultCurrentPassword" type="password" class="form-input" autocomplete="current-password" />
+            </div>
+            <div class="form-group">
+              <label>New vault password</label>
+              <input v-model="vaultNewPassword" type="password" class="form-input" autocomplete="new-password" />
+              <span class="form-hint">Minimum 6 characters. There is no recovery if you forget it.</span>
+            </div>
+            <div class="form-group">
+              <label>Confirm new vault password</label>
+              <input v-model="vaultConfirmPassword" type="password" class="form-input" autocomplete="new-password" />
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" @click="changeVaultPassword" :disabled="vaultPasswordSaving || !canSubmitVaultPassword()">
+                {{ vaultPasswordSaving ? 'Re-encrypting…' : 'Update Vault Password' }}
+              </button>
+              <span v-if="vaultPasswordMessage" :class="['config-msg', { 'config-msg-error': vaultPasswordError }]">{{ vaultPasswordMessage }}</span>
             </div>
           </div>
         </section>

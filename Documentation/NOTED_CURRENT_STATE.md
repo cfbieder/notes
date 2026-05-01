@@ -383,9 +383,10 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 Client-side, zero-knowledge password & key vault. Server stores opaque ciphertext only — the master password and derived key never leave the browser. Reachable via the sidebar (lock-key icon) or `/vault`.
 
 - **Crypto:** Argon2id (m=64 MiB, t=3, p=1) → 32-byte AES-256-GCM key. Per-entry payload `{name, username, password, url, notes}` is JSON-encoded then encrypted with a fresh 12-byte IV. A small known-plaintext "verifier" ciphertext lets the client check the master password without involving the server.
-- **Lifecycle:** First visit prompts for master-password setup (with explicit "no recovery" warning). Subsequent visits prompt for unlock. Unlocked state holds the master key in a JS module closure (not Pinia state, never localStorage). Auto-locks after 15 minutes of vault inactivity; a manual lock button is always visible. Navigating away from the route also locks.
+- **Lifecycle:** First visit prompts for master-password setup (with explicit "no recovery" warning). Subsequent visits prompt for unlock. Unlocked state holds the master key in a JS module closure (not Pinia state, never localStorage). Auto-locks after 15 minutes of vault inactivity; a manual lock button is always visible. Navigating to other routes does NOT lock the vault — only the idle timer or the manual button do.
 - **Entries UI:** Searchable list (client-side filter on decrypted name/username/URL) with copy-to-clipboard buttons that auto-clear the clipboard after 30 s. Password generator uses `crypto.getRandomValues`. Reveal toggle per row.
-- **API:** `/api/v1/vault/meta` (GET/POST) for KDF salt/params and verifier ciphertext; `/api/v1/vault/entries` (GET/POST/PUT/DELETE) for opaque ciphertext blobs. BYTEA fields are exchanged as base64 in JSON.
+- **API:** `/api/v1/vault/meta` (GET/POST) for KDF salt/params and verifier ciphertext; `/api/v1/vault/entries` (GET/POST/PUT/DELETE) for opaque ciphertext blobs; `PUT /api/v1/vault/rotate` for atomic master-password rotation (re-encrypted entries posted alongside new metadata in a single transaction). BYTEA fields are exchanged as base64 in JSON.
+- **Settings:** "Change Vault Password" card in Settings (visible only when a vault exists) takes current + new + confirm passwords, derives both keys client-side, decrypts every entry with the old key, re-encrypts with the new key, and posts the bundle to `/vault/rotate`. The server never sees either password.
 - **Storage:** Tables `vault_meta` and `vault_entries` (UUID `user_id`, `bytea ciphertext`, `bytea iv`). No plaintext metadata is stored anywhere on the server.
 - **Code:** `backend/migrations/017_vault.sql`, `backend/src/routes/vault.js`, `backend/tests/phase12-vault.test.js` (26 assertions including a server-side plaintext-leak check), `frontend/src/lib/vaultCrypto.js`, `frontend/src/stores/vault.js`, `frontend/src/views/VaultView.vue`, `frontend/src/components/ui/VaultEntryModal.vue`. Dependency: `hash-wasm` (Argon2id).
 
@@ -680,6 +681,12 @@ GET    /api/v1/vault/entries           List of { id, ciphertext, iv, created_at,
 POST   /api/v1/vault/entries           Body: { ciphertext, iv } — 409 until vault is initialised
 PUT    /api/v1/vault/entries/:id       Body: { ciphertext, iv }
 DELETE /api/v1/vault/entries/:id
+
+PUT    /api/v1/vault/rotate            Body: { kdf_salt, kdf_params, verifier_ciphertext, verifier_iv,
+                                                entries: [{ id, ciphertext, iv }, ...] }
+                                        Atomic master-password rotation. The submitted entry-id set
+                                        must match the existing set exactly (409 otherwise);
+                                        meta + every entry update in a single transaction.
 ```
 
 > **Security note:** `GET /attachments/:id` currently accepts the JWT access token as a query-string parameter so `<img>` / `<iframe>` tags can render attachments inline without custom headers. This leaks the token into browser history, proxy logs, referrer headers, and any screenshot of the URL bar. This should either be replaced with short-lived signed attachment URLs (opaque token distinct from the JWT) or with cookie-based auth for this endpoint. *(Open issue — see §9 Backlog.)*

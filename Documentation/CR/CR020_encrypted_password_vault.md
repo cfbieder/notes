@@ -74,8 +74,7 @@ All routes under `/api/v1/vault/`, JWT-auth required (vault password is *additio
 - `POST   /vault/entries`           → create (body: `{ ciphertext, iv }`)
 - `PUT    /vault/entries/:id`       → update (body: `{ ciphertext, iv }`)
 - `DELETE /vault/entries/:id`       → delete
-
-Out of scope for v1: changing master password (requires re-encrypting all entries; defer to CR021 if needed), export, import.
+- `PUT    /vault/rotate`            → atomic master-password rotation (body: `{ kdf_salt, kdf_params, verifier_ciphertext, verifier_iv, entries: [{id, ciphertext, iv}, ...] }`). Server enforces that the submitted entry-id set matches the existing set exactly; the meta + every entry are updated in a single transaction.
 
 ## Frontend
 
@@ -129,11 +128,10 @@ Out of scope for v1: changing master password (requires re-encrypting all entrie
 - **Frontend store:** `frontend/src/stores/vault.js` — master key held in module closure (not Pinia state) to avoid leaking it through DevTools; 15-min idle timer; `lock()` wipes the key.
 - **Frontend view:** `frontend/src/views/VaultView.vue` handles all three sub-states (setup / locked / unlocked) plus the entry list. Entry create/edit uses `frontend/src/components/ui/VaultEntryModal.vue`.
 - **Sidebar entry:** Lock-key icon between Reminders and Trash.
-- **Defensive lock-on-route-leave:** `onBeforeUnmount` calls `vault.lock()` so navigating away clears the key in addition to the idle timer.
+- **Lock policy:** 15-min idle timeout + manual lock button only. The vault stays unlocked when navigating to other routes (notes, tasks, etc.) — only the idle timer or the explicit lock button clears the master key. Tab hide also does not lock.
 
 ## Out of Scope (potential follow-up CRs)
 
-- Change master password (re-encrypt all entries)
 - Export / import (encrypted `.json` file)
 - Multi-device sync conflict UX (last-write-wins is fine for v1)
 - Sharing vault entries between users (would require per-entry asymmetric crypto)

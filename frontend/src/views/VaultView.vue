@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import VaultEntryModal from '../components/ui/VaultEntryModal.vue';
@@ -25,6 +25,7 @@ const unlockError = ref('');
 
 // List view
 const filter = ref('');
+const typeFilter = ref('password');           // 'password' | 'key'
 const showEntryModal = ref(false);
 const editingEntry = ref(null);
 const confirmDelete = ref(null);
@@ -32,12 +33,14 @@ const revealedId = ref(null);
 
 const filteredEntries = computed(() => {
   const q = filter.value.trim().toLowerCase();
-  if (!q) return vault.entries;
-  return vault.entries.filter(e =>
-    e.name.toLowerCase().includes(q) ||
-    e.username.toLowerCase().includes(q) ||
-    e.url.toLowerCase().includes(q)
-  );
+  return vault.entries.filter(e => {
+    const t = e.type === 'key' ? 'key' : 'password';
+    if (t !== typeFilter.value) return false;
+    if (!q) return true;
+    return e.name.toLowerCase().includes(q) ||
+           e.username.toLowerCase().includes(q) ||
+           e.url.toLowerCase().includes(q);
+  });
 });
 
 const setupCanSubmit = computed(() =>
@@ -52,11 +55,6 @@ onMounted(async () => {
   } catch (err) {
     toasts.addToast({ message: err.message || 'Failed to load vault', type: 'error' });
   }
-});
-
-// Lock when leaving the route — defensive defence-in-depth.
-onBeforeUnmount(() => {
-  vault.lock();
 });
 
 async function doSetup() {
@@ -241,9 +239,15 @@ function maskedDots() {
             </div>
           </div>
 
-          <div class="filter-row">
-            <Search :size="14" />
-            <input v-model="filter" placeholder="Filter by name, username, or URL…" />
+          <div class="filter-bar">
+            <div class="filter-input">
+              <Search :size="14" />
+              <input v-model="filter" placeholder="Filter…" />
+            </div>
+            <select v-model="typeFilter" class="type-filter" aria-label="Filter by type">
+              <option value="password">Password</option>
+              <option value="key">Key</option>
+            </select>
           </div>
 
           <div v-if="vault.entries.length === 0" class="vault-empty">
@@ -255,7 +259,8 @@ function maskedDots() {
           </div>
 
           <div v-else-if="filteredEntries.length === 0" class="vault-empty">
-            <p>No entries match “{{ filter }}”.</p>
+            <p v-if="filter">No {{ typeFilter }} entries match “{{ filter }}”.</p>
+            <p v-else>No {{ typeFilter }} entries.</p>
           </div>
 
           <ul v-else class="entry-list">
@@ -410,18 +415,39 @@ function maskedDots() {
   font-size: 12px;
 }
 
-.filter-row {
+.filter-bar {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 12px;
+}
+.filter-input {
   display: flex; align-items: center; gap: 8px;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 6px 10px;
-  margin-bottom: 12px;
   color: var(--text-secondary);
+  width: 240px;
+  max-width: 100%;
 }
-.filter-row input {
-  flex: 1; background: none; border: none; outline: none;
+.filter-input input {
+  flex: 1; min-width: 0;
+  background: none; border: none; outline: none;
   color: var(--text-primary); font-size: 13px;
+}
+.type-filter {
+  margin-left: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+}
+.type-filter:focus { outline: none; border-color: var(--accent-primary); }
+@media (max-width: 640px) {
+  .filter-input { width: auto; flex: 1; }
 }
 
 .vault-empty {

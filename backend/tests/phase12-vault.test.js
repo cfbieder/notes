@@ -269,6 +269,127 @@ async function run() {
   });
   assert(hugeRes.status === 400, 'Oversized ciphertext rejected');
 
+  // === Master-password rotation ===
+  console.log('\nRotate:');
+  // Seed two fresh entries so we have something to re-encrypt.
+  const seedA = JSON.stringify({ name: 'Bank', username: 'me', password: 'old-bank-pw', url: '', notes: '' });
+  const seedB = JSON.stringify({ name: 'Email', username: 'me', password: 'old-email-pw', url: '', notes: '' });
+  const seedAEnc = aesGcmEncrypt(masterKey, Buffer.from(seedA), null);
+  const seedBEnc = aesGcmEncrypt(masterKey, Buffer.from(seedB), null);
+  const seedARes = await api('/vault/entries', { method: 'POST', body: { ciphertext: b64(seedAEnc.ciphertext), iv: b64(seedAEnc.iv) } });
+  const seedBRes = await api('/vault/entries', { method: 'POST', body: { ciphertext: b64(seedBEnc.ciphertext), iv: b64(seedBEnc.iv) } });
+  const seedAId = seedARes.data.data.id;
+  const seedBId = seedBRes.data.data.id;
+
+  // Generate a new master key + verifier + salt.
+  const newMasterKey = crypto.randomBytes(32);
+  const newSalt = crypto.randomBytes(16);
+  const newVerifier = aesGcmEncrypt(newMasterKey, Buffer.from('vault-v1-ok'), null);
+
+  // Re-encrypt every entry with the new key.
+  const reEncA = aesGcmEncrypt(newMasterKey, Buffer.from(seedA), null);
+  const reEncB = aesGcmEncrypt(newMasterKey, Buffer.from(seedB), null);
+
+  // Reject: missing entry
+  const rotMissing = await api('/vault/rotate', {
+    method: 'PUT',
+    body: {
+      kdf_salt: b64(newSalt),
+      kdf_params: { algo: 'argon2id', m: 65536, t: 3, p: 1 },
+      verifier_ciphertext: b64(newVerifier.ciphertext),
+      verifier_iv: b64(newVerifier.iv),
+      entries: [{ id: seedAId, ciphertext: b64(reEncA.ciphertext), iv: b64(reEncA.iv) }]
+    }
+  });
+  assert(rotMissing.status === 409, 'Rotate rejects when an entry is missing');
+
+  // Reject: extra entry not in vault
+  const fakeId = '00000000-0000-0000-0000-000000000099';
+  const rotExtra = await api('/vault/rotate', {
+    method: 'PUT',
+    body: {
+      kdf_salt: b64(newSalt),
+      kdf_params: { algo: 'argon2id', m: 65536, t: 3, p: 1 },
+      verifier_ciphertext: b64(newVerifier.ciphertext),
+      verifier_iv: b64(newVerifier.iv),
+      entries: [
+        { id: seedAId, ciphertext: b64(reEncA.ciphertext), iv: b64(reEncA.iv) },
+        { id: seedBId, ciphertext: b64(reEncB.ciphertext), iv: b64(reEncB.iv) },
+        { id: fakeId, ciphertext: b64(reEncA.ciphertext), iv: b64(reEncA.iv) }
+      ]
+    }
+  });
+  assert(rotExtra.status === 409, 'Rotate rejects when an extra entry is submitted');
+
+  // Reject: non-argon2id KDF
+  const rotBadKdf = await api('/vault/rotate', {
+    method: 'PUT',
+    body: {
+      kdf_salt: b64(newSalt),
+      kdf_params: { algo: 'pbkdf2' },
+      verifier_ciphertext: b64(newVerifier.ciphertext),
+      verifier_iv: b64(newVerifier.iv),
+      entries: [
+        { id: seedAId, ciphertext: b64(reEncA.ciphertext), iv: b64(reEncA.iv) },
+        { id: seedBId, ciphertext: b64(reEncB.ciphertext), iv: b64(reEncB.iv) }
+      ]
+    }
+  });
+  assert(rotBadKdf.status === 400, 'Rotate rejects non-argon2id KDF');
+
+  // Reject: malformed entry id
+  const rotBadId = await api('/vault/rotate', {
+    method: 'PUT',
+    body: {
+      kdf_salt: b64(newSalt),
+      kdf_params: { algo: 'argon2id', m: 65536, t: 3, p: 1 },
+      verifier_ciphertext: b64(newVerifier.ciphertext),
+      verifier_iv: b64(newVerifier.iv),
+      entries: [{ id: 'not-a-uuid', ciphertext: b64(reEncA.ciphertext), iv: b64(reEncA.iv) }]
+    }
+  });
+  assert(rotBadId.status === 400, 'Rotate rejects malformed entry id');
+
+  // Happy path
+  const rotOk = await api('/vault/rotate', {
+    method: 'PUT',
+    body: {
+      kdf_salt: b64(newSalt),
+      kdf_params: { algo: 'argon2id', m: 65536, t: 3, p: 1 },
+      verifier_ciphertext: b64(newVerifier.ciphertext),
+      verifier_iv: b64(newVerifier.iv),
+      entries: [
+        { id: seedAId, ciphertext: b64(reEncA.ciphertext), iv: b64(reEncA.iv) },
+        { id: seedBId, ciphertext: b64(reEncB.ciphertext), iv: b64(reEncB.iv) }
+      ]
+    }
+  });
+  assert(rotOk.status === 200 && rotOk.data?.data?.entry_count === 2, 'Rotate succeeds with full entry list');
+
+  // Verify the meta has the new salt + verifier and that it decrypts only with the new key.
+  const metaAfter = await api('/vault/meta');
+  assert(fromB64(metaAfter.data.data.kdf_salt).equals(newSalt), 'Meta has new salt after rotate');
+  const verifierAfter = aesGcmDecrypt(
+    newMasterKey,
+    fromB64(metaAfter.data.data.verifier_ciphertext),
+    fromB64(metaAfter.data.data.verifier_iv),
+    null
+  );
+  assert(verifierAfter.toString() === 'vault-v1-ok', 'Verifier decrypts under new key');
+
+  // Old key must NOT decrypt the new verifier.
+  let oldKeyFails = false;
+  try {
+    aesGcmDecrypt(masterKey, fromB64(metaAfter.data.data.verifier_ciphertext), fromB64(metaAfter.data.data.verifier_iv), null);
+  } catch { oldKeyFails = true; }
+  assert(oldKeyFails, 'Verifier does NOT decrypt under old key');
+
+  // Entries decrypt under the new key with their original plaintext.
+  const listAfter = await api('/vault/entries');
+  const aRow = listAfter.data.data.find(r => r.id === seedAId);
+  const aBack = aesGcmDecrypt(newMasterKey, fromB64(aRow.ciphertext), fromB64(aRow.iv), null);
+  assert(JSON.parse(aBack.toString()).password === 'old-bank-pw', 'Entry A decrypts to original plaintext under new key');
+
   // === Cleanup ===
   await pool.query('DELETE FROM vault_entries WHERE user_id = $1', [userId]);
   await pool.query('DELETE FROM vault_meta WHERE user_id = $1', [userId]);

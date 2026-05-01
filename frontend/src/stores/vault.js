@@ -203,6 +203,78 @@ export const useVaultStore = defineStore('vault', () => {
   }
 
   /**
+   * Rotate the master password.
+   *
+   * Verifies the current password client-side, derives a new key, decrypts every
+   * entry with the old key + re-encrypts with the new key, then atomically posts
+   * the new metadata + re-encrypted entries to /vault/rotate. Vault does not need
+   * to be unlocked first — current password is what authorises the rotation.
+   *
+   * Returns true on success, false if the current password is wrong.
+   */
+  async function changePassword(currentPassword, newPassword) {
+    error.value = null;
+    busy.value = true;
+    try {
+      // Always re-fetch meta to avoid acting on a stale snapshot.
+      await loadMeta();
+      if (!meta.value) throw new Error('Vault not set up');
+
+      // Verify current password.
+      const currentSalt = b64ToBytesLocal(meta.value.kdf_salt);
+      const currentKey = await deriveKey(currentPassword, currentSalt, meta.value.kdf_params);
+      const ok = await checkVerifier(currentKey, meta.value.verifier_ciphertext, meta.value.verifier_iv);
+      if (!ok) return false;
+
+      // Derive new key from a fresh salt + default params.
+      const newSalt = generateSalt();
+      const newParams = { ...DEFAULT_KDF_PARAMS };
+      const newKey = await deriveKey(newPassword, newSalt, newParams);
+      const newVerifier = await buildVerifier(newKey);
+
+      // Re-encrypt every entry. Fetch directly from the server so we have the
+      // raw ciphertext blobs — the in-memory `entries` array is plaintext records.
+      const listRes = await api.get('/vault/entries');
+      const reEncrypted = [];
+      for (const row of listRes.data) {
+        let record;
+        try {
+          record = await decryptEntry(currentKey, row.ciphertext, row.iv);
+        } catch (err) {
+          // An undecryptable row would be lost on rotation. Refuse to rotate so
+          // the user can investigate / delete it first.
+          throw new Error(
+            `Entry ${row.id} could not be decrypted with the current password. ` +
+            `Delete it before changing your master password.`
+          );
+        }
+        const blob = await encryptEntry(newKey, record);
+        reEncrypted.push({ id: row.id, ciphertext: blob.ciphertext, iv: blob.iv });
+      }
+
+      await api.put('/vault/rotate', {
+        kdf_salt: bytesToB64(newSalt),
+        kdf_params: newParams,
+        verifier_ciphertext: newVerifier.verifier_ciphertext,
+        verifier_iv: newVerifier.verifier_iv,
+        entries: reEncrypted
+      });
+
+      // If the vault was unlocked when the rotation started, swap the in-memory
+      // key over so the user can keep using it without re-unlocking.
+      if (masterKey) {
+        masterKey = newKey;
+        resetIdleTimer();
+      }
+      // Refresh local meta cache.
+      await loadMeta();
+      return true;
+    } finally {
+      busy.value = false;
+    }
+  }
+
+  /**
    * Call from the view on user activity inside /vault to keep the session warm.
    * (Note: idle timer also resets implicitly on every store action.)
    */
@@ -237,6 +309,6 @@ export const useVaultStore = defineStore('vault', () => {
   return {
     isSetUp, isUnlocked, meta, entries, busy, error, status,
     loadMeta, setup, unlock, lock, loadEntries,
-    createEntry, updateEntry, deleteEntry, touch
+    createEntry, updateEntry, deleteEntry, touch, changePassword
   };
 });
