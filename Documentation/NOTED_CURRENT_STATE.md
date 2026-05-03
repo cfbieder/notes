@@ -176,7 +176,7 @@ The core editing experience is inspired by TypeDown:
 
 - **Notebooks:** Named collections of notes. Each note belongs to exactly one notebook.
 - **Stacks:** Groups of notebooks (one level of nesting, matching Evernote's model).
-- **Default notebook:** An "Inbox" notebook is always present and is the default for new notes.
+- **Default notebook:** An "Inbox" notebook is always present and is the default for new notes. **Hidden from the sidebar Notebooks list** to avoid duplication with the top-level "Inbox" nav entry — both pointed at the same content but via different filters (`notebook_id` vs. `is_inbox=true`), causing user-visible drift when capture paths set `is_inbox=true` without assigning the notebook FK. The notebook still exists in the DB and remains selectable in the notebook picker (where choosing it sets `is_inbox=true`), so picker, drag-to-notebook, and migration 015's invariant continue to function.
 - **Sidebar:** Collapsible tree view of stacks → notebooks → (note count).
 - **Drag-and-drop:** Notes can be moved between notebooks via drag-and-drop in the sidebar.
 - **New Note context-aware target:** Clicking **+ New Note** while viewing a notebook (`/notebooks/:id`) creates the note inside that notebook (with `is_inbox` set if it's the default). From any other view (All Notes, Tasks, Tags, etc.) the note falls through to the inbox as before.

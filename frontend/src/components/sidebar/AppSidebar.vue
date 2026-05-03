@@ -61,9 +61,15 @@ onMounted(async () => {
   aiAssistStore.startJobsPolling(60000);
 });
 
+// Default "Inbox" notebook is hidden from the sidebar — the top "Inbox" nav
+// item is the single entry point for inbox content (filters by is_inbox=true).
 const unstackedNotebooks = computed(() =>
-  notebooksStore.notebooks.filter(n => !n.stack_id)
+  notebooksStore.notebooks.filter(n => !n.stack_id && !n.is_default)
 );
+
+function visibleStackNotebooks(stack) {
+  return (stack.notebooks || []).filter(n => !n.is_default);
+}
 
 function selectNotebook(id) {
   notesStore.clearFilters();
@@ -489,7 +495,7 @@ async function deleteNotebook() {
         </button>
         <div v-if="expanded.stacks.has(stack.id) && stack.notebooks" class="stack-notebooks">
           <button
-            v-for="nb in stack.notebooks"
+            v-for="nb in visibleStackNotebooks(stack)"
             :key="nb.id"
             class="nav-item notebook-item"
             :class="{ active: route.params.id === nb.id, 'drop-target': dragOverNotebook === nb.id }"
