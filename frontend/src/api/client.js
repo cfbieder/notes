@@ -86,10 +86,17 @@ async function refreshToken() {
   }
 }
 
-// Upload file (multipart/form-data — no Content-Type header, browser sets boundary)
-export async function apiUpload(path, file) {
+// Upload file (multipart/form-data — no Content-Type header, browser sets boundary).
+// `extraFields` rides alongside the file as additional form fields; the
+// backend reads them from data.fields.<name>.value.
+export async function apiUpload(path, file, extraFields = {}) {
   const url = `${API_BASE}${path}`;
   const formData = new FormData();
+  for (const [k, v] of Object.entries(extraFields)) {
+    if (v !== undefined && v !== null && v !== '') formData.append(k, v);
+  }
+  // Append file last so multipart consumers that read fields-after-file via
+  // data.fields work the same as fields-before-file.
   formData.append('file', file);
 
   const headers = {};

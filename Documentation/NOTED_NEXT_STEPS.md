@@ -47,6 +47,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR010](CR/CR010_user_settings_email_display.md) | User Settings — Email & Display Preferences |
 | [CR019](CR/CR019_ai_assist_modes.md) | AI Assist — Quick / Deep-Think Modes + Async Inbox Delivery — **Completed** |
 | [CR022](CR/CR022_hide_default_inbox_notebook.md) | Hide Default "Inbox" Notebook from Sidebar — **Completed** |
+| [CR023](CR/CR023_html_format_notes.md) | HTML-Format Notes (Upload + Render) — **Completed** |
 
 ### Stage 3 — Multi-User & Beyond
 

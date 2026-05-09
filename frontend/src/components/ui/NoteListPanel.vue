@@ -82,8 +82,20 @@ function formatDate(dateStr) {
   return date.toLocaleDateString();
 }
 
-function getPreview(content) {
+function getPreview(content, format) {
   if (!content) return '';
+  if (format === 'html') {
+    // Coarse tag strip — good enough for an 80-char preview without pulling
+    // DOMPurify into the list panel just to render text.
+    const stripped = content
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return stripped.slice(0, 80);
+  }
   const plain = content
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/[*_~`]/g, '')
@@ -121,9 +133,10 @@ function getPreview(content) {
         <div class="note-title-row">
           <span v-if="note.note_type === 'idea'" class="idea-chip" title="Idea">💡</span>
           <span class="note-title">{{ note.title }}</span>
+          <span v-if="note.format === 'html'" class="format-badge" title="HTML note">HTML</span>
           <Pin v-if="note.pinned" :size="12" class="pin-icon" />
         </div>
-        <div class="note-preview">{{ getPreview(note.content) }}</div>
+        <div class="note-preview">{{ getPreview(note.content, note.format) }}</div>
         <div class="note-meta">{{ formatDate(note.updated_at) }}</div>
       </button>
     </div>
@@ -232,6 +245,17 @@ function getPreview(content) {
 
 .pin-icon { color: var(--accent-warn); }
 .idea-chip { font-size: 13px; line-height: 1; }
+
+.format-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 1px 4px;
+  background: var(--accent-info, var(--accent-primary));
+  color: white;
+  border-radius: 3px;
+  line-height: 1;
+}
 
 .note-preview {
   font-size: 12px;

@@ -38,6 +38,16 @@ function addFilter(filter) {
 function openNote(id) {
   router.push(`/notes/${id}`);
 }
+
+// HTML notes have markup in their snippets that the backend's ts_headline
+// preserves verbatim alongside the <mark>…</mark> highlight wrappers. Strip
+// every tag except <mark> so we render readable text without injecting raw
+// markup via v-html. Markdown notes are passed through unchanged.
+function snippetFor(result) {
+  if (!result?.snippet) return '';
+  if (result.format !== 'html') return result.snippet;
+  return result.snippet.replace(/<(?!\/?mark\b)[^>]+>/gi, '');
+}
 </script>
 
 <template>
@@ -73,7 +83,7 @@ function openNote(id) {
             <FileText v-else :size="16" />
             <span class="result-title">{{ result.title }}</span>
           </div>
-          <div class="result-snippet" v-html="result.snippet" />
+          <div class="result-snippet" v-html="snippetFor(result)" />
         </button>
       </div>
     </main>
@@ -143,7 +153,7 @@ function openNote(id) {
               <RefreshCw :size="11" /> auto
             </span>
           </div>
-          <div class="result-snippet" v-html="result.snippet" />
+          <div class="result-snippet" v-html="snippetFor(result)" />
         </button>
       </div>
     </main>

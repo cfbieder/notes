@@ -1,5 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import { getAccessToken } from '../api/client.js';
+import { sanitizeNoteHtml } from './htmlSanitize.js';
 
 const md = new MarkdownIt({
   html: false,
@@ -25,12 +26,18 @@ md.renderer.rules.text = function (tokens, idx, options, env, self) {
 /**
  * Opens a print-friendly window with the note rendered as HTML.
  * The browser's print dialog handles both physical printing and "Save as PDF".
+ *
+ * `format` defaults to 'markdown'. For 'html' the body is sanitized via
+ * DOMPurify (the same policy as on-screen rendering) and printed directly,
+ * so uploaded HTML notes preserve their formatting in the print window.
  */
-export function printNote(title, markdownContent) {
+export function printNote(title, content, format = 'markdown') {
   const token = getAccessToken();
 
-  // Render markdown to HTML
-  let html = md.render(markdownContent || '');
+  // Render to HTML — markdown via markdown-it, html notes via DOMPurify.
+  let html = format === 'html'
+    ? sanitizeNoteHtml(content || '', { scope: 'body' })
+    : md.render(content || '');
 
   // Rewrite attachment image URLs to include auth token for the print window
   if (token) {

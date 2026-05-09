@@ -390,6 +390,21 @@ Client-side, zero-knowledge password & key vault. Server stores opaque ciphertex
 - **Storage:** Tables `vault_meta` and `vault_entries` (UUID `user_id`, `bytea ciphertext`, `bytea iv`). No plaintext metadata is stored anywhere on the server.
 - **Code:** `backend/migrations/017_vault.sql`, `backend/src/routes/vault.js`, `backend/tests/phase12-vault.test.js` (26 assertions including a server-side plaintext-leak check), `frontend/src/lib/vaultCrypto.js`, `frontend/src/stores/vault.js`, `frontend/src/views/VaultView.vue`, `frontend/src/components/ui/VaultEntryModal.vue`. Dependency: `hash-wasm` (Argon2id).
 
+### 5.18 HTML-Format Notes (CR023, implemented)
+
+Per-note format flag (`markdown` | `html`) so users can keep richly-formatted documents (multi-column layouts, inline SVG, styled callouts, exported web pages) as first-class notes alongside the existing markdown experience.
+
+- **Storage:** `notes.format TEXT NOT NULL DEFAULT 'markdown' CHECK (format IN ('markdown','html'))`. Body is stored verbatim — sanitization runs on render, not on store, so the policy is upgradable without re-encoding existing notes.
+- **Creation:** "New Note" in the sidebar is a split-button — the main label creates a Markdown note (current default); the caret offers `Markdown` / `HTML` / `Import file…`. The chosen format is remembered for the session only.
+- **Import:** `POST /api/v1/notes/import` accepts `.md`, `.markdown`, `.txt`, `.html`, `.htm` (multipart, JWT-authed, server-side MIME sniff via filename extension first then header). For full HTML documents (`<html><head><body>…`), only the body content is stored so the source view doesn't show `<head>`/`<meta>` boilerplate. Title precedence: explicit override → `<title>` tag (HTML only) → filename → `"Untitled"`. Size cap matches the existing attachment cap (`MAX_FILE_SIZE`, default 25 MiB).
+- **Rendering:** HTML notes default to a sanitized read view (`<article class="note-html">`) with an "Edit source" toolbar button that swaps in CodeMirror in plain-text mode. Sanitization uses DOMPurify with `<style>` allowed-but-scoped (per-note container prefix prevents uploaded CSS from bleeding into the app shell), `<svg>` allowed, and `<script>`/`<iframe>`/`<object>`/`<embed>`/inline `on*` handlers/`javascript:` URIs all blocked.
+- **Editor:** `CodeMirrorEditor` accepts a `format` prop. For `format='html'`, the markdown language plugin and all markdown-specific extensions (`markdownRendering`, `wikilinkRendering`, `wikilinkAutocomplete`, `tableKeymap`) are skipped — plain-source editing only.
+- **Print / download:** Print branches on format — HTML notes go through DOMPurify and are written into the print window directly (markdown notes still use markdown-it). Download exports `.html` for HTML notes with `text/html` MIME.
+- **Search:** Snippets for HTML notes have raw markup stripped client-side (preserving `<mark>` highlight wrappers from `ts_headline`) before being injected via `v-html`.
+- **List badge:** Note list shows a small `HTML` badge next to the title for `format='html'` rows.
+- **v1 limitations (deferred):** No wikilinks/backlinks/graph/AI Assist for HTML notes (the wikilink parser is markdown-only; AI Assist prompts assume markdown). HTML tags pollute `content_tsv` slightly — acceptable tradeoff for v1. No format conversion (markdown ↔ html) on existing notes. No WYSIWYG editor.
+- **Code:** `backend/migrations/018_note_format.sql`, `backend/src/routes/import.js`, `backend/src/routes/notes.js` (format field), `backend/tests/phase13-html-notes.test.js` (23 assertions), `frontend/src/lib/htmlSanitize.js`, `frontend/src/components/ui/ImportNoteModal.vue`, `frontend/src/views/NotesView.vue` (read-mode branch), `frontend/src/components/editor/CodeMirrorEditor.vue` (format prop). Dependency: `dompurify`.
+
 ---
 
 ## 6. Data Model

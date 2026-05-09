@@ -25,6 +25,7 @@ import { useGraphStore } from '../stores/graph.js';
 import { useAIAssistStore } from '../stores/aiAssist.js';
 import { useToastsStore } from '../stores/toasts.js';
 import { printNote } from '../lib/printNote.js';
+import { sanitizeNoteHtml } from '../lib/htmlSanitize.js';
 
 const attachmentsStore = useAttachmentsStore();
 const notebooksStore = useNotebooksStore();
@@ -82,14 +83,17 @@ async function toggleAutoUpdate() {
 
 function handlePrint() {
   if (!notesStore.currentNote) return;
-  printNote(noteTitle.value, editorContent.value);
+  printNote(noteTitle.value, editorContent.value, noteFormat.value);
 }
 
 function handleDownload() {
   if (!notesStore.currentNote) return;
   const title = noteTitle.value || 'Untitled';
-  const filename = title.replace(/[^a-zA-Z0-9_\- ]/g, '').replace(/\s+/g, '_') + '.md';
-  const blob = new Blob([editorContent.value], { type: 'text/markdown;charset=utf-8' });
+  const isHtml = noteFormat.value === 'html';
+  const ext = isHtml ? '.html' : '.md';
+  const mime = isHtml ? 'text/html;charset=utf-8' : 'text/markdown;charset=utf-8';
+  const filename = title.replace(/[^a-zA-Z0-9_\- ]/g, '').replace(/\s+/g, '_') + ext;
+  const blob = new Blob([editorContent.value], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -185,6 +189,15 @@ let saveTimer = null;
 
 const isSourceMode = computed(() => uiStore.editorMode === 'source');
 
+// HTML notes default to a sanitized read view; "Edit source" toggles to a
+// plain-text CodeMirror surface. Resets when the loaded note changes.
+const htmlEditMode = ref(false);
+const noteFormat = computed(() => notesStore.currentNote?.format || 'markdown');
+const isHtmlNote = computed(() => noteFormat.value === 'html');
+const renderedHtml = computed(() =>
+  isHtmlNote.value ? sanitizeNoteHtml(editorContent.value) : ''
+);
+
 const resetConfirm = ref({ open: false, count: 0 });
 const insertTableOpen = ref(false);
 const tableEditor = ref({ open: false, from: 0, to: 0, text: '' });
@@ -276,6 +289,7 @@ async function loadNote(id) {
   if (note) {
     noteTitle.value = note.title;
     editorContent.value = note.content;
+    htmlEditMode.value = false;
     uiStore.setSaveStatus('saved');
     // Fetch backlinks and local graph in background
     graphStore.fetchBacklinks(id);
@@ -475,17 +489,29 @@ function onMobileVoiceCapture() {
           @toggle-auto-update="toggleAutoUpdate"
         />
         <div class="editor-body">
-          <CodeMirrorEditor
-            ref="editorRef"
-            :modelValue="editorContent"
-            :sourceMode="isSourceMode"
-            :noteTitles="noteTitles"
-            :noteMap="noteMap"
-            :onNavigateToNote="navigateToNote"
-            @update:modelValue="onContentChange"
-            @paste-image="onPasteImage"
-            @edit-table="onEditTable"
-          />
+          <template v-if="isHtmlNote && !htmlEditMode">
+            <div class="html-note-toolbar">
+              <button class="btn-edit-source" @click="htmlEditMode = true">Edit source</button>
+            </div>
+            <article class="note-html" v-html="renderedHtml" />
+          </template>
+          <template v-else>
+            <div v-if="isHtmlNote" class="html-note-toolbar">
+              <button class="btn-edit-source" @click="htmlEditMode = false">Done editing</button>
+            </div>
+            <CodeMirrorEditor
+              ref="editorRef"
+              :modelValue="editorContent"
+              :sourceMode="isSourceMode"
+              :format="noteFormat"
+              :noteTitles="noteTitles"
+              :noteMap="noteMap"
+              :onNavigateToNote="navigateToNote"
+              @update:modelValue="onContentChange"
+              @paste-image="onPasteImage"
+              @edit-table="onEditTable"
+            />
+          </template>
         </div>
         <template v-if="!uiStore.contextPanelsCollapsed">
           <BacklinksPanel v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />
@@ -639,6 +665,52 @@ function onMobileVoiceCapture() {
   padding: 0 24px;
   overflow: hidden;
   display: flex;
+  flex-direction: column;
+}
+
+.html-note-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 0 4px;
+}
+
+.btn-edit-source {
+  background: var(--bg-elevated, var(--bg-main));
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-edit-source:hover {
+  background: var(--bg-hover, var(--bg-elevated));
+}
+
+:deep(.note-html) {
+  flex: 1;
+  overflow: auto;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 16px 0 32px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+:deep(.note-html img),
+:deep(.note-html svg) {
+  max-width: 100%;
+  height: auto;
+}
+
+:deep(.note-html table) {
+  border-collapse: collapse;
+}
+
+:deep(.note-html pre) {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .no-note {

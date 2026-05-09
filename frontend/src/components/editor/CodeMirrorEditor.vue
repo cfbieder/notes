@@ -14,6 +14,7 @@ import { tableKeymap } from '../../lib/codemirror/tableKeymap.js';
 const props = defineProps({
   modelValue: { type: String, default: '' },
   sourceMode: { type: Boolean, default: false },
+  format: { type: String, default: 'markdown' },
   noteTitles: { type: Array, default: () => [] },
   noteMap: { type: Map, default: () => new Map() },
   onNavigateToNote: { type: Function, default: null }
@@ -25,13 +26,13 @@ const editorContainer = ref(null);
 let view = null;
 
 function createState(doc) {
+  const isHtml = props.format === 'html';
+
   const extensions = [
-    tableKeymap,
     keymap.of([...defaultKeymap, ...historyKeymap]),
     history(),
     drawSelection(),
     highlightActiveLine(),
-    markdown({ base: markdownLanguage, codeLanguages: languages }),
     sapphireTheme,
     sapphireHighlight,
     EditorView.lineWrapping,
@@ -59,20 +60,31 @@ function createState(doc) {
     })
   ];
 
-  if (props.sourceMode) {
-    // Source mode: line numbers, monospace, raw markdown
-    extensions.push(lineNumbers());
-  } else {
-    // Normal mode: hide syntax, render inline
-    extensions.push(markdownRenderPlugin);
-    extensions.push(wikilinkRenderPlugin(
-      () => props.noteMap,
-      props.onNavigateToNote
-    ));
-  }
+  if (!isHtml) {
+    // Markdown-only extensions: language, decorations, wikilinks, table keymap.
+    extensions.push(
+      tableKeymap,
+      markdown({ base: markdownLanguage, codeLanguages: languages })
+    );
 
-  // Wikilink autocomplete works in both modes
-  extensions.push(wikilinkAutocomplete(() => props.noteTitles));
+    if (props.sourceMode) {
+      // Source mode: line numbers, monospace, raw markdown
+      extensions.push(lineNumbers());
+    } else {
+      // Normal mode: hide syntax, render inline
+      extensions.push(markdownRenderPlugin);
+      extensions.push(wikilinkRenderPlugin(
+        () => props.noteMap,
+        props.onNavigateToNote
+      ));
+    }
+
+    extensions.push(wikilinkAutocomplete(() => props.noteTitles));
+  } else {
+    // HTML notes: plain-text source editing only. Line numbers help when
+    // hand-editing markup.
+    extensions.push(lineNumbers());
+  }
 
   return EditorState.create({ doc, extensions });
 }
@@ -106,8 +118,8 @@ onBeforeUnmount(() => {
   }
 });
 
-// Re-create editor when source mode toggles
-watch(() => props.sourceMode, () => {
+// Re-create editor when source mode or format toggles
+watch([() => props.sourceMode, () => props.format], () => {
   if (view) {
     const content = view.state.doc.toString();
     initEditor();

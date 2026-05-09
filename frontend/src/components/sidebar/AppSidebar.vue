@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed, reactive, ref } from 'vue';
+import { onMounted, onBeforeUnmount, computed, reactive, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useNotebooksStore } from '../../stores/notebooks.js';
 import { useNotesStore } from '../../stores/notes.js';
@@ -8,13 +8,14 @@ import { useIdeasStore } from '../../stores/ideas.js';
 import { useAuthStore } from '../../stores/auth.js';
 import { api } from '../../api/client.js';
 import ConfirmModal from '../ui/ConfirmModal.vue';
+import ImportNoteModal from '../ui/ImportNoteModal.vue';
 import RemindersPanel from '../ui/RemindersPanel.vue';
 import AIAssistPendingPill from '../ai/AIAssistPendingPill.vue';
 import { useRemindersStore } from '../../stores/reminders.js';
 import {
   FileText, Inbox, CheckSquare, Search, Network, Trash2, Bell,
   ChevronRight, ChevronDown, Plus, LogOut, FolderOpen, Tag, Settings, HelpCircle, Maximize2, Minimize2,
-  Sparkles, KeyRound
+  Sparkles, KeyRound, Upload
 } from 'lucide-vue-next';
 import { useUIStore } from '../../stores/ui.js';
 import { useAIAssistStore } from '../../stores/aiAssist.js';
@@ -154,8 +155,40 @@ async function onNotebookDrop(e, nbId) {
   await notebooksStore.fetchNotebooks();
 }
 
-async function handleNewNote() {
-  const payload = { title: 'Untitled', content: '' };
+// Split-button new note: main click uses last-used format (defaults to markdown);
+// the dropdown caret offers an explicit Markdown / HTML choice. The chosen
+// format is remembered in module state for the session only — a reload resets
+// to markdown.
+const lastUsedFormat = ref('markdown');
+const newNoteMenuOpen = ref(false);
+const showImportModal = ref(false);
+const newNoteGroupRef = ref(null);
+
+function handleDocClick(e) {
+  if (!newNoteMenuOpen.value) return;
+  if (newNoteGroupRef.value && !newNoteGroupRef.value.contains(e.target)) {
+    newNoteMenuOpen.value = false;
+  }
+}
+
+watch(newNoteMenuOpen, (open) => {
+  if (open) {
+    document.addEventListener('click', handleDocClick);
+  } else {
+    document.removeEventListener('click', handleDocClick);
+  }
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocClick);
+});
+
+async function handleNewNote(format) {
+  const fmt = format || lastUsedFormat.value;
+  lastUsedFormat.value = fmt;
+  newNoteMenuOpen.value = false;
+
+  const payload = { title: 'Untitled', content: '', format: fmt };
   if (route.name === 'NotebookNotes' && route.params.id) {
     const nbId = route.params.id;
     const nb = notebooksStore.notebooks.find(n => n.id === nbId);
@@ -166,6 +199,17 @@ async function handleNewNote() {
   }
   const note = await notesStore.createNote(payload);
   router.push(`/notes/${note.id}`);
+}
+
+function openImportModal() {
+  newNoteMenuOpen.value = false;
+  showImportModal.value = true;
+}
+
+async function onImportComplete(noteId) {
+  showImportModal.value = false;
+  await notesStore.fetchNotes();
+  router.push(`/notes/${noteId}`);
 }
 
 function toggleStack(id) {
@@ -366,10 +410,33 @@ async function deleteNotebook() {
       <span v-if="envLabel" class="env-badge">{{ envLabel }}</span>
     </div>
 
-    <button class="new-note-btn" @click="handleNewNote">
-      <Plus :size="16" />
-      New Note
-    </button>
+    <div class="new-note-group" ref="newNoteGroupRef">
+      <button class="new-note-btn split-main" @click="handleNewNote()">
+        <Plus :size="16" />
+        New Note
+      </button>
+      <button
+        class="new-note-btn split-caret"
+        :class="{ open: newNoteMenuOpen }"
+        @click="newNoteMenuOpen = !newNoteMenuOpen"
+        aria-label="New note options"
+      >
+        <ChevronDown :size="14" />
+      </button>
+      <div v-if="newNoteMenuOpen" class="new-note-menu">
+        <button class="menu-item" @click="handleNewNote('markdown')">
+          <FileText :size="14" /> Markdown
+        </button>
+        <button class="menu-item" @click="handleNewNote('html')">
+          <FileText :size="14" /> HTML
+        </button>
+        <div class="menu-sep" />
+        <button class="menu-item" @click="openImportModal">
+          <Upload :size="14" /> Import file…
+        </button>
+      </div>
+    </div>
+    <ImportNoteModal v-if="showImportModal" @imported="onImportComplete" @cancel="showImportModal = false" />
 
     <nav class="sidebar-nav">
       <button class="nav-item" :class="{ active: route.path === '/notes' }" @click="goToAllNotes">
@@ -742,17 +809,20 @@ async function deleteNotebook() {
   border-radius: 4px;
 }
 
+.new-note-group {
+  position: relative;
+  display: flex;
+  margin-bottom: 16px;
+}
+
 .new-note-btn {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
   padding: 8px 12px;
-  margin-bottom: 16px;
   background-color: var(--accent-warn);
   color: #1a1a1a;
   border: none;
-  border-radius: 8px;
   font-weight: 600;
   font-family: 'Inter', sans-serif;
   font-size: 13px;
@@ -760,6 +830,57 @@ async function deleteNotebook() {
   transition: opacity 0.15s;
 }
 .new-note-btn:hover { opacity: 0.88; }
+
+.new-note-btn.split-main {
+  flex: 1;
+  border-radius: 8px 0 0 8px;
+  justify-content: flex-start;
+}
+
+.new-note-btn.split-caret {
+  padding: 8px 8px;
+  border-radius: 0 8px 8px 0;
+  border-left: 1px solid rgba(0, 0, 0, 0.15);
+  justify-content: center;
+}
+.new-note-btn.split-caret.open { background-color: var(--accent-warn-hover, var(--accent-warn)); }
+
+.new-note-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated, var(--bg-main));
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 30;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.new-note-menu .menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  background: none;
+  color: var(--text-primary);
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.new-note-menu .menu-item:hover {
+  background: var(--bg-hover, var(--bg-elevated));
+}
+
+.new-note-menu .menu-sep {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 6px;
+}
 
 .sidebar-nav {
   display: flex;

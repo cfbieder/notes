@@ -178,12 +178,13 @@ async function noteRoutes(fastify) {
           client_id: { type: 'string', format: 'uuid' },
           tag_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
           is_ai_generated: { type: 'boolean' },
-          ai_prompt: { type: 'string', maxLength: 4000 }
+          ai_prompt: { type: 'string', maxLength: 4000 },
+          format: { type: 'string', enum: ['markdown', 'html'] }
         }
       }
     }
   }, async (request, reply) => {
-    const { title, content, notebook_id, is_inbox, note_type, reminder_at, client_id, tag_ids, is_ai_generated, ai_prompt } = request.body;
+    const { title, content, notebook_id, is_inbox, note_type, reminder_at, client_id, tag_ids, is_ai_generated, ai_prompt, format } = request.body;
     const userId = request.user.id;
 
     // Idempotency: if this client_id already exists for the user, return existing row.
@@ -210,11 +211,13 @@ async function noteRoutes(fastify) {
       }
     }
 
+    const finalFormat = format || 'markdown';
+
     const result = await fastify.db.query(
-      `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox, note_type, reminder_at, client_id, is_ai_generated, ai_prompt)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox, note_type, reminder_at, client_id, is_ai_generated, ai_prompt, format)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [userId, finalNotebookId || null, title || 'Untitled', content || '', is_inbox || false, finalNoteType, reminder_at || null, client_id || null, is_ai_generated || false, ai_prompt || null]
+      [userId, finalNotebookId || null, title || 'Untitled', content || '', is_inbox || false, finalNoteType, reminder_at || null, client_id || null, is_ai_generated || false, ai_prompt || null, finalFormat]
     );
 
     const note = result.rows[0];
@@ -228,8 +231,8 @@ async function noteRoutes(fastify) {
       );
     }
 
-    // Sync wikilinks
-    if (content) {
+    // Wikilinks are markdown-only in v1 (CR023).
+    if (content && finalFormat === 'markdown') {
       await syncWikilinks(fastify, note.id, userId, content);
     }
 
@@ -250,13 +253,14 @@ async function noteRoutes(fastify) {
           note_type: { type: 'string', enum: ['note', 'idea'] },
           reminder_at: { type: ['string', 'null'], format: 'date-time', nullable: true },
           auto_update: { type: 'boolean' },
-          tag_ids: { type: 'array', items: { type: 'string', format: 'uuid' } }
+          tag_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
+          format: { type: 'string', enum: ['markdown', 'html'] }
         }
       }
     }
   }, async (request, reply) => {
     const { id } = request.params;
-    const { title, content, notebook_id, pinned, is_inbox, note_type, tag_ids } = request.body;
+    const { title, content, notebook_id, pinned, is_inbox, note_type, tag_ids, format } = request.body;
 
     // Build SET clause — reminder_at needs explicit null handling
     const setClauses = [
@@ -278,6 +282,11 @@ async function noteRoutes(fastify) {
     if ('auto_update' in request.body) {
       setClauses.push(`auto_update = $${idx++}`);
       params.push(request.body.auto_update);
+    }
+
+    if (format !== undefined) {
+      setClauses.push(`format = $${idx++}`);
+      params.push(format);
     }
 
     params.push(id, request.user.id);
@@ -304,9 +313,12 @@ async function noteRoutes(fastify) {
       }
     }
 
-    // Sync wikilinks when content changes
-    if (content !== undefined) {
+    // Sync wikilinks when content changes — markdown only (CR023)
+    if (content !== undefined && result.rows[0].format === 'markdown') {
       await syncWikilinks(fastify, id, request.user.id, content);
+    } else if (content !== undefined && result.rows[0].format === 'html') {
+      // Format flipped to/edited as HTML — clear any stale links
+      await fastify.db.query('DELETE FROM note_links WHERE source_note_id = $1', [id]);
     }
 
     return { data: result.rows[0] };
