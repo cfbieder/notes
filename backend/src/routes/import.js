@@ -119,9 +119,12 @@ async function importRoutes(fastify) {
       || baseFilename
       || 'Untitled';
 
-    // Match POST /notes default-notebook behaviour for markdown notes.
-    // HTML notes also fall into the default notebook to avoid orphaned imports.
+    // Imports default to the inbox so the user can triage them, matching the
+    // Drive importer and voice capture conventions. If a notebook is supplied
+    // explicitly, honour it and skip the inbox flag (the user has already
+    // decided where the note belongs).
     let finalNotebookId = notebookIdField || null;
+    let isInbox = false;
     if (!finalNotebookId) {
       const defaultNb = await fastify.db.query(
         'SELECT id FROM notebooks WHERE user_id = $1 AND is_default = TRUE LIMIT 1',
@@ -129,14 +132,15 @@ async function importRoutes(fastify) {
       );
       if (defaultNb.rows.length > 0) {
         finalNotebookId = defaultNb.rows[0].id;
+        isInbox = true;
       }
     }
 
     const result = await fastify.db.query(
-      `INSERT INTO notes (user_id, notebook_id, title, content, format, note_type)
-       VALUES ($1, $2, $3, $4, $5, 'note')
-       RETURNING id, title, format, notebook_id, created_at`,
-      [userId, finalNotebookId, finalTitle.slice(0, 500), content, format]
+      `INSERT INTO notes (user_id, notebook_id, title, content, format, note_type, is_inbox)
+       VALUES ($1, $2, $3, $4, $5, 'note', $6)
+       RETURNING id, title, format, notebook_id, is_inbox, created_at`,
+      [userId, finalNotebookId, finalTitle.slice(0, 500), content, format, isInbox]
     );
 
     return reply.code(201).send({ data: result.rows[0] });

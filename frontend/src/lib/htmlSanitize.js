@@ -118,6 +118,25 @@ export function sanitizeNoteHtml(raw, opts = {}) {
 }
 
 /**
+ * Variant that returns sanitized HTML with `<style>` blocks separated out,
+ * for callers that want to mount the styles via a real DOM `<style>` element
+ * rather than relying on `<style>` tags inside `v-html` (which browsers parse
+ * but which can be unreliable depending on the host element + frameworks).
+ *
+ * @returns {{ html: string, css: string }} sanitized HTML with all <style>
+ *   tags removed, and the concatenated scoped CSS as a separate string.
+ */
+export function sanitizeNoteHtmlSplit(raw, opts = {}) {
+  const sanitized = sanitizeNoteHtml(raw, opts);
+  const cssChunks = [];
+  const html = sanitized.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (_, css) => {
+    cssChunks.push(css);
+    return '';
+  });
+  return { html, css: cssChunks.join('\n') };
+}
+
+/**
  * Strip every tag from an HTML string, leaving only text content. Used for
  * search snippets / list previews where rendering markup is not appropriate.
  */

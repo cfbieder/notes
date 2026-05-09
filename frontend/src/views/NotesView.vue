@@ -25,7 +25,7 @@ import { useGraphStore } from '../stores/graph.js';
 import { useAIAssistStore } from '../stores/aiAssist.js';
 import { useToastsStore } from '../stores/toasts.js';
 import { printNote } from '../lib/printNote.js';
-import { sanitizeNoteHtml } from '../lib/htmlSanitize.js';
+import { sanitizeNoteHtml, sanitizeNoteHtmlSplit } from '../lib/htmlSanitize.js';
 
 const attachmentsStore = useAttachmentsStore();
 const notebooksStore = useNotebooksStore();
@@ -194,9 +194,32 @@ const isSourceMode = computed(() => uiStore.editorMode === 'source');
 const htmlEditMode = ref(false);
 const noteFormat = computed(() => notesStore.currentNote?.format || 'markdown');
 const isHtmlNote = computed(() => noteFormat.value === 'html');
+// Split into html + css. Mount the css via a real <style> element appended
+// to <head> rather than relying on <style> inside v-html (browser parses it
+// but sometimes the resulting CSSOM rules don't get applied to the document
+// reliably in all framework configurations). Using a real <style> guarantees
+// the rules are part of the document's stylesheet.
 const renderedHtml = computed(() =>
-  isHtmlNote.value ? sanitizeNoteHtml(editorContent.value) : ''
+  isHtmlNote.value ? sanitizeNoteHtmlSplit(editorContent.value) : { html: '', css: '' }
 );
+
+let injectedStyleEl = null;
+function syncInjectedStyles() {
+  if (!isHtmlNote.value) {
+    if (injectedStyleEl) {
+      injectedStyleEl.remove();
+      injectedStyleEl = null;
+    }
+    return;
+  }
+  if (!injectedStyleEl) {
+    injectedStyleEl = document.createElement('style');
+    injectedStyleEl.setAttribute('data-noted-html-note', '');
+    document.head.appendChild(injectedStyleEl);
+  }
+  injectedStyleEl.textContent = renderedHtml.value.css;
+}
+watch([isHtmlNote, renderedHtml], syncInjectedStyles, { immediate: true });
 
 const resetConfirm = ref({ open: false, count: 0 });
 const insertTableOpen = ref(false);
@@ -266,6 +289,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize);
   if (saveTimer) clearTimeout(saveTimer);
   if (editorRef.value) aiAssistStore.unregisterEditor(editorRef.value);
+  if (injectedStyleEl) {
+    injectedStyleEl.remove();
+    injectedStyleEl = null;
+  }
 });
 
 // Watch route changes to load notes
@@ -493,7 +520,7 @@ function onMobileVoiceCapture() {
             <div class="html-note-toolbar">
               <button class="btn-edit-source" @click="htmlEditMode = true">Edit source</button>
             </div>
-            <article class="note-html" v-html="renderedHtml" />
+            <article class="note-html" v-html="renderedHtml.html" />
           </template>
           <template v-else>
             <div v-if="isHtmlNote" class="html-note-toolbar">
