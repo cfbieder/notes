@@ -7,15 +7,15 @@ const FORBID_TAGS = ['script', 'iframe', 'object', 'embed', 'meta', 'link', 'bas
 
 const FORBID_ATTR = ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus'];
 
-// Allow inline <style> for v1 (we scope it per-note, see scopeStyleBlocks
-// below). svg/data: image URIs are needed for self-contained pages.
+// Trying to keep <style> via ADD_TAGS while also using USE_PROFILES is
+// unreliable: DOMPurify treats <style> specially and several config combos
+// silently strip it. Instead we extract <style> blocks BEFORE DOMPurify
+// (see sanitizeNoteHtml below), so DOMPurify can keep its strict default
+// safety profile and we don't have to enumerate every SVG attribute.
 const PURIFY_CONFIG = {
-  ADD_TAGS: ['style'],
   ADD_ATTR: ['target'],
   FORBID_TAGS,
   FORBID_ATTR,
-  // Keep relative + http(s) + data: URIs; DOMPurify already blocks javascript:
-  // and other unsafe schemes via its default uri regex.
   ALLOW_DATA_ATTR: false,
   USE_PROFILES: { html: true, svg: true, svgFilters: true }
 };
@@ -94,46 +94,48 @@ function scopeCss(css, scope) {
   return out;
 }
 
-function scopeStyleBlocks(html, scope) {
-  return html.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (_, css) => {
-    return `<style>${scopeCss(css, scope)}</style>`;
+// Pull every <style> block out of the raw input and return both the cleaned
+// markup and the concatenated CSS (scoped to `scope`). Done BEFORE DOMPurify
+// runs so DOMPurify's default safety profile can stay strict — we don't need
+// to extend ADD_TAGS for <style>, which DOMPurify handles inconsistently.
+function extractStyleBlocks(html, scope) {
+  const cssChunks = [];
+  const stripped = html.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (_, css) => {
+    cssChunks.push(scopeCss(css, scope));
+    return '';
   });
+  return { stripped, css: cssChunks.join('\n') };
 }
 
 /**
  * Sanitize a note body for safe rendering as HTML.
  *
+ * The returned string is the HTML body only — <style> blocks are extracted
+ * and discarded here. Callers that want the CSS should use
+ * sanitizeNoteHtmlSplit() instead.
+ *
  * @param {string} raw  Untrusted HTML from a note body
  * @param {object} [opts]
- * @param {string} [opts.scope] CSS scope selector (default `.note-html`); any
- *   <style> blocks in the input have their selectors prefixed with this so
- *   uploaded CSS can't bleed into the app shell.
- * @returns {string} Sanitized HTML, safe to v-html into the matching scope.
+ * @param {string} [opts.scope] CSS scope selector (default `.note-html`).
+ * @returns {string} Sanitized HTML body (no <style>), safe to v-html.
  */
 export function sanitizeNoteHtml(raw, opts = {}) {
-  if (!raw) return '';
-  const scope = opts.scope || '.note-html';
-  const scoped = scopeStyleBlocks(raw, scope);
-  return DOMPurify.sanitize(scoped, PURIFY_CONFIG);
+  return sanitizeNoteHtmlSplit(raw, opts).html;
 }
 
 /**
- * Variant that returns sanitized HTML with `<style>` blocks separated out,
- * for callers that want to mount the styles via a real DOM `<style>` element
- * rather than relying on `<style>` tags inside `v-html` (which browsers parse
- * but which can be unreliable depending on the host element + frameworks).
+ * Returns sanitized HTML and the scoped CSS as separate strings. Mount the
+ * CSS via a real DOM `<style>` element (more reliable than relying on
+ * `<style>` inside `v-html`).
  *
- * @returns {{ html: string, css: string }} sanitized HTML with all <style>
- *   tags removed, and the concatenated scoped CSS as a separate string.
+ * @returns {{ html: string, css: string }}
  */
 export function sanitizeNoteHtmlSplit(raw, opts = {}) {
-  const sanitized = sanitizeNoteHtml(raw, opts);
-  const cssChunks = [];
-  const html = sanitized.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (_, css) => {
-    cssChunks.push(css);
-    return '';
-  });
-  return { html, css: cssChunks.join('\n') };
+  if (!raw) return { html: '', css: '' };
+  const scope = opts.scope || '.note-html';
+  const { stripped, css } = extractStyleBlocks(raw, scope);
+  const html = DOMPurify.sanitize(stripped, PURIFY_CONFIG);
+  return { html, css };
 }
 
 /**

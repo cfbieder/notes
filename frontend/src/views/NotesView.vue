@@ -194,12 +194,15 @@ const isSourceMode = computed(() => uiStore.editorMode === 'source');
 const htmlEditMode = ref(false);
 const noteFormat = computed(() => notesStore.currentNote?.format || 'markdown');
 const isHtmlNote = computed(() => noteFormat.value === 'html');
-// Split into html + css. Mount the css via a real <style> element appended
-// to <head> rather than relying on <style> inside v-html (browser parses it
-// but sometimes the resulting CSSOM rules don't get applied to the document
-// reliably in all framework configurations). Using a real <style> guarantees
-// the rules are part of the document's stylesheet.
+// Belt-and-braces approach: the sanitized output keeps the <style> tag
+// inside the article (works in most browsers), AND we mount the same CSS in
+// a real <style> element appended to <head>. The duplication is harmless
+// (two identical rule sets, same specificity) and rules out either path
+// being the problem.
 const renderedHtml = computed(() =>
+  isHtmlNote.value ? sanitizeNoteHtml(editorContent.value) : ''
+);
+const renderedSplit = computed(() =>
   isHtmlNote.value ? sanitizeNoteHtmlSplit(editorContent.value) : { html: '', css: '' }
 );
 
@@ -217,9 +220,11 @@ function syncInjectedStyles() {
     injectedStyleEl.setAttribute('data-noted-html-note', '');
     document.head.appendChild(injectedStyleEl);
   }
-  injectedStyleEl.textContent = renderedHtml.value.css;
+  injectedStyleEl.textContent = renderedSplit.value.css;
+  // eslint-disable-next-line no-console
+  console.log('[noted] injected html-note styles, css length =', renderedSplit.value.css.length, 'rules contain c-teal =', /\.c-teal/.test(renderedSplit.value.css));
 }
-watch([isHtmlNote, renderedHtml], syncInjectedStyles, { immediate: true });
+watch([isHtmlNote, renderedSplit], syncInjectedStyles, { immediate: true });
 
 const resetConfirm = ref({ open: false, count: 0 });
 const insertTableOpen = ref(false);
@@ -520,7 +525,7 @@ function onMobileVoiceCapture() {
             <div class="html-note-toolbar">
               <button class="btn-edit-source" @click="htmlEditMode = true">Edit source</button>
             </div>
-            <article class="note-html" v-html="renderedHtml.html" />
+            <article class="note-html" v-html="renderedHtml" />
           </template>
           <template v-else>
             <div v-if="isHtmlNote" class="html-note-toolbar">
