@@ -34,11 +34,27 @@ function extractHtmlTitle(html) {
   return title.length > 0 ? title : null;
 }
 
-// If the HTML is a full document, return only the body content so the source
-// view doesn't show <head>/<meta> boilerplate. If no <body> tag, return as-is.
+// If the HTML is a full document, return only the body content (so the source
+// view doesn't show <meta>/<title>/<link> boilerplate) but preserve any
+// <style> blocks from <head> by prepending them — many self-contained
+// documents define all of their CSS there, and stripping it leaves SVG
+// diagrams unstyled. If no <body> tag, return as-is.
 function extractHtmlBody(html) {
-  const m = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-  return m ? m[1].trim() : html.trim();
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  if (!bodyMatch) return html.trim();
+
+  const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+  if (!headMatch) return bodyMatch[1].trim();
+
+  const headStyles = [];
+  const styleRe = /<style\b[^>]*>[\s\S]*?<\/style>/gi;
+  let m;
+  while ((m = styleRe.exec(headMatch[1])) !== null) {
+    headStyles.push(m[0]);
+  }
+
+  const stylePrefix = headStyles.length ? headStyles.join('\n') + '\n' : '';
+  return (stylePrefix + bodyMatch[1]).trim();
 }
 
 async function importRoutes(fastify) {

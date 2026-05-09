@@ -48,7 +48,7 @@ const HTML_DOC = `<!DOCTYPE html>
 <head>
   <meta charset="utf-8" />
   <title>Imported Document</title>
-  <style>body { color: red; }</style>
+  <style>.c-teal rect { fill: #2dd4bf; }</style>
 </head>
 <body>
   <h1>Hello</h1>
@@ -123,6 +123,7 @@ async function run() {
     assert(!/<head\b/i.test(body), 'Body normalization stripped <head>');
     assert(!/<!DOCTYPE/i.test(body), 'Body normalization stripped doctype');
     assert(/<h1>Hello<\/h1>/.test(body), 'Body content preserved');
+    assert(/<style[^>]*>[^<]*c-teal/.test(body), 'Head <style> blocks preserved (prepended to body)');
   }
 
   console.log('\nImport endpoint — html fragment:');
