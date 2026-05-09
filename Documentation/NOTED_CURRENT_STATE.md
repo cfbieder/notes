@@ -213,6 +213,7 @@ A GTD-inspired frictionless capture system:
 
 - **Inline tasks:** `- [ ]` checkboxes in any note create tasks linked to that note.
 - **Due dates:** Tasks can have a due date set via a date picker inline or in the task detail panel.
+- **Inline edit (CR024):** Each task row in the Tasks view exposes a pencil button (and double-click on the row) that swaps content, linked-note, and due-date into editable inputs. Enter / green check saves; Esc / X cancels. "No linked note" or empty due date clears those columns. `PUT /api/v1/tasks/:id` accepts `null` for `note_id` / `due_date` (cleared) and returns `note_title` via JOIN so the row updates immediately after relinking.
 - **Reminders:** Notes and tasks can have `reminder_at` timestamps. A **ReminderPicker** dropdown (bell icon) provides quick presets (due-date-aware: "1h before due", "Morning of", "Day before"; universal: "In 1 hour", "Tomorrow 9 AM", "Next Monday 9 AM") plus custom datetime and clear. Available in the task add form, per-task rows, and the note editor toolbar.
 - **Reminders panel:** Sidebar bell icon opens an overlay listing overdue (red) and upcoming reminders. Each row has **snooze** (15 min / 1 hour / Tomorrow 9 AM) and **dismiss** (clears reminder) action buttons. Click navigates to the linked note or Tasks view.
 - **Reminder notifications:** 60-second background poll detects newly-due reminders and fires persistent **toast notifications** (with a two-tone chime sound) plus optional **browser Notification API** alerts. Session-deduped via `sessionStorage`.
@@ -655,7 +656,9 @@ DELETE /api/v1/tags/:id
 ```
 GET    /api/v1/tasks                Query: note_id, is_done, due_before, due_after
 POST   /api/v1/tasks                Body: { content, note_id, due_date, reminder_at }
-PUT    /api/v1/tasks/:id
+PUT    /api/v1/tasks/:id            Body: { content?, is_done?, note_id?, due_date?, reminder_at? }
+                                    note_id / due_date / reminder_at accept null to clear.
+                                    Response includes joined note_title.
 DELETE /api/v1/tasks/:id
 GET    /api/v1/tasks/inbox          All tasks with note_id = NULL
 ```

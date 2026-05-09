@@ -111,38 +111,43 @@ async function taskRoutes(fastify) {
         properties: {
           content: { type: 'string', minLength: 1 },
           is_done: { type: 'boolean' },
-          note_id: { type: 'string', format: 'uuid' },
-          due_date: { type: 'string', format: 'date' },
+          note_id: { type: ['string', 'null'], format: 'uuid', nullable: true },
+          due_date: { type: ['string', 'null'], format: 'date', nullable: true },
           reminder_at: { type: ['string', 'null'], format: 'date-time', nullable: true }
         }
       }
     }
   }, async (request, reply) => {
     const { id } = request.params;
-    const { content, is_done, note_id, due_date } = request.body;
+    const { content, is_done } = request.body;
 
-    // Build SET clause dynamically — reminder_at needs explicit null handling
-    // (COALESCE can't clear a value to NULL)
+    // Build SET clause dynamically — fields that can be cleared to NULL
+    // need explicit key-presence handling (COALESCE can't set NULL).
     const setClauses = [
       'content = COALESCE($1, content)',
-      'is_done = COALESCE($2, is_done)',
-      'note_id = COALESCE($3, note_id)',
-      'due_date = COALESCE($4, due_date)'
+      'is_done = COALESCE($2, is_done)'
     ];
-    const params = [content, is_done, note_id, due_date];
-    let idx = 5;
+    const params = [content, is_done];
+    let idx = 3;
 
-    if ('reminder_at' in request.body) {
-      setClauses.push(`reminder_at = $${idx++}`);
-      params.push(request.body.reminder_at);
+    for (const field of ['note_id', 'due_date', 'reminder_at']) {
+      if (field in request.body) {
+        setClauses.push(`${field} = $${idx++}`);
+        params.push(request.body[field]);
+      }
     }
 
     params.push(id, request.user.id);
     const result = await fastify.db.query(
-      `UPDATE tasks
-       SET ${setClauses.join(', ')}
-       WHERE id = $${idx++} AND user_id = $${idx}
-       RETURNING *`,
+      `WITH updated AS (
+         UPDATE tasks
+         SET ${setClauses.join(', ')}
+         WHERE id = $${idx++} AND user_id = $${idx}
+         RETURNING *
+       )
+       SELECT u.*, n.title AS note_title
+       FROM updated u
+       LEFT JOIN notes n ON n.id = u.note_id`,
       params
     );
 
