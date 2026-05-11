@@ -119,6 +119,13 @@ async function saveEdit(task) {
   }
 }
 
+function openDatePicker(e) {
+  const el = e.currentTarget;
+  if (el && typeof el.showPicker === 'function') {
+    try { el.showPicker(); } catch (_) { /* showPicker can throw if not user-activated */ }
+  }
+}
+
 function formatReminderTime(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
@@ -158,7 +165,7 @@ function formatReminderTime(dateStr) {
       <div class="add-task-form">
         <Plus :size="16" class="add-icon" />
         <input v-model="newTaskContent" class="add-task-input" placeholder="Add a task..." @keydown.enter="addTask" />
-        <input v-model="newTaskDue" type="date" class="add-task-date" />
+        <input v-model="newTaskDue" type="date" class="add-task-date" @click="openDatePicker" @focus="openDatePicker" />
         <ReminderPicker
           :modelValue="newTaskReminder"
           :dueDate="newTaskDue"
@@ -225,7 +232,7 @@ function formatReminderTime(dateStr) {
                     {{ note.title }}
                   </option>
                 </select>
-                <input v-model="editDraft.due_date" type="date" class="edit-date-input" />
+                <input v-model="editDraft.due_date" type="date" class="edit-date-input" @click="openDatePicker" @focus="openDatePicker" />
               </div>
             </div>
             <button class="task-save" @click="saveEdit(task)" title="Save">
@@ -272,6 +279,8 @@ function formatReminderTime(dateStr) {
           v-model="newTaskDue"
           type="date"
           class="add-task-date"
+          @click="openDatePicker"
+          @focus="openDatePicker"
         />
         <ReminderPicker
           :modelValue="newTaskReminder"
@@ -360,7 +369,7 @@ function formatReminderTime(dateStr) {
                     {{ note.title }}
                   </option>
                 </select>
-                <input v-model="editDraft.due_date" type="date" class="edit-date-input" />
+                <input v-model="editDraft.due_date" type="date" class="edit-date-input" @click="openDatePicker" @focus="openDatePicker" />
               </div>
             </div>
             <button class="task-save" @click="saveEdit(task)" title="Save (Enter)">
@@ -470,6 +479,11 @@ function formatReminderTime(dateStr) {
   font-family: 'Inter', sans-serif;
   font-size: 12px;
   padding: 4px 8px;
+  cursor: pointer;
+}
+.add-task-date::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(0.6);
 }
 
 .add-task-btn {
@@ -622,6 +636,12 @@ function formatReminderTime(dateStr) {
   font-family: 'Inter', sans-serif;
   font-size: 12px;
   padding: 4px 8px;
+}
+
+.edit-date-input { cursor: pointer; }
+.edit-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(0.6);
 }
 
 .edit-note-select { max-width: 200px; }

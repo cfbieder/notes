@@ -53,3 +53,7 @@ Also extend the backend PUT to:
 
 - `backend/src/routes/tasks.js` — replaced the COALESCE-only `SET` clause with explicit key-presence handling for `note_id`, `due_date`, and `reminder_at` (the existing `reminder_at` pattern, generalized). Wrapped the `UPDATE` in a CTE that re-JOINs `notes` to return `note_title`.
 - `frontend/src/views/TasksView.vue` — added `editingTaskId` and `editDraft` refs, `startEdit` / `cancelEdit` / `saveEdit` handlers, and a `<template v-if/v-else>` swap for view-mode vs edit-mode in both desktop and mobile task rows. Added matching CSS for the editable inputs.
+
+### 2026-05-11 follow-up — date picker auto-open (v0.10.8)
+
+User report: on desktop the `<input type="date">` only opens its calendar when the small icon at the right edge is clicked; clicking the field itself does nothing. Added an `openDatePicker(e)` helper that calls `e.currentTarget.showPicker()` (wrapped in try/catch — `showPicker()` throws if not user-activated) bound to `@click` and `@focus` on all four date inputs (add + edit, desktop + mobile). Also added `cursor: pointer` and a brightened `::-webkit-calendar-picker-indicator` so the input reads as clickable on the dark theme. Mobile native picker behaviour is unchanged. `showPicker()` is supported in Chrome 99+, Firefox 101+, Safari 16+.
