@@ -61,8 +61,9 @@ CREATE TABLE documents (
   mime_type    TEXT NOT NULL,              -- 'application/pdf' for v1
   size_bytes   BIGINT NOT NULL,
   storage_path TEXT NOT NULL,              -- relative path under UPLOAD_DIR
-  page_count   INTEGER,                    -- populated post-upload via pdf parsing
-  ocr_text     TEXT,                       -- populated async via llmService.ocrFile
+  page_count   INTEGER,                    -- populated post-upload via pdfjs-dist headless
+  ocr_text     TEXT,                       -- populated from text layer (free) or OCR fallback
+  text_source  TEXT,                       -- NULL = not yet processed, 'text_layer' | 'ocr' | 'none'
   ocr_tsv      TSVECTOR GENERATED ALWAYS AS (
                  to_tsvector('english', coalesce(title,'') || ' ' || coalesce(ocr_text,''))
                ) STORED,
@@ -109,15 +110,26 @@ DELETE /documents/:id                                 Soft-delete (sets deleted_
 POST   /documents/:id/restore                         Clears deleted_at
 DELETE /documents/:id?hard=true                       Permanent delete (file + row)
 GET    /documents/:id/backlinks                       Notes that wikilink to this document
+POST   /documents/:id/ocr                             Manually trigger OCR on a document where text
+                                                       extraction yielded nothing (or to re-run OCR).
+                                                       Returns 202 Accepted; status surfaces via the
+                                                       document's text_source field on next fetch.
 ```
 
 **Search integration:** extend `backend/src/routes/search.js` to `UNION` `documents` rows alongside `notes` and `attachments.ocr_tsv` matches, returning a `type` discriminator (`note | document`) so the frontend can route clicks. Add a `&type=document` filter parameter.
 
-**Signed-URL parity:** the `?token=` query-string shim is needed for embedding the file URL in PDF.js's `<embed>` / `<iframe>` worker. Implement on the `:id/file` endpoint via the same helper used in `attachments.js`; this is also a good moment to fold in CR009 (signed attachment URLs) for both endpoints. If CR009 ships first, build `documents` on top of it.
+**Signed-URL dependency:** PDF.js's worker fetches the PDF bytes via a plain URL — it can't reliably set an `Authorization` header. Rather than reuse the JWT-via-`?token=` shim from `attachments.js` (which leaks tokens into history, proxy logs, and screenshots — see §7 security note in `NOTED_CURRENT_STATE.md`), **this CR depends on CR009 landing first**. CR009 introduces short-lived signed URLs (opaque token, distinct from the JWT) for `/attachments/:id`; CR025 reuses the same mechanism for `/documents/:id/file`. CR009 is small and self-contained; building CR025 on top of it ships clean instead of carrying the known weakness forward.
 
-**OCR pipeline:** the existing `llmService.ocrFile({filePath, filename, mimeType})` already handles PDFs (`llmService.js:21`). On `POST /documents`, queue OCR exactly the way `attachments.js:119` does — fire-and-forget, `UPDATE documents SET ocr_text = $1 WHERE id = $2` on completion, log warning on failure.
+**Text-extraction pipeline (replaces OCR-everything):**
 
-**Page count:** post-upload, parse with a thin library (`pdf-parse` or `pdfjs-dist` headless) to populate `page_count`. Optional — failure leaves it `NULL`.
+1. **On upload**, run `pdfjs-dist` headless to populate `page_count` and extract the embedded text layer. Free, fast (sub-second for hundreds of pages on text PDFs).
+2. If the text layer yields non-trivial content → store in `ocr_text`, set `text_source = 'text_layer'`. Done.
+3. If the text layer is empty or near-empty (scanned PDF) → set `text_source = 'none'` and **do not auto-OCR**. The frontend surfaces a "Looks scanned — OCR this document?" prompt the next time the document is opened in the viewer. On user confirm (with a warning if `page_count > 20`), `POST /documents/:id/ocr` fires `llmService.ocrFile` and updates `ocr_text` + `text_source = 'ocr'` when done.
+4. OCR failures or user-declines leave `text_source = 'none'` — the document is still viewable and search-by-title still works.
+
+This avoids spending LLM/OCR gateway time on the ~90%+ of PDFs that have a usable text layer, and gives the user explicit control over the expensive path.
+
+**Page count:** populated by the same `pdfjs-dist` headless pass that extracts the text layer. One library on the backend, shared with the frontend viewer. Failure leaves `page_count` `NULL`.
 
 ---
 
@@ -142,6 +154,8 @@ Three-pane desktop layout (mirrors `/notes` ergonomics):
 - **Drag-and-drop upload:** dropping files onto a notebook node uploads them as documents into that notebook. Dropping onto the Library root creates documents with `notebook_id = NULL` ("unfiled").
 - **Move:** drag a document from the list onto another notebook node → `PUT /documents/:id { notebook_id }`.
 - **Mobile:** stacked layout — folder list → doc list → viewer. PDF.js touch-scroll works out of the box.
+- **Title collisions on upload:** if a PDF with the same title already exists in the target notebook, auto-suffix `(2)`, `(3)`, … to the title (matches OS file-manager behaviour). User can rename via inline edit in the list. The DB does not enforce uniqueness — the suffix is applied at upload time only.
+- **"Needs OCR" affordance:** documents with `text_source = 'none'` render a subtle badge in the list and a banner in the viewer ("This PDF has no extractable text. **Run OCR?**"). Clicking opens a confirmation dialog; if `page_count > 20`, the dialog includes a warning ("This is a {N}-page document. OCR may take several minutes and use the local LLM gateway."). Confirm → `POST /documents/:id/ocr`. The badge clears when `text_source` flips to `'ocr'`.
 
 ### Viewer: `frontend/src/components/library/PdfViewer.vue`
 - Uses `pdfjs-dist` (PDF.js). Ships as a worker for rendering.
@@ -174,6 +188,7 @@ Extend `backend/src/services/driveImporter.js` and `backend/src/services/drivePo
 
 - **New config field** on the Drive integration (`integrations.config`): `library_folder_ids` (array of Drive folder IDs that should be scanned for PDFs) and optional `target_notebook_id` (default destination notebook for imported PDFs; `NULL` → unfiled).
 - **Behaviour:** during a poll/scan, files in `library_folder_ids` with `mimeType = 'application/pdf'` are imported as **documents** (not notes). The existing `import_history` table is reused for idempotency, with `documents.source_drive_file_id` mirroring the Drive file ID.
+- **OCR policy:** Drive imports run the text-layer extraction (free) but **never auto-OCR**. Scanned PDFs land with `text_source = 'none'` and the "Needs OCR" badge — the user triggers OCR on demand from the viewer per §6. This prevents a bulk Drive sync from monopolising the gateway with hundreds of multi-page scans.
 - **Settings UI** (`frontend/src/views/SettingsView.vue`): under the existing Drive card, add a "PDF Library folders" section — same folder picker UX as the existing notes-import folder list, plus a notebook selector for the destination.
 - **Auto-update:** out of scope for v1. PDFs are imported once; subsequent Drive updates do not overwrite. (Auto-update for notes already exists — that's a different file lifecycle.)
 
@@ -202,19 +217,23 @@ Because documents reference `notebook_id` (a leaf), they inherit any new hierarc
 
 ## 10. Acceptance Criteria
 
-- [ ] Migration `019_documents.sql` applied; `documents` table + indexes present.
+- [ ] CR009 (signed attachment URLs) has shipped; `/documents/:id/file` and `/attachments/:id` both use the same signed-URL mechanism.
+- [ ] Migration `019_documents.sql` applied; `documents` table + indexes present (including `text_source` column).
 - [ ] `POST /documents` (multipart) uploads a PDF, returns metadata, file lands at `{UPLOAD_DIR}/documents/{year}/{month}/{id}/{filename}`.
-- [ ] OCR text populated on `documents.ocr_text` within ~30s of upload (when LLM gateway available); search via existing `/search` matches against PDF body content.
+- [ ] Title collisions in the same notebook auto-suffix `(2)`, `(3)`, …
+- [ ] Upload triggers synchronous text-layer extraction via `pdfjs-dist` headless; `page_count` and `ocr_text` populated for text PDFs within seconds; `text_source` reflects outcome (`'text_layer'` | `'none'`). No automatic LLM/OCR call.
+- [ ] `POST /documents/:id/ocr` triggers `llmService.ocrFile` on a `text_source = 'none'` document; on success, sets `text_source = 'ocr'`.
 - [ ] `GET /documents/:id/file` streams the PDF with `inline` disposition; works embedded in PDF.js.
 - [ ] `/library` view lists documents, filterable by notebook via the sidebar tree.
 - [ ] PDF.js viewer renders pages, supports text search, page navigation, and zoom; honours the active theme.
+- [ ] Viewer shows a "Run OCR?" banner on `text_source = 'none'` documents; documents with `page_count > 20` show a multi-minute warning before confirm.
 - [ ] Drag-and-drop upload onto a notebook node uploads documents into that notebook.
 - [ ] Drag-to-move documents between notebooks updates `notebook_id`.
 - [ ] `[[doc:Title]]` in a note renders as a styled pill and opens the document in the viewer; the document's backlinks panel lists the citing note.
 - [ ] Soft-delete sends documents to `/trash` (Documents tab); restore + permanent delete both work; permanent delete removes the file from disk.
-- [ ] Drive integration: configured PDF folders import as documents into the chosen notebook; re-running scan is idempotent.
+- [ ] Drive integration: configured PDF folders import as documents into the chosen notebook; text layer extracted, scanned PDFs land with `text_source = 'none'` (no auto-OCR); re-running scan is idempotent.
 - [ ] System Status card shows document count and Library disk usage.
-- [ ] Tests under `backend/tests/phase14-documents.test.js` cover upload, list, move, delete, restore, search join, and wikilink resolution.
+- [ ] Tests under `backend/tests/phase14-documents.test.js` cover upload, text-layer extraction, manual OCR trigger, list, move, delete, restore, search join, wikilink resolution, and title-collision suffixing.
 
 ---
 
@@ -230,9 +249,11 @@ Because documents reference `notebook_id` (a leaf), they inherit any new hierarc
 
 ---
 
-## 12. Open Questions
+## 12. Resolutions
 
-1. **Title collision policy:** if a user uploads two PDFs with the same title in the same notebook, do we (a) accept duplicates, (b) auto-suffix `(2)`, (c) reject with 409? — proposal: **(b) auto-suffix**, matches OS file-manager behaviour.
-2. **Page-count library:** `pdf-parse` (simpler, ~1 MB) vs `pdfjs-dist` headless (already a frontend dep, can share)? — proposal: **`pdfjs-dist` headless** on the backend to avoid carrying two PDF parsers.
-3. **Signed URLs vs query-string token:** wait for CR009 to land, then build documents on top? — proposal: **yes**, and accelerate CR009 if needed.
-4. **OCR cost ceiling:** very large PDFs (>100 pages) can saturate the OCR gateway. Cap OCR at first N pages with a marker in `ocr_text`? — proposal: **cap at 100 pages, append `_(OCR truncated at 100 pages)_` marker**, mirrors the translate-truncation pattern.
+Open questions from the proposal phase, with the agreed answers folded into the sections above:
+
+1. **Title collisions in the same notebook** → auto-suffix `(2)`, `(3)`, … at upload time. No DB-level uniqueness constraint. See §6.
+2. **PDF parsing library** → `pdfjs-dist` headless on the backend. Same library as the frontend viewer; one PDF parser project-wide; opens the door to thumbnail generation later. See §5 (text-extraction pipeline) and §6 (viewer).
+3. **Auth for file streaming** → CR025 depends on **CR009 (signed attachment URLs) landing first**. Both `/documents/:id/file` and `/attachments/:id` then share the same signed-URL mechanism. No JWT-via-`?token=` for the new endpoint. See §5 and §10.
+4. **OCR cost on large PDFs** → restructured entirely. Every upload extracts the embedded text layer (free, via `pdfjs-dist`). OCR is **never automatic** — only fires on explicit user confirmation via `POST /documents/:id/ocr` from the viewer banner. Documents with `page_count > 20` show a multi-minute warning in the confirm dialog. Drive imports never auto-OCR. See §5 (text-extraction pipeline) and §7.

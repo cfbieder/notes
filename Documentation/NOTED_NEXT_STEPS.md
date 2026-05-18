@@ -49,7 +49,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR022](CR/CR022_hide_default_inbox_notebook.md) | Hide Default "Inbox" Notebook from Sidebar — **Completed** |
 | [CR023](CR/CR023_html_format_notes.md) | HTML-Format Notes (Upload + Render) — **Completed** |
 | [CR024](CR/CR024_task_inline_edit.md) | Task Inline Edit (content / due date / linked note) — **Completed** |
-| [CR025](CR/CR025_pdf_document_management.md) | PDF Document Management (import, in-app viewer, folder storage in notebooks, Drive import) |
+| [CR025](CR/CR025_pdf_document_management.md) | PDF Document Management (import, in-app viewer, folder storage in notebooks, Drive import) — depends on CR009 |
 
 ### Stage 3 — Multi-User & Beyond
 
