@@ -4,6 +4,7 @@ import { ref } from 'vue';
 const LS_NOTE_LIST = 'noted.ui.noteListCollapsed';
 const LS_CONTEXT = 'noted.ui.contextPanelsCollapsed';
 const LS_THEME = 'noted.ui.theme';
+const LS_RAIL_PANEL = 'noted.ui.railPanelCollapsed';
 
 export const THEMES = ['sapphire', 'dark', 'light'];
 export const DEFAULT_THEME = 'sapphire';
@@ -36,6 +37,7 @@ export const useUIStore = defineStore('ui', () => {
 
   const noteListCollapsed = ref(loadBool(LS_NOTE_LIST));
   const contextPanelsCollapsed = ref(loadBool(LS_CONTEXT));
+  const railPanelCollapsed = ref(loadBool(LS_RAIL_PANEL));
   const showHelp = ref(false);
 
   const theme = ref(loadTheme());
@@ -79,6 +81,11 @@ export const useUIStore = defineStore('ui', () => {
     showHelp.value = !showHelp.value;
   }
 
+  function toggleRailPanel() {
+    railPanelCollapsed.value = !railPanelCollapsed.value;
+    saveBool(LS_RAIL_PANEL, railPanelCollapsed.value);
+  }
+
   function setTheme(next) {
     const t = THEMES.includes(next) ? next : DEFAULT_THEME;
     theme.value = t;
@@ -89,10 +96,11 @@ export const useUIStore = defineStore('ui', () => {
 
   return {
     sidebarCollapsed, editorMode, saveStatus,
-    noteListCollapsed, contextPanelsCollapsed, showHelp,
+    noteListCollapsed, contextPanelsCollapsed, railPanelCollapsed, showHelp,
     theme,
     toggleSidebar, toggleEditorMode, setEditorMode, setSaveStatus,
-    toggleNoteList, toggleContextPanels, toggleFocusMode, toggleHelp,
+    toggleNoteList, toggleContextPanels, toggleRailPanel,
+    toggleFocusMode, toggleHelp,
     setTheme
   };
 });

@@ -18,6 +18,12 @@
   --bg-sidebar: #102a50;
   --bg-card:    #244a85;
 
+  /* Activity rail (CR026) — slightly recessed vs panel/sidebar */
+  --rail-bg:     #0b1f3d;
+  --rail-border: rgba(255, 255, 255, 0.08);
+  --rail-active: rgba(58, 134, 255, 0.22);
+  --rail-hover:  rgba(255, 255, 255, 0.06);
+
   /* Text */
   --text-primary:   #ffffff;
   --text-secondary: #c4d9ff;
@@ -62,6 +68,11 @@
   --bg-sidebar: #141414;
   --bg-card:    #2a2a2a;
 
+  --rail-bg:     #0d0d0d;
+  --rail-border: rgba(255, 255, 255, 0.07);
+  --rail-active: rgba(91, 157, 255, 0.20);
+  --rail-hover:  rgba(255, 255, 255, 0.05);
+
   --text-primary:   #f0f0f0;
   --text-secondary: #c0c0c0;
   --text-muted:     #888888;
@@ -97,6 +108,11 @@
   --bg-main:    #ffffff;
   --bg-sidebar: #f3f5f8;
   --bg-card:    #ffffff;
+
+  --rail-bg:     #e8ecf2;
+  --rail-border: rgba(0, 0, 0, 0.08);
+  --rail-active: rgba(37, 99, 235, 0.15);
+  --rail-hover:  rgba(0, 0, 0, 0.05);
 
   --text-primary:   #1a1a1a;
   --text-secondary: #4a4a4a;

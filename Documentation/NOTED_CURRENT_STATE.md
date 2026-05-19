@@ -157,6 +157,16 @@ All components run on the same VM. Tailscale handles encrypted access from any d
 
 ## 5. Feature Specification
 
+### 5.0 Navigation Chrome — Activity Rail + Contextual Panel (CR026)
+
+The desktop sidebar uses an **activity rail** + **contextual panel** pattern (VS Code / Obsidian / Linear style), implemented in [AppSidebar.vue](frontend/src/components/sidebar/AppSidebar.vue) as a thin shell wrapping [ActivityRail.vue](frontend/src/components/sidebar/ActivityRail.vue) and [ContextualPanel.vue](frontend/src/components/sidebar/ContextualPanel.vue).
+
+- **Activity rail (48px, far left):** 8 primary icons — Notes, Tasks, Ideas, Reminders, Search, Graph, AI Assist, Vault — plus a bottom group of Trash + Settings. Route-target icons push routes; overlay icons (Reminders, AI Assist) toggle existing modals/popovers without changing the active rail item. Active item gets a left accent stripe and tinted background; tooltips show the keyboard shortcut.
+- **Contextual panel (240px, right of rail):** content swaps based on `route.meta.rail`. The Notes panel hosts the previous sidebar's full content — Inbox/All filter rows, the Notebooks/stacks tree (with create/rename/drag-drop/context-menu/delete-with-confirm), and the Tags tree. Other panels (Tasks/Search/Graph/Ideas/Vault/Trash/Settings) are stubbed pending richer per-feature filter UI in follow-on slices; the architecture in place means filling them is incremental.
+- **Keyboard shortcuts** ([useRailShortcuts.js](frontend/src/composables/useRailShortcuts.js)): `⌘1`–`⌘8` jump between rail items; `⌘B` toggles the panel collapsed (state persisted to `localStorage` as `noted.ui.railPanelCollapsed`). Shortcuts no-op while typing in an input/textarea/contenteditable so they don't fight the editor.
+- **Theme tokens** (`--rail-bg`, `--rail-border`, `--rail-active`, `--rail-hover`) live in [theme.css](frontend/src/styles/theme.css) and are defined for Sapphire/Dark/Light so the rail can be tinted distinctly from the panel.
+- **Mobile** continues to render `MobileLayout` instead of the desktop sidebar via `useMobile()`. A bottom-tab-bar adaptation of the rail is a follow-on.
+
 ### 5.1 Editor (Stage 1)
 
 The core editing experience is inspired by TypeDown:

@@ -15,67 +15,80 @@ const routes = [
   {
     path: '/notes',
     name: 'Notes',
-    component: () => import('../views/NotesView.vue')
+    component: () => import('../views/NotesView.vue'),
+    meta: { rail: 'notes' }
   },
   {
     path: '/notes/:id',
     name: 'NoteDetail',
-    component: () => import('../views/NotesView.vue')
+    component: () => import('../views/NotesView.vue'),
+    meta: { rail: 'notes' }
   },
   {
     path: '/inbox',
     name: 'Inbox',
-    component: () => import('../views/InboxView.vue')
+    component: () => import('../views/InboxView.vue'),
+    meta: { rail: 'notes' }
   },
   {
     path: '/ideas',
     name: 'Ideas',
-    component: () => import('../views/IdeasView.vue')
+    component: () => import('../views/IdeasView.vue'),
+    meta: { rail: 'ideas' }
   },
   {
     path: '/ideas/:id',
     name: 'IdeaDetail',
-    component: () => import('../views/NotesView.vue')
+    component: () => import('../views/NotesView.vue'),
+    meta: { rail: 'ideas' }
   },
   {
     path: '/tasks',
     name: 'Tasks',
-    component: () => import('../views/TasksView.vue')
+    component: () => import('../views/TasksView.vue'),
+    meta: { rail: 'tasks' }
   },
   {
     path: '/tags/:name',
     name: 'TagNotes',
-    component: () => import('../views/NotesView.vue')
+    component: () => import('../views/NotesView.vue'),
+    meta: { rail: 'notes' }
   },
   {
     path: '/notebooks/:id',
     name: 'NotebookNotes',
-    component: () => import('../views/NotesView.vue')
+    component: () => import('../views/NotesView.vue'),
+    meta: { rail: 'notes' }
   },
   {
     path: '/graph',
     name: 'Graph',
-    component: () => import('../views/GraphView.vue')
+    component: () => import('../views/GraphView.vue'),
+    meta: { rail: 'graph' }
   },
   {
     path: '/search',
     name: 'Search',
-    component: () => import('../views/SearchView.vue')
+    component: () => import('../views/SearchView.vue'),
+    meta: { rail: 'search' }
   },
   {
     path: '/trash',
     name: 'Trash',
-    component: () => import('../views/TrashView.vue')
+    component: () => import('../views/TrashView.vue'),
+    meta: { rail: 'trash' }
   },
   {
     path: '/settings',
     name: 'Settings',
-    component: () => import('../views/SettingsView.vue')
+    component: () => import('../views/SettingsView.vue'),
+    meta: { rail: 'settings' }
   },
   {
     path: '/vault',
     name: 'Vault',
-    component: () => import('../views/VaultView.vue')
+    component: () => import('../views/VaultView.vue'),
+    meta: { rail: 'vault' }
   }
 ];
 
