@@ -27,6 +27,9 @@ First implementation slice landed. The rail + panel architecture is wired up end
 - Panel resizing (currently fixed at 240px width).
 - Acceptance-criteria items dependent on richer panels and view changes (search panel driving `SearchView`, settings panel jumping to anchors, etc.) — these flip green when their respective follow-ons land.
 
+**Patch — mobile drawer navigation (v0.10.10):**
+On mobile, opening the drawer and picking a notebook or tag previously routed to `/notebooks/:id` or `/tags/:name` but kept rendering `MobileHome` (the dashboard) — a dead view, with the drawer also staying open over the content. Fixed by adding a `MobileNotesList` component ([frontend/src/components/mobile/MobileNotesList.vue](frontend/src/components/mobile/MobileNotesList.vue)) and switching to it from `NotesView` when `route.name` is `NotebookNotes` or `TagNotes`. A `route.fullPath` watcher in `NotesView` now closes the drawer on every navigation so picking an item dismisses it. The `/notes` root keeps showing the `MobileHome` dashboard. Mobile tab-bar adaptation of the rail is still deferred.
+
 ---
 
 ## 1. Summary

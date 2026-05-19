@@ -14,6 +14,7 @@ import BacklinksPanel from '../components/editor/BacklinksPanel.vue';
 import LocalGraph from '../components/editor/LocalGraph.vue';
 import MobileHome from '../components/mobile/MobileHome.vue';
 import MobileEditor from '../components/mobile/MobileEditor.vue';
+import MobileNotesList from '../components/mobile/MobileNotesList.vue';
 import MobileFAB from '../components/mobile/MobileFAB.vue';
 import ConfirmModal from '../components/ui/ConfirmModal.vue';
 import InsertTableModal from '../components/ui/InsertTableModal.vue';
@@ -316,6 +317,27 @@ const mobileShowEditor = computed(() => {
   return isMobile.value && route.params.id && (route.name === 'NoteDetail' || route.name === 'IdeaDetail');
 });
 
+// Mobile: detect a folder/tag list scope. Without this, picking a notebook
+// from the drawer routes to /notebooks/:id and the user just sees the home
+// dashboard again — a dead view.
+const mobileShowList = computed(() => {
+  if (!isMobile.value) return false;
+  return route.name === 'NotebookNotes' || route.name === 'TagNotes';
+});
+
+const mobileListTitle = computed(() => {
+  if (route.name === 'TagNotes') return `#${route.params.name}`;
+  if (route.name === 'NotebookNotes') {
+    const nb = notebooksStore.notebooks.find(n => n.id === route.params.id);
+    return nb?.name || 'Notebook';
+  }
+  return 'Notes';
+});
+
+// Close the drawer when the route changes — e.g. after the user taps a
+// notebook or tag from inside the open sidebar.
+watch(() => route.fullPath, () => { mobileSidebarOpen.value = false; });
+
 async function loadNote(id) {
   const note = await notesStore.fetchNote(id);
   if (note) {
@@ -470,6 +492,21 @@ function onMobileVoiceCapture() {
     v-if="mobileShowEditor"
     :noteId="route.params.id"
   />
+
+  <!-- Mobile: Notebook/Tag notes list (drawer-driven) -->
+  <template v-else-if="mobileShowList">
+    <MobileNotesList
+      :title="mobileListTitle"
+      @open-sidebar="mobileSidebarOpen = true"
+    />
+
+    <Teleport to="body">
+      <div v-if="mobileSidebarOpen" class="mobile-sidebar-overlay" @click="mobileSidebarOpen = false" />
+      <div v-if="mobileSidebarOpen" class="mobile-sidebar-drawer">
+        <AppSidebar />
+      </div>
+    </Teleport>
+  </template>
 
   <!-- Mobile: Home screen -->
   <template v-else-if="isMobile">

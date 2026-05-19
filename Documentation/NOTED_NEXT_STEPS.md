@@ -50,7 +50,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR023](CR/CR023_html_format_notes.md) | HTML-Format Notes (Upload + Render) — **Completed** |
 | [CR024](CR/CR024_task_inline_edit.md) | Task Inline Edit (content / due date / linked note) — **Completed** |
 | [CR025](CR/CR025_pdf_document_management.md) | PDF Document Management (import, in-app viewer, folder storage in notebooks, Drive import) — depends on CR009 |
-| [CR026](CR/CR026_activity_rail_navigation.md) | Activity Rail + Contextual Panel Navigation (replace tall sidebar; VS Code/Obsidian pattern) — **In progress** (foundation shipped v0.10.9; richer panel content + mobile tab bar deferred) |
+| [CR026](CR/CR026_activity_rail_navigation.md) | Activity Rail + Contextual Panel Navigation (replace tall sidebar; VS Code/Obsidian pattern) — **In progress** (foundation shipped v0.10.9; mobile drawer→list patch v0.10.10; richer panel content + mobile tab bar deferred) |
 
 ### Stage 3 — Multi-User & Beyond
 
