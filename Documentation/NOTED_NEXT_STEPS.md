@@ -57,6 +57,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | CR | Title |
 |----|-------|
 | [CR027](CR/CR027_offline_note_checkout.md) | Per-Note Offline Checkout (Read + Edit) — soft-sync IndexedDB cache + `/checkin` endpoint + conflict diff modal — **Completed (v1)** |
+| [CR028](CR/CR028_offline_create_notes_and_ideas.md) | Offline Create for Notes & Ideas (+ IdeasView icon parity) — route "+ New" buttons through the existing outbox, surface pending items in lists with a `CloudUpload` badge |
 
 ### Stage 3 — Multi-User & Beyond
 
