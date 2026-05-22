@@ -5,8 +5,9 @@ import { useNotesStore } from '../../stores/notes.js';
 import { useTasksStore } from '../../stores/tasks.js';
 import { useRemindersStore } from '../../stores/reminders.js';
 import { useIdeasStore } from '../../stores/ideas.js';
-import { Plus, CheckSquare, Inbox, Search, ChevronDown, ChevronRight, Menu, Bell, Mic, KeyRound } from 'lucide-vue-next';
+import { Plus, CheckSquare, Inbox, Search, ChevronDown, ChevronRight, Menu, Bell, Mic, KeyRound, CloudDownload } from 'lucide-vue-next';
 import RemindersPanel from '../ui/RemindersPanel.vue';
+import { checkoutCount, dirtyCount } from '../../lib/checkouts.js';
 
 const emit = defineEmits(['open-sidebar', 'open-capture', 'open-voice-capture']);
 const router = useRouter();
@@ -56,6 +57,10 @@ function goToIdeas() {
 
 function goToVault() {
   router.push('/vault');
+}
+
+function goToOffline() {
+  router.push('/offline');
 }
 
 function openNote(note) {
@@ -150,6 +155,12 @@ onMounted(async () => {
         <button class="card small-card" @click="goToVault">
           <KeyRound :size="22" />
           <span class="card-label">Vault</span>
+        </button>
+        <button v-if="checkoutCount > 0" class="card small-card" @click="goToOffline">
+          <CloudDownload :size="22" />
+          <span class="card-label">Offline</span>
+          <span v-if="dirtyCount > 0" class="card-badge dirty-badge">{{ dirtyCount }}</span>
+          <span v-else class="card-badge">{{ checkoutCount }}</span>
         </button>
       </div>
     </div>
@@ -297,6 +308,7 @@ onMounted(async () => {
   text-align: center;
 }
 .overdue-badge { background: var(--status-error); }
+.dirty-badge { background: var(--accent-warn, #ffb800); color: var(--on-accent-warn, #1a1a1a); }
 
 .recent-section {
   margin-top: 8px;

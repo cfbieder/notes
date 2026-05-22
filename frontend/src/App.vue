@@ -45,6 +45,11 @@ async function onOnline() {
       type: 'success'
     });
   }
+  // If the visible notes list was a fallback synthesis from IDB, re-fetch
+  // the real list now that the network is back.
+  if (notesStore.offlineFallback) {
+    notesStore.fetchNotes().catch(() => {});
+  }
 }
 
 async function resolveKeepLocal() {

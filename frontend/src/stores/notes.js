@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { api } from '../api/client.js';
+import { api, OfflineError } from '../api/client.js';
 import { useNotebooksStore } from './notebooks.js';
 import {
-  getCheckout, createCheckout, updateLocal, discardCheckout, markClean
+  getCheckout, createCheckout, updateLocal, discardCheckout, markClean,
+  listCheckouts
 } from '../lib/checkouts.js';
 import { flush as flushCheckouts, forceCheckIn, adoptServer } from '../lib/checkoutSync.js';
 
@@ -22,6 +23,11 @@ export const useNotesStore = defineStore('notes', () => {
     search: null
   });
 
+  // Set when fetchNotes had to fall back to local IDB because the API was
+  // unreachable. UI can use this to surface a banner ("Showing offline
+  // copies only — your full list will return when you're back online").
+  const offlineFallback = ref(false);
+
   async function fetchNotes() {
     loading.value = true;
     try {
@@ -33,9 +39,33 @@ export const useNotesStore = defineStore('notes', () => {
       if (filters.value.search) params.set('search', filters.value.search);
 
       const query = params.toString();
-      const res = await api.get(`/notes${query ? '?' + query : ''}`);
-      notes.value = res.data;
-      meta.value = res.meta;
+      try {
+        const res = await api.get(`/notes${query ? '?' + query : ''}`);
+        notes.value = res.data;
+        meta.value = res.meta;
+        offlineFallback.value = false;
+      } catch (err) {
+        if (!(err instanceof OfflineError)) throw err;
+        // Offline: synthesize a notes list from local checkouts so the user
+        // can still browse the notes they took with them.
+        const rows = await listCheckouts();
+        const local = rows.map(r => ({
+          id: r.noteId,
+          title: r.localTitle || '(untitled)',
+          content: r.localContent || '',
+          notebook_id: r.localNotebookId,
+          updated_at: new Date(r.lastEditedAt || r.checkedOutAt).toISOString(),
+          // Filters can narrow this further client-side if needed.
+          note_type: 'note',
+          is_inbox: false,
+          pinned: false,
+          format: 'markdown',
+          _localOnly: true
+        }));
+        notes.value = local;
+        meta.value = { total: local.length, limit: local.length, offset: 0 };
+        offlineFallback.value = true;
+      }
     } finally {
       loading.value = false;
     }
@@ -253,7 +283,7 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   return {
-    notes, currentNote, meta, loading, filters, trashedNotes,
+    notes, currentNote, meta, loading, filters, trashedNotes, offlineFallback,
     fetchNotes, fetchNote, createNote, updateNote,
     trashNote, fetchTrash, restoreNote, permanentlyDeleteNote, emptyTrash,
     setFilter, clearFilters,

@@ -62,6 +62,9 @@ function getPreview(content, format) {
     <header class="list-header">
       <h2 class="list-title">{{ title }}</h2>
       <span class="list-count">{{ notesStore.meta.total ?? sortedNotes.length }}</span>
+      <span v-if="notesStore.offlineFallback" class="offline-fallback-chip">
+        <CloudDownload :size="11" /> offline
+      </span>
       <button class="menu-btn" @click="$emit('open-sidebar')" aria-label="Menu">
         <Menu :size="20" />
       </button>
@@ -133,6 +136,18 @@ function getPreview(content, format) {
   background: var(--hover-bg);
   padding: 2px 8px;
   border-radius: 10px;
+}
+
+.offline-fallback-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--accent-warn, #ffb800);
+  background: var(--accent-warn-bg, rgba(255, 184, 0, 0.12));
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-warn, #ffb800);
 }
 
 .menu-btn {

@@ -9,8 +9,9 @@ import ConfirmModal from '../../ui/ConfirmModal.vue';
 import ImportNoteModal from '../../ui/ImportNoteModal.vue';
 import {
   FileText, Inbox, ChevronRight, ChevronDown, Plus,
-  FolderOpen, Tag, Trash2, Upload
+  FolderOpen, Tag, Trash2, Upload, CloudDownload
 } from 'lucide-vue-next';
+import { checkoutCount, dirtyCount } from '../../../lib/checkouts.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -386,6 +387,17 @@ async function deleteNotebook() {
         <FileText :size="16" />
         <span>All Notes</span>
       </button>
+      <button
+        v-if="checkoutCount > 0"
+        class="nav-item"
+        :class="{ active: route.path === '/offline' }"
+        @click="router.push('/offline')"
+        title="Notes available offline"
+      >
+        <CloudDownload :size="16" />
+        <span>Offline ({{ checkoutCount }})</span>
+        <span v-if="dirtyCount > 0" class="nav-badge" :title="`${dirtyCount} with unsaved changes`">{{ dirtyCount }}</span>
+      </button>
     </nav>
 
     <div class="panel-section">
@@ -760,6 +772,19 @@ async function deleteNotebook() {
   text-align: left;
 }
 .nav-item:hover { background-color: var(--hover-bg); }
+
+.nav-badge {
+  margin-left: auto;
+  background: var(--accent-warn, #ffb800);
+  color: var(--on-accent-warn, #1a1a1a);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  min-width: 16px;
+  text-align: center;
+}
+
 .nav-item.active {
   background-color: var(--rail-active);
   color: var(--text-primary);

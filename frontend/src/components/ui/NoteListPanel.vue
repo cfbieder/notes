@@ -111,6 +111,9 @@ function getPreview(content, format) {
   <section class="note-list-panel" @click="closeContextMenu">
     <div class="list-header">
       <span class="list-count">{{ notesStore.meta.total }} notes</span>
+      <span v-if="notesStore.offlineFallback" class="offline-fallback-chip" title="You're offline — showing notes you've taken offline. The full list will return when you're back online.">
+        <CloudDownload :size="11" /> offline cache only
+      </span>
     </div>
 
     <div v-if="notesStore.loading" class="loading">Loading...</div>
@@ -198,11 +201,27 @@ function getPreview(content, format) {
 .list-header {
   padding: 16px 16px 12px;
   border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .list-count {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.offline-fallback-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--accent-warn, #ffb800);
+  background: var(--accent-warn-bg, rgba(255, 184, 0, 0.12));
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-warn, #ffb800);
 }
 
 .loading, .empty-state {
