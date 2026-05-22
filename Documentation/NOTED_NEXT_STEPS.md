@@ -88,6 +88,16 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
 
+### Released v0.11.10 (2026-05-22)
+
+- **fix(offline): tap-to-open a checked-out note no longer hangs on iPad Safari.** `fetchNote()`'s checkout branch previously did a best-effort `api.get('/notes/:id')` for fresh server metadata. iPad Safari leaves `navigator.onLine === true` in Airplane mode, so the fast-fail in [api/client.js](../frontend/src/api/client.js) didn't trigger and the actual `fetch()` hung ~30s before the OS gave up — during that time `MobileEditor.loadNote` was awaiting and the editor stayed blank with the "Untitled" placeholder. For a checked-out note the local IDB snapshot is the canonical view by design; users who want fresh metadata use the **Refresh offline copy** toolbar button. Drop the server fetch from the hot path — the editor now renders instantly regardless of platform. ([stores/notes.js](../frontend/src/stores/notes.js))
+
+### Released v0.11.9 (2026-05-22)
+
+Two compounding offline bugs:
+- **fix(offline): cold-start no longer renders a blank screen on iPad Safari.** Same `navigator.onLine === true` in Airplane mode pattern — `authStore.init()` was awaiting `api.post('/auth/refresh')` from the router's `beforeEach`, which hung ~30s before resolving, so no route view ever rendered (just the themed body). Fast-path: when `localStorage` has a session hint (`noted.hasSession === '1'`), `init()` returns immediately and the refresh runs as a fire-and-forget background promise. ([stores/auth.js](../frontend/src/stores/auth.js))
+- **fix(offline): tap-to-open from `/offline` no longer shows a blank "Untitled".** `fetchNote()` used to throw `OfflineError` when there was no local checkout AND the server was unreachable; `MobileEditor.loadNote` silently bailed and the editor refs stayed at their initialized empty values. Now `fetchNote()` returns an `_unavailableOffline` sentinel instead of throwing, and both `MobileEditor.loadNote` and `NotesView.loadNote` got try/catch + direct `getCheckout()` fallback, then a friendly "Not available offline. Reconnect to load this note." markdown message — never a silent blank. ([stores/notes.js](../frontend/src/stores/notes.js), [components/mobile/MobileEditor.vue](../frontend/src/components/mobile/MobileEditor.vue), [views/NotesView.vue](../frontend/src/views/NotesView.vue))
+
 ### Released v0.11.8 (2026-05-22)
 
 - **fix(nav): Desktop list-only routes hide the editor pane.** On `Notes` / `NotebookNotes` / `TagNotes` / `Ideas` the `<main class="editor-pane">` is now `v-if="isDetailRoute"`-gated and [NoteListPanel](../frontend/src/components/ui/NoteListPanel.vue) takes a new `expanded` prop that switches it from fixed 280px to `flex: 1`. No more leftover toolbar/empty-editor showing when no note is selected — the list reads like Inbox.
