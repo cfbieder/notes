@@ -87,6 +87,11 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
 
+### Released v0.11.7 (2026-05-22)
+
+- **fix(nav): All Notes on mobile renders the notes list, not the dashboard.** [NotesView.vue](../frontend/src/views/NotesView.vue) `mobileShowList` now matches the `Notes` route alongside `NotebookNotes`/`TagNotes`, with `mobileListTitle` defaulting to `"All Notes"`. `onMounted` clears stale notebook/tag filters when landing directly on `/notes` (covers deep links + refresh). The legacy `MobileHome` dashboard is no longer reached via `/notes`; its cards (Tasks, Inbox, Ideas, Search, Reminders, Voice, Vault, Offline) remain reachable from the drawer.
+- **Known follow-on:** `MobileHome` is now orphaned (no route renders it). Decide whether to re-home it under a dedicated `/home` route or remove it.
+
 ### Released v0.11.0 (2026-05-22)
 
 - **[CR027](CR/CR027_offline_note_checkout.md) — Per-Note Offline Checkout (Read + Edit).** Soft-sync offline editing for existing notes: per-note "Make available offline" toggle → local IndexedDB copy → edit offline → check in on reconnect with optimistic concurrency. New `POST /api/v1/notes/:id/checkin` endpoint (200 on match, 409 with full server row on stale `base_version`). Conflict modal offers Keep local / Keep server / Hand-merge. New `/offline` route + activity rail icon + OfflinePanel listing dirty / clean checkouts. IDB schema bumped 1 → 2 (`checkouts` store added alongside the existing outbox). Backend tests: 20/20 passing in [`backend/tests/cr027-checkout.test.js`](../backend/tests/cr027-checkout.test.js). See [§5.14a in NOTED_CURRENT_STATE.md](NOTED_CURRENT_STATE.md#514a-per-note-offline-checkout-cr027-implemented) for the feature spec.
