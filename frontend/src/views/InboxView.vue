@@ -6,7 +6,8 @@ import { useNotebooksStore } from '../stores/notebooks.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import { useMobile } from '../composables/useMobile.js';
-import { Inbox, ArrowRight, Trash2, FileText } from 'lucide-vue-next';
+import { Inbox, ArrowRight, Trash2, FileText, CloudDownload } from 'lucide-vue-next';
+import { cachedNoteIds, dirtyNoteIds } from '../lib/checkouts.js';
 
 const { isMobile } = useMobile();
 
@@ -65,7 +66,16 @@ function openNote(noteId) {
       <div v-else class="inbox-list">
         <div v-for="note in notesStore.notes" :key="note.id" class="inbox-item">
           <div class="inbox-content" @click="openNote(note.id)">
-            <div class="inbox-title">{{ note.title }}</div>
+            <div class="inbox-title">
+              <span>{{ note.title }}</span>
+              <CloudDownload
+                v-if="cachedNoteIds.has(note.id)"
+                :size="12"
+                class="offline-icon"
+                :class="{ dirty: dirtyNoteIds.has(note.id) }"
+                :title="dirtyNoteIds.has(note.id) ? 'Available offline · unsaved changes' : 'Available offline'"
+              />
+            </div>
             <div class="inbox-preview">{{ note.content?.slice(0, 120) }}</div>
             <div class="inbox-time">{{ new Date(note.created_at).toLocaleString() }}</div>
           </div>
@@ -98,7 +108,16 @@ function openNote(noteId) {
       <div v-else class="inbox-list">
         <div v-for="note in notesStore.notes" :key="note.id" class="inbox-item">
           <div class="inbox-content" @click="openNote(note.id)">
-            <div class="inbox-title">{{ note.title }}</div>
+            <div class="inbox-title">
+              <span>{{ note.title }}</span>
+              <CloudDownload
+                v-if="cachedNoteIds.has(note.id)"
+                :size="12"
+                class="offline-icon"
+                :class="{ dirty: dirtyNoteIds.has(note.id) }"
+                :title="dirtyNoteIds.has(note.id) ? 'Available offline · unsaved changes' : 'Available offline'"
+              />
+            </div>
             <div class="inbox-preview">{{ note.content?.slice(0, 120) }}</div>
             <div class="inbox-time">{{ new Date(note.created_at).toLocaleString() }}</div>
           </div>
@@ -197,6 +216,17 @@ function openNote(noteId) {
   font-weight: 500;
   color: var(--text-primary);
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.offline-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.offline-icon.dirty {
+  color: var(--accent-warn, #ffb800);
 }
 
 .inbox-preview {
