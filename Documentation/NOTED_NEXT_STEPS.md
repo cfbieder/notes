@@ -87,10 +87,15 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
 
+### Released v0.11.8 (2026-05-22)
+
+- **fix(nav): Desktop list-only routes hide the editor pane.** On `Notes` / `NotebookNotes` / `TagNotes` / `Ideas` the `<main class="editor-pane">` is now `v-if="isDetailRoute"`-gated and [NoteListPanel](../frontend/src/components/ui/NoteListPanel.vue) takes a new `expanded` prop that switches it from fixed 280px to `flex: 1`. No more leftover toolbar/empty-editor showing when no note is selected — the list reads like Inbox.
+- **feat(mobile): Dedicated `/home` route + Home button.** Resolves the v0.11.7 known follow-on. New route `name: 'Home'` at `/home` renders `MobileHome` on mobile (and falls through to the standard list layout on desktop). Home icon button added to [MobileNotesList.vue](../frontend/src/components/mobile/MobileNotesList.vue) header (top-left) and [MobileLayout.vue](../frontend/src/components/mobile/MobileLayout.vue) header (between Back and title) so the dashboard is reachable from All Notes / Inbox / etc.
+
 ### Released v0.11.7 (2026-05-22)
 
 - **fix(nav): All Notes on mobile renders the notes list, not the dashboard.** [NotesView.vue](../frontend/src/views/NotesView.vue) `mobileShowList` now matches the `Notes` route alongside `NotebookNotes`/`TagNotes`, with `mobileListTitle` defaulting to `"All Notes"`. `onMounted` clears stale notebook/tag filters when landing directly on `/notes` (covers deep links + refresh). The legacy `MobileHome` dashboard is no longer reached via `/notes`; its cards (Tasks, Inbox, Ideas, Search, Reminders, Voice, Vault, Offline) remain reachable from the drawer.
-- **Known follow-on:** `MobileHome` is now orphaned (no route renders it). Decide whether to re-home it under a dedicated `/home` route or remove it.
+- **Known follow-on (resolved in v0.11.8):** `MobileHome` is now orphaned (no route renders it). Decide whether to re-home it under a dedicated `/home` route or remove it.
 
 ### Released v0.11.0 (2026-05-22)
 
