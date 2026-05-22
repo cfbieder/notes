@@ -94,9 +94,20 @@ export const useNotesStore = defineStore('notes', () => {
       currentNote.value = merged;
       return merged;
     }
-    const res = await api.get(`/notes/${id}`);
-    currentNote.value = res.data;
-    return res.data;
+    // No local checkout. Try the server. If offline, return null with a
+    // flag so callers can render a "Note not available offline" message
+    // instead of bubbling an unhandled rejection up the render tree.
+    try {
+      const res = await api.get(`/notes/${id}`);
+      currentNote.value = res.data;
+      return res.data;
+    } catch (err) {
+      if (err instanceof OfflineError) {
+        currentNote.value = { id, title: '', content: '', _unavailableOffline: true };
+        return currentNote.value;
+      }
+      throw err;
+    }
   }
 
   async function createNote(data) {

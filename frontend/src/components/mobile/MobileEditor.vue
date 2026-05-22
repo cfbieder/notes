@@ -119,11 +119,40 @@ async function doDiscardOffline() {
 }
 
 async function loadNote(id) {
-  const note = await notesStore.fetchNote(id);
-  if (note) {
-    noteTitle.value = note.title;
-    editorContent.value = note.content;
+  try {
+    const note = await notesStore.fetchNote(id);
+    if (note && !note._unavailableOffline) {
+      noteTitle.value = note.title || '';
+      editorContent.value = note.content || '';
+      uiStore.setSaveStatus('saved');
+      return;
+    }
+    // fetchNote returned an "unavailable offline" sentinel — try a direct
+    // checkout read as a belt-and-braces fallback in case store-level
+    // logic got confused (e.g. a stale currentNote or a Pinia race).
+    const row = await getCheckout(id);
+    if (row) {
+      noteTitle.value = row.localTitle || '';
+      editorContent.value = row.localContent || '';
+      uiStore.setSaveStatus('saved');
+      return;
+    }
+    // Genuinely no local copy. Surface a hint rather than a silent blank.
+    noteTitle.value = '';
+    editorContent.value = '_Not available offline. Reconnect to load this note._';
     uiStore.setSaveStatus('saved');
+  } catch (err) {
+    // Last-resort: try IDB directly. If that also fails, show a hint.
+    const row = await getCheckout(id).catch(() => null);
+    if (row) {
+      noteTitle.value = row.localTitle || '';
+      editorContent.value = row.localContent || '';
+      uiStore.setSaveStatus('saved');
+    } else {
+      noteTitle.value = '';
+      editorContent.value = '_Failed to load note: ' + (err?.message || 'unknown error') + '_';
+      uiStore.setSaveStatus('saved');
+    }
   }
 }
 

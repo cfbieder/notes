@@ -369,16 +369,45 @@ const mobileListTitle = computed(() => {
 watch(() => route.fullPath, () => { mobileSidebarOpen.value = false; });
 
 async function loadNote(id) {
-  const note = await notesStore.fetchNote(id);
-  if (note) {
-    noteTitle.value = note.title;
-    editorContent.value = note.content;
+  try {
+    const note = await notesStore.fetchNote(id);
+    if (note && !note._unavailableOffline) {
+      noteTitle.value = note.title || '';
+      editorContent.value = note.content || '';
+      htmlEditMode.value = false;
+      uiStore.setSaveStatus('saved');
+      // Best-effort: don't await — these silently fail when offline.
+      graphStore.fetchBacklinks(id).catch(() => {});
+      graphStore.fetchUnlinkedMentions(id).catch(() => {});
+      graphStore.fetchLocalGraph(id).catch(() => {});
+      return;
+    }
+    // Fall back to direct checkout read.
+    const row = await getCheckout(id);
+    if (row) {
+      noteTitle.value = row.localTitle || '';
+      editorContent.value = row.localContent || '';
+      htmlEditMode.value = false;
+      uiStore.setSaveStatus('saved');
+      return;
+    }
+    noteTitle.value = '';
+    editorContent.value = '_Not available offline. Reconnect to load this note._';
     htmlEditMode.value = false;
     uiStore.setSaveStatus('saved');
-    // Fetch backlinks and local graph in background
-    graphStore.fetchBacklinks(id);
-    graphStore.fetchUnlinkedMentions(id);
-    graphStore.fetchLocalGraph(id);
+  } catch (err) {
+    const row = await getCheckout(id).catch(() => null);
+    if (row) {
+      noteTitle.value = row.localTitle || '';
+      editorContent.value = row.localContent || '';
+      htmlEditMode.value = false;
+      uiStore.setSaveStatus('saved');
+    } else {
+      noteTitle.value = '';
+      editorContent.value = '_Failed to load note: ' + (err?.message || 'unknown error') + '_';
+      htmlEditMode.value = false;
+      uiStore.setSaveStatus('saved');
+    }
   }
 }
 

@@ -63,6 +63,18 @@ export const useAuthStore = defineStore('auth', () => {
   const initialized = ref(false);
   async function init() {
     if (initialized.value) return;
+    // Fast path: if we have a persisted session hint, render the shell
+    // immediately and refresh in the background. Avoids blocking the router
+    // on a fetch that can hang for ~30s on flaky mobile networks where
+    // `navigator.onLine` is unreliable (iPad Safari in particular keeps it
+    // `true` in Airplane mode). The shell + offline-cached notes load
+    // instantly; a real refresh happens whenever the network actually
+    // returns.
+    if (hasSessionHint.value) {
+      refreshSession().catch(() => { /* ignore — `offlineMode` flag handled inside */ });
+      initialized.value = true;
+      return;
+    }
     await refreshSession();
     initialized.value = true;
   }
