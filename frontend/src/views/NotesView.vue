@@ -281,6 +281,11 @@ onMounted(async () => {
     notesStore.clearFilters();
     notesStore.setFilter('note_type', 'idea');
     await notesStore.fetchNotes();
+  } else if (route.name === 'Notes') {
+    // Direct landing on All Notes — clear any stale notebook/tag filter so
+    // mobile users (and desktop) see the full list.
+    notesStore.clearFilters();
+    await notesStore.fetchNotes();
   } else if (notesStore.notes.length === 0) {
     if (route.params.id && route.name === 'NotebookNotes') {
       notesStore.setFilter('notebook_id', route.params.id);
@@ -329,12 +334,14 @@ const mobileShowEditor = computed(() => {
   return isMobile.value && route.params.id && (route.name === 'NoteDetail' || route.name === 'IdeaDetail');
 });
 
-// Mobile: detect a folder/tag list scope. Without this, picking a notebook
-// from the drawer routes to /notebooks/:id and the user just sees the home
-// dashboard again — a dead view.
+// Mobile: detect a list scope (All Notes, a notebook, or a tag). Without
+// this, picking these from the drawer routes to a NotesView variant and the
+// user just sees the home dashboard again — a dead view.
 const mobileShowList = computed(() => {
   if (!isMobile.value) return false;
-  return route.name === 'NotebookNotes' || route.name === 'TagNotes';
+  return route.name === 'Notes'
+    || route.name === 'NotebookNotes'
+    || route.name === 'TagNotes';
 });
 
 const mobileListTitle = computed(() => {
@@ -343,7 +350,7 @@ const mobileListTitle = computed(() => {
     const nb = notebooksStore.notebooks.find(n => n.id === route.params.id);
     return nb?.name || 'Notebook';
   }
-  return 'Notes';
+  return 'All Notes';
 });
 
 // Close the drawer when the route changes — e.g. after the user taps a
