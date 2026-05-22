@@ -376,6 +376,22 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **PWA status:** Works reliably in a Chrome tab; installed Android PWA support is degraded and de-prioritized.
 - **Update prompt:** `vite-plugin-pwa` is configured with `registerType: 'prompt'` (see [vite.config.js](frontend/vite.config.js)). When a new service worker is waiting, `main.js` calls `registerSW({ onNeedRefresh })` and surfaces a sticky toast ("A new version of Noted is available." + **Reload** action) via the toasts store. Clicking Reload calls `updateSW(true)` which triggers `skipWaiting` + `clientsClaim` and refreshes the page onto the new bundle.
 
+### 5.14a Per-Note Offline Checkout (CR027, implemented)
+
+Soft-sync offline editing of existing notes. Use case: take notes with you on a plane, edit them, and check in when you're back online. Single-user model — no server-enforced locks.
+
+- **Selection:** Per-note **Offline** button in the editor toolbar. Each checked-out note is cached in a `checkouts` IndexedDB store inside the existing `noted-offline` database (DB version bumped 1 → 2; outbox store untouched).
+- **Editing while checked out:** [`stores/notes.js`](frontend/src/stores/notes.js) intercepts `updateNote()` — if a checkout exists for the note, edits write to the local IDB copy and flip `dirty=1`; no PATCH to the server. Edits to uncheckouted notes still autosave through the existing 500 ms debounce. Reads (`fetchNote()`) merge live server metadata with the local title/content so the editor always sees the user's in-progress version.
+- **Check-in:** `POST /api/v1/notes/:id/checkin` with `{ base_version, title, content, notebook_id, tag_ids }`. The server compares `base_version` to the row's current `updated_at` (ISO-string equality). Match → applies the update, returns the new row. Mismatch → returns **409** with `{ error: 'checkin_conflict', data: { server: { … } } }` and does not touch the row. Conflict resolution is then a client-side decision; "Keep local" and "Hand-merge" simply re-POST with `base_version` set to the just-returned `server.updated_at` (no separate force flag).
+- **Auto-sync:** [`App.vue`](frontend/src/App.vue) listens for `window.online` and triggers `checkoutSync.flush()` ([`frontend/src/lib/checkoutSync.js`](frontend/src/lib/checkoutSync.js)), which iterates all dirty checkouts. Manual **Check in now** button in the toolbar and an OfflinePanel **Check in all** action call the same flush.
+- **Conflict modal:** [`CheckinConflictModal.vue`](frontend/src/components/ui/CheckinConflictModal.vue) shows a two-pane line-diff of local vs. server. Three actions: **Keep local** (forced overwrite), **Keep server** (discard local, re-create checkout from server payload), **Hand-merge** (editable textarea with server reference, save as forced overwrite).
+- **Editor banner:** [`CheckoutBanner.vue`](frontend/src/components/ui/CheckoutBanner.vue) appears above the editor toolbar when the active note is checked out — shows clean / dirty / offline / conflict states.
+- **Offline view:** New `/offline` route (lazy-loaded [`OfflineView.vue`](frontend/src/views/OfflineView.vue)) plus an "Offline" contextual panel ([`OfflinePanel.vue`](frontend/src/components/sidebar/panels/OfflinePanel.vue)) listing checked-out notes split into Dirty / Clean sections. The activity rail's **Offline** icon (between Vault and Trash) appears only when `checkoutCount > 0` and shows the dirty count as a badge.
+- **Storage persistence:** First successful checkout requests `navigator.storage.persist()` so the browser is less likely to evict the cache under pressure. The OfflinePanel footer reports the actual persistence state.
+- **Wikilinks while offline:** Links to non-checked-out notes still render but click-through fails when offline; v1 does not visually grey them out (refinement deferred).
+- **Inline images:** v1 caches markdown source + metadata only. Images are still loaded from the live attachment URL — they render normally online and show as broken when offline. Blob caching of inline images is deferred to a follow-on so the editor's image renderer changes can land in isolation.
+- **Tests:** Backend integration tests in [`backend/tests/cr027-checkout.test.js`](backend/tests/cr027-checkout.test.js) cover auth, clean apply, conflict 409, forced overwrite, missing/deleted note, wikilink resync, and required-field validation (20 assertions, all passing). Frontend unit-test scaffolding for `checkouts.js` and `checkoutSync.js` is described in [CR027 §13.1](Documentation/CR/CR027_offline_note_checkout.md) but the `vitest` test script + `fake-indexeddb` dep are not yet added — manual walkthrough in §13.2 of the CR is the v1 regression spec.
+
 ### 5.15 Settings (implemented)
 
 - **Settings view (`/settings`):** Theme picker (Sapphire Slate / Dark / Light), password change, Google Drive integration config/scan, account-level preferences, and a **System Status** card at the bottom.
@@ -625,6 +641,7 @@ GET    /api/v1/notes                Query: notebook_id, tag_id, search, is_inbox
 POST   /api/v1/notes                Body: { title, content, notebook_id, tag_ids, client_id? }
 GET    /api/v1/notes/:id
 PUT    /api/v1/notes/:id            Body: { title, content, notebook_id, tag_ids, pinned, auto_update }
+POST   /api/v1/notes/:id/checkin    CR027 — body: { base_version, title?, content?, notebook_id?, tag_ids? }. Optimistic concurrency: 200 on match, 409 (error: checkin_conflict, data.server: <full row>) on mismatch.
 DELETE /api/v1/notes/:id            Soft delete — sets deleted_at
 GET    /api/v1/notes/export/:title  Raw markdown by title (text/markdown, supports ?token= for scripts)
 GET    /api/v1/notes/trash          Lists soft-deleted notes for the user

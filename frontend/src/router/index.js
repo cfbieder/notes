@@ -89,6 +89,12 @@ const routes = [
     name: 'Vault',
     component: () => import('../views/VaultView.vue'),
     meta: { rail: 'vault' }
+  },
+  {
+    path: '/offline',
+    name: 'Offline',
+    component: () => import('../views/OfflineView.vue'),
+    meta: { rail: 'offline' }
   }
 ];
 

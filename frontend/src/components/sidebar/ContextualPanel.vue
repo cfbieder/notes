@@ -9,6 +9,7 @@ import IdeasPanel from './panels/IdeasPanel.vue';
 import VaultPanel from './panels/VaultPanel.vue';
 import TrashPanel from './panels/TrashPanel.vue';
 import SettingsPanel from './panels/SettingsPanel.vue';
+import OfflinePanel from './panels/OfflinePanel.vue';
 
 const route = useRoute();
 
@@ -20,7 +21,8 @@ const panelMap = {
   ideas: IdeasPanel,
   vault: VaultPanel,
   trash: TrashPanel,
-  settings: SettingsPanel
+  settings: SettingsPanel,
+  offline: OfflinePanel
 };
 
 const activePanel = computed(() => panelMap[route.meta?.rail] || NotesPanel);

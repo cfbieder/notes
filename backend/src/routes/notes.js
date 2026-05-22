@@ -324,6 +324,132 @@ async function noteRoutes(fastify) {
     return { data: result.rows[0] };
   });
 
+  // POST /api/v1/notes/:id/checkin — CR027 offline checkout flow
+  // Optimistic-concurrency check-in: client passes the updated_at it captured
+  // at checkout time as base_version. If the row hasn't moved past that, apply
+  // the update. Otherwise return 409 with the current server row so the
+  // client can open the conflict-resolution modal.
+  fastify.post('/:id/checkin', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['base_version'],
+        properties: {
+          base_version: { type: 'string' },
+          title: { type: 'string', maxLength: 500 },
+          content: { type: 'string' },
+          notebook_id: { type: ['string', 'null'], format: 'uuid', nullable: true },
+          tag_ids: { type: 'array', items: { type: 'string', format: 'uuid' } }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { base_version, title, content, notebook_id, tag_ids } = request.body;
+    const userId = request.user.id;
+
+    // Load the row with its current tags so we can return a complete server
+    // copy on conflict (same shape as GET /notes/:id).
+    const currentRes = await fastify.db.query(
+      `SELECT n.*,
+              COALESCE(
+                json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
+                FILTER (WHERE t.id IS NOT NULL), '[]'
+              ) AS tags
+       FROM notes n
+       LEFT JOIN note_tags nt ON nt.note_id = n.id
+       LEFT JOIN tags t ON t.id = nt.tag_id
+       WHERE n.id = $1 AND n.user_id = $2 AND n.deleted_at IS NULL
+       GROUP BY n.id`,
+      [id, userId]
+    );
+
+    if (currentRes.rows.length === 0) {
+      return reply.code(404).send({
+        error: 'Not Found',
+        message: 'Note not found',
+        statusCode: 404
+      });
+    }
+
+    const current = currentRes.rows[0];
+    // Compare as ISO strings. Postgres returns timestamps as Date objects via
+    // node-postgres; coerce both sides to ISO for a stable equality test.
+    const currentVersion = new Date(current.updated_at).toISOString();
+    const incomingVersion = new Date(base_version).toISOString();
+
+    if (currentVersion !== incomingVersion) {
+      return reply.code(409).send({
+        error: 'checkin_conflict',
+        message: 'Note was modified on the server since checkout.',
+        statusCode: 409,
+        data: { server: current }
+      });
+    }
+
+    // Apply the update — only fields actually present in the request body.
+    const setClauses = [];
+    const params = [];
+    let idx = 1;
+    if (title !== undefined) { setClauses.push(`title = $${idx++}`); params.push(title); }
+    if (content !== undefined) { setClauses.push(`content = $${idx++}`); params.push(content); }
+    if ('notebook_id' in request.body) {
+      setClauses.push(`notebook_id = $${idx++}`);
+      params.push(notebook_id);
+    }
+    // updated_at advances automatically via the row's trigger (or via NOW()).
+    setClauses.push(`updated_at = NOW()`);
+    params.push(id, userId);
+
+    const updateRes = await fastify.db.query(
+      `UPDATE notes SET ${setClauses.join(', ')}
+       WHERE id = $${idx++} AND user_id = $${idx} AND deleted_at IS NULL
+       RETURNING *`,
+      params
+    );
+
+    if (updateRes.rows.length === 0) {
+      // Row was deleted between SELECT and UPDATE — surface as 404.
+      return reply.code(404).send({
+        error: 'Not Found',
+        message: 'Note not found',
+        statusCode: 404
+      });
+    }
+
+    if (tag_ids !== undefined) {
+      await fastify.db.query('DELETE FROM note_tags WHERE note_id = $1', [id]);
+      if (tag_ids.length > 0) {
+        const tagValues = tag_ids.map((_, i) => `($1, $${i + 2})`).join(', ');
+        await fastify.db.query(
+          `INSERT INTO note_tags (note_id, tag_id) VALUES ${tagValues} ON CONFLICT DO NOTHING`,
+          [id, ...tag_ids]
+        );
+      }
+    }
+
+    if (content !== undefined && updateRes.rows[0].format === 'markdown') {
+      await syncWikilinks(fastify, id, userId, content);
+    }
+
+    // Re-load with tags so the response matches the GET shape.
+    const finalRes = await fastify.db.query(
+      `SELECT n.*,
+              COALESCE(
+                json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
+                FILTER (WHERE t.id IS NOT NULL), '[]'
+              ) AS tags
+       FROM notes n
+       LEFT JOIN note_tags nt ON nt.note_id = n.id
+       LEFT JOIN tags t ON t.id = nt.tag_id
+       WHERE n.id = $1 AND n.user_id = $2
+       GROUP BY n.id`,
+      [id, userId]
+    );
+
+    return { data: finalRes.rows[0] };
+  });
+
   // DELETE /api/v1/notes/:id — soft delete (move to trash)
   fastify.delete('/:id', async (request, reply) => {
     const { id } = request.params;

@@ -3,11 +3,12 @@ import { computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import {
   FileText, CheckSquare, Lightbulb, Bell, Search, Network,
-  Sparkles, KeyRound, Trash2, Settings
+  Sparkles, KeyRound, Trash2, Settings, CloudOff
 } from 'lucide-vue-next';
 import { useIdeasStore } from '../../stores/ideas.js';
 import { useRemindersStore } from '../../stores/reminders.js';
 import { useAIAssistStore } from '../../stores/aiAssist.js';
+import { checkoutCount, dirtyCount } from '../../lib/checkouts.js';
 import AIAssistPendingPill from '../ai/AIAssistPendingPill.vue';
 
 const props = defineProps({
@@ -43,10 +44,18 @@ const primaryItems = [
   { key: 'vault',    icon: KeyRound,    label: 'Vault',     shortcut: '8', type: 'route',   to: '/vault' }
 ];
 
-const bottomItems = [
-  { key: 'trash',    icon: Trash2,   label: 'Trash',    type: 'route', to: '/trash' },
-  { key: 'settings', icon: Settings, label: 'Settings', type: 'route', to: '/settings' }
-];
+// Offline rail item only appears when there is at least one checked-out note
+// (CR027). It sits with the bottom group so it doesn't disturb the
+// numbered ⌘1–⌘8 ordering.
+const offlineItem = { key: 'offline', icon: CloudOff, label: 'Offline', type: 'route', to: '/offline' };
+
+const bottomItems = computed(() => {
+  const items = [];
+  if (checkoutCount.value > 0) items.push(offlineItem);
+  items.push({ key: 'trash',    icon: Trash2,   label: 'Trash',    type: 'route', to: '/trash' });
+  items.push({ key: 'settings', icon: Settings, label: 'Settings', type: 'route', to: '/settings' });
+  return items;
+});
 
 function activate(item) {
   if (item.type === 'overlay') {
@@ -104,6 +113,7 @@ defineExpose({ activate, primaryItems });
         @click="activate(item)"
       >
         <component :is="item.icon" :size="20" />
+        <span v-if="item.key === 'offline' && dirtyCount > 0" class="badge badge-offline">{{ dirtyCount }}</span>
       </button>
     </div>
   </nav>
@@ -208,5 +218,10 @@ defineExpose({ activate, primaryItems });
   position: absolute;
   top: 4px;
   right: 4px;
+}
+
+.badge-offline {
+  background: var(--accent-warn, #ffb800);
+  color: var(--on-accent-warn, #1a1a1a);
 }
 </style>

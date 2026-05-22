@@ -19,7 +19,10 @@ import MobileFAB from '../components/mobile/MobileFAB.vue';
 import ConfirmModal from '../components/ui/ConfirmModal.vue';
 import InsertTableModal from '../components/ui/InsertTableModal.vue';
 import TableEditorModal from '../components/ui/TableEditorModal.vue';
+import CheckoutBanner from '../components/ui/CheckoutBanner.vue';
 import { FileText, X, Search } from 'lucide-vue-next';
+import { getCheckout } from '../lib/checkouts.js';
+import { flush as flushCheckouts } from '../lib/checkoutSync.js';
 import { useAttachmentsStore } from '../stores/attachments.js';
 import { useNotebooksStore } from '../stores/notebooks.js';
 import { useGraphStore } from '../stores/graph.js';
@@ -484,6 +487,98 @@ function onMobileVoiceCapture() {
   // Trigger the global Alt+V handler in App.vue
   window.dispatchEvent(new KeyboardEvent('keydown', { altKey: true, key: 'v' }));
 }
+
+// ===== CR027 — offline checkout =====
+// Tracked via a local poll so toolbar button state stays in sync with IDB
+// even when edits arrive from outside this component (e.g. background sync).
+const checkoutState = ref({ checkedOut: false, dirty: false });
+
+async function refreshCheckoutState() {
+  if (!notesStore.currentNote) {
+    checkoutState.value = { checkedOut: false, dirty: false };
+    return;
+  }
+  const row = await getCheckout(notesStore.currentNote.id);
+  checkoutState.value = {
+    checkedOut: !!row,
+    dirty: row?.dirty === 1
+  };
+}
+
+watch(() => notesStore.currentNote?.id, refreshCheckoutState, { immediate: true });
+watch(editorContent, refreshCheckoutState);
+let checkoutPoll = null;
+onMounted(() => { checkoutPoll = setInterval(refreshCheckoutState, 1500); });
+onBeforeUnmount(() => { if (checkoutPoll) clearInterval(checkoutPoll); });
+
+async function handleCheckout() {
+  if (!notesStore.currentNote) return;
+  try {
+    if (saveTimer) { clearTimeout(saveTimer); await saveNote(); }
+    await notesStore.checkoutNote(notesStore.currentNote.id);
+    // Request persistent storage on first checkout — best-effort.
+    if (navigator.storage?.persist) {
+      try { await navigator.storage.persist(); } catch { /* ignore */ }
+    }
+    await refreshCheckoutState();
+    toastsStore.addToast({ message: 'Note saved for offline use', type: 'success' });
+  } catch (err) {
+    toastsStore.addToast({ message: err?.message || 'Failed to make available offline', type: 'error' });
+  }
+}
+
+async function handleCheckIn() {
+  if (!notesStore.currentNote) return;
+  if (saveTimer) { clearTimeout(saveTimer); await saveNote(); }
+  const result = await flushCheckouts();
+  await refreshCheckoutState();
+  if (result.synced > 0) {
+    toastsStore.addToast({ message: 'Checked in to server', type: 'success' });
+  } else if (result.conflicts > 0) {
+    // Conflict modal opens automatically via the sync event bus.
+  } else if (result.offline) {
+    toastsStore.addToast({ message: "You're offline — will sync when you're back online", type: 'info' });
+  } else {
+    toastsStore.addToast({ message: 'Nothing to check in', type: 'info' });
+  }
+}
+
+const discardOfflineConfirm = ref({ open: false });
+
+function handleDiscardOffline() {
+  if (!notesStore.currentNote) return;
+  if (checkoutState.value.dirty) {
+    discardOfflineConfirm.value.open = true;
+  } else {
+    doDiscardOffline();
+  }
+}
+
+async function doDiscardOffline() {
+  discardOfflineConfirm.value.open = false;
+  if (!notesStore.currentNote) return;
+  await notesStore.discardOfflineCopy(notesStore.currentNote.id);
+  // Re-sync the editor view from the (refreshed) currentNote.
+  if (notesStore.currentNote) {
+    noteTitle.value = notesStore.currentNote.title;
+    editorContent.value = notesStore.currentNote.content;
+  }
+  await refreshCheckoutState();
+  toastsStore.addToast({ message: 'Offline copy discarded', type: 'info' });
+}
+
+async function handleRefreshOffline() {
+  if (!notesStore.currentNote) return;
+  try {
+    const fresh = await notesStore.refreshOfflineCopy(notesStore.currentNote.id);
+    noteTitle.value = fresh.title;
+    editorContent.value = fresh.content;
+    await refreshCheckoutState();
+    toastsStore.addToast({ message: 'Offline copy refreshed from server', type: 'success' });
+  } catch (err) {
+    toastsStore.addToast({ message: err?.message || 'Refresh failed', type: 'error' });
+  }
+}
 </script>
 
 <template>
@@ -537,6 +632,11 @@ function onMobileVoiceCapture() {
         <p>Select a note or create a new one</p>
       </div>
       <template v-if="notesStore.currentNote">
+        <CheckoutBanner
+          :noteId="notesStore.currentNote.id"
+          @check-in="handleCheckIn"
+          @discard="handleDiscardOffline"
+        />
         <EditorToolbar
           :noteTitle="noteTitle"
           :noteContent="editorContent"
@@ -544,6 +644,8 @@ function onMobileVoiceCapture() {
           :reminderAt="notesStore.currentNote?.reminder_at"
           :driveImported="notesStore.currentNote?.drive_imported || false"
           :autoUpdate="notesStore.currentNote?.auto_update || false"
+          :checkedOut="checkoutState.checkedOut"
+          :dirtyOffline="checkoutState.dirty"
           @update:noteTitle="onTitleChange"
           @trash="trashCurrentNote"
           @reset-checkboxes="resetCheckboxes"
@@ -556,6 +658,10 @@ function onMobileVoiceCapture() {
           @print="handlePrint"
           @download="handleDownload"
           @toggle-auto-update="toggleAutoUpdate"
+          @checkout="handleCheckout"
+          @check-in="handleCheckIn"
+          @refresh-offline="handleRefreshOffline"
+          @discard-offline="handleDiscardOffline"
         />
         <div class="editor-body">
           <template v-if="isHtmlNote && !htmlEditMode">
@@ -606,6 +712,15 @@ function onMobileVoiceCapture() {
         :initialText="tableEditor.text"
         @save="onSaveTable"
         @cancel="tableEditor = { open: false, from: 0, to: 0, text: '' }"
+      />
+      <ConfirmModal
+        v-if="discardOfflineConfirm.open"
+        title="Discard offline copy"
+        message="You have unsaved local changes. Discard them and revert to the server version?"
+        confirmText="Discard"
+        :danger="true"
+        @confirm="doDiscardOffline"
+        @cancel="discardOfflineConfirm.open = false"
       />
     </main>
 

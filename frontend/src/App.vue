@@ -9,18 +9,68 @@ import OfflineStatus from './components/ui/OfflineStatus.vue';
 import HelpModal from './components/ui/HelpModal.vue';
 import ToastContainer from './components/ui/ToastContainer.vue';
 import AIAssistModal from './components/ai/AIAssistModal.vue';
+import CheckinConflictModal from './components/ui/CheckinConflictModal.vue';
 import { useAuthStore } from './stores/auth.js';
 import { useUIStore } from './stores/ui.js';
 import { useAIAssistStore } from './stores/aiAssist.js';
+import { useNotesStore } from './stores/notes.js';
+import { useToastsStore } from './stores/toasts.js';
 import { useMobile } from './composables/useMobile.js';
+import { onConflict, flush as flushCheckouts } from './lib/checkoutSync.js';
 
 const authStore = useAuthStore();
 const uiStore = useUIStore();
 const aiAssistStore = useAIAssistStore();
+const notesStore = useNotesStore();
+const toastsStore = useToastsStore();
 const { isMobile } = useMobile();
 const showSearch = ref(false);
 const showCapture = ref(false);
 const captureInitialType = ref('note');
+
+// CR027 — conflict modal state. Triggered by the sync bus whenever a
+// /checkin returns 409.
+const conflict = ref({ open: false, noteId: null, local: null, server: null });
+
+function onConflictEvent(payload) {
+  conflict.value = { open: true, ...payload };
+}
+
+async function onOnline() {
+  if (!authStore.isAuthenticated) return;
+  const result = await flushCheckouts();
+  if (result.synced > 0) {
+    toastsStore.addToast({
+      message: `Synced ${result.synced} offline note${result.synced > 1 ? 's' : ''}`,
+      type: 'success'
+    });
+  }
+}
+
+async function resolveKeepLocal() {
+  const { noteId, server } = conflict.value;
+  conflict.value.open = false;
+  const result = await notesStore.resolveConflictKeepLocal(noteId, server);
+  if (result?.status === 'ok') {
+    toastsStore.addToast({ message: 'Saved your version', type: 'success' });
+  }
+}
+
+async function resolveKeepServer() {
+  const { noteId, server } = conflict.value;
+  conflict.value.open = false;
+  await notesStore.resolveConflictKeepServer(noteId, server);
+  toastsStore.addToast({ message: 'Switched to server version', type: 'info' });
+}
+
+async function resolveMerged(merged) {
+  const { noteId, server } = conflict.value;
+  conflict.value.open = false;
+  const result = await notesStore.resolveConflictMerged(noteId, server, merged);
+  if (result?.status === 'ok') {
+    toastsStore.addToast({ message: 'Saved merged version', type: 'success' });
+  }
+}
 
 function onKeydown(e) {
   // Ctrl+K — Search palette
@@ -117,14 +167,20 @@ function onQuickCaptureEvent(e) {
   showSearch.value = false;
 }
 
+let unsubscribeConflict = null;
+
 onMounted(() => {
   window.addEventListener('keydown', onKeydown);
   window.addEventListener('noted:quick-capture', onQuickCaptureEvent);
+  window.addEventListener('online', onOnline);
+  unsubscribeConflict = onConflict(onConflictEvent);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown);
   window.removeEventListener('noted:quick-capture', onQuickCaptureEvent);
+  window.removeEventListener('online', onOnline);
+  if (unsubscribeConflict) unsubscribeConflict();
 });
 </script>
 
@@ -137,6 +193,16 @@ onBeforeUnmount(() => {
   <OfflineStatus v-if="authStore.isAuthenticated" />
   <HelpModal v-if="uiStore.showHelp" @close="uiStore.showHelp = false" />
   <AIAssistModal v-if="aiAssistStore.isOpen && !isMobile" @close="aiAssistStore.close()" />
+  <CheckinConflictModal
+    :open="conflict.open"
+    :note-id="conflict.noteId"
+    :local="conflict.local"
+    :server="conflict.server"
+    @close="conflict.open = false"
+    @keep-local="resolveKeepLocal"
+    @keep-server="resolveKeepServer"
+    @merged="resolveMerged"
+  />
   <ToastContainer />
 </template>
 

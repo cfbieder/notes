@@ -1,7 +1,7 @@
 <script setup>
 import { useUIStore } from '../../stores/ui.js';
 import { computed } from 'vue';
-import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom, Printer, RefreshCw, Download, CheckSquare } from 'lucide-vue-next';
+import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom, Printer, RefreshCw, Download, CheckSquare, CloudOff, CloudDownload } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
 import NoteNotebooks from './NoteNotebooks.vue';
 import ReminderPicker from '../ui/ReminderPicker.vue';
@@ -14,10 +14,12 @@ const props = defineProps({
   noteType: { type: String, default: 'note' },
   reminderAt: { type: [String, null], default: null },
   driveImported: { type: Boolean, default: false },
-  autoUpdate: { type: Boolean, default: false }
+  autoUpdate: { type: Boolean, default: false },
+  checkedOut: { type: Boolean, default: false },
+  dirtyOffline: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'convert-to-task', 'translate', 'insert-table', 'set-reminder', 'print', 'toggle-auto-update', 'download']);
+const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'convert-to-task', 'translate', 'insert-table', 'set-reminder', 'print', 'toggle-auto-update', 'download', 'checkout', 'check-in', 'discard-offline', 'refresh-offline']);
 
 const isIdea = computed(() => props.noteType === 'idea');
 
@@ -147,6 +149,44 @@ function onTitleInput(e) {
         <span>Print</span>
       </button>
 
+      <!-- CR027 — offline checkout controls -->
+      <button
+        v-if="!checkedOut"
+        class="offline-btn"
+        @click="$emit('checkout')"
+        title="Make this note available offline (CR027)"
+      >
+        <CloudDownload :size="14" />
+        <span>Offline</span>
+      </button>
+      <template v-else>
+        <button
+          v-if="dirtyOffline"
+          class="offline-btn dirty"
+          @click="$emit('check-in')"
+          title="Check in offline edits to the server"
+        >
+          <CloudOff :size="14" />
+          <span>Check in</span>
+        </button>
+        <button
+          v-else
+          class="offline-btn"
+          @click="$emit('refresh-offline')"
+          title="Refresh the offline copy from the server"
+        >
+          <RefreshCw :size="14" />
+          <span>Refresh offline</span>
+        </button>
+        <button
+          class="offline-btn ghost"
+          @click="$emit('discard-offline')"
+          title="Discard the offline copy"
+        >
+          <Trash2 :size="14" />
+        </button>
+      </template>
+
       <button
         class="download-btn"
         @click="$emit('download')"
@@ -221,7 +261,8 @@ function onTitleInput(e) {
   .translate-btn span,
   .print-btn span,
   .download-btn span,
-  .auto-update-btn span {
+  .auto-update-btn span,
+  .offline-btn span {
     display: none;
   }
   .mode-toggle,
@@ -231,10 +272,34 @@ function onTitleInput(e) {
   .translate-btn,
   .print-btn,
   .download-btn,
-  .auto-update-btn {
+  .auto-update-btn,
+  .offline-btn {
     gap: 0;
     padding: 5px 8px;
   }
+}
+
+.offline-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.offline-btn:hover { background: var(--bg-hover); }
+.offline-btn.dirty {
+  background: var(--accent-warn-bg, rgba(255, 184, 0, 0.15));
+  border-color: var(--accent-warn, #ffb800);
+}
+.offline-btn.ghost {
+  background: none;
+  border-color: transparent;
+  color: var(--text-secondary);
 }
 
 .save-indicator {

@@ -4,17 +4,25 @@ import { api, OfflineError } from '../api/client.js';
 
 const DB_NAME = 'noted-offline';
 const STORE = 'outbox';
-const DB_VERSION = 1;
+const CHECKOUTS_STORE = 'checkouts';
+const DB_VERSION = 2;
 
 // Kinds map to API calls the outbox knows how to replay.
 export const KIND_NOTE = 'note';
 export const KIND_TASK = 'task';
 
-const dbPromise = openDB(DB_NAME, DB_VERSION, {
-  upgrade(db) {
-    if (!db.objectStoreNames.contains(STORE)) {
+// Shared upgrade: outbox at v1, checkouts at v2 (CR027).
+// Exported so checkouts.js opens the same DB without racing on schema.
+export const dbPromise = openDB(DB_NAME, DB_VERSION, {
+  upgrade(db, oldVersion) {
+    if (oldVersion < 1) {
       const store = db.createObjectStore(STORE, { keyPath: 'id' });
       store.createIndex('createdAt', 'createdAt');
+    }
+    if (oldVersion < 2) {
+      const co = db.createObjectStore(CHECKOUTS_STORE, { keyPath: 'noteId' });
+      co.createIndex('dirty', 'dirty');
+      co.createIndex('checkedOutAt', 'checkedOutAt');
     }
   }
 });

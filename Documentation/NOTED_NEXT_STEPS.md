@@ -52,6 +52,12 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR025](CR/CR025_pdf_document_management.md) | PDF Document Management (import, in-app viewer, folder storage in notebooks, Drive import) — depends on CR009 |
 | [CR026](CR/CR026_activity_rail_navigation.md) | Activity Rail + Contextual Panel Navigation (replace tall sidebar; VS Code/Obsidian pattern) — **In progress** (foundation shipped v0.10.9; mobile drawer→list patch v0.10.10; richer panel content + mobile tab bar deferred) |
 
+### Offline & Sync
+
+| CR | Title |
+|----|-------|
+| [CR027](CR/CR027_offline_note_checkout.md) | Per-Note Offline Checkout (Read + Edit) — soft-sync IndexedDB cache + `/checkin` endpoint + conflict diff modal — **Completed (v1)** |
+
 ### Stage 3 — Multi-User & Beyond
 
 | CR | Title | Notes |
@@ -80,3 +86,8 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ## Recently Completed
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
+
+### Released v0.11.0 (2026-05-22)
+
+- **[CR027](CR/CR027_offline_note_checkout.md) — Per-Note Offline Checkout (Read + Edit).** Soft-sync offline editing for existing notes: per-note "Make available offline" toggle → local IndexedDB copy → edit offline → check in on reconnect with optimistic concurrency. New `POST /api/v1/notes/:id/checkin` endpoint (200 on match, 409 with full server row on stale `base_version`). Conflict modal offers Keep local / Keep server / Hand-merge. New `/offline` route + activity rail icon + OfflinePanel listing dirty / clean checkouts. IDB schema bumped 1 → 2 (`checkouts` store added alongside the existing outbox). Backend tests: 20/20 passing in [`backend/tests/cr027-checkout.test.js`](../backend/tests/cr027-checkout.test.js). See [§5.14a in NOTED_CURRENT_STATE.md](NOTED_CURRENT_STATE.md#514a-per-note-offline-checkout-cr027-implemented) for the feature spec.
+- **Known follow-ons:** inline-image Blob caching (renderer change is its own concern), greyed-out wikilinks while offline, vitest scaffolding for `checkouts.js` / `checkoutSync.js` (manual walkthrough in CR027 §13.2 is the v1 regression spec).
