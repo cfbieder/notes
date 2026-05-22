@@ -1,14 +1,18 @@
 <script setup>
-import { ref, watch, onBeforeUnmount } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNotesStore } from '../../stores/notes.js';
 import { useNotebooksStore } from '../../stores/notebooks.js';
 import { useUIStore } from '../../stores/ui.js';
+import { useToastsStore } from '../../stores/toasts.js';
 import CodeMirrorEditor from '../editor/CodeMirrorEditor.vue';
 import AttachmentZone from '../editor/AttachmentZone.vue';
 import ConfirmModal from '../ui/ConfirmModal.vue';
-import { ArrowLeft, Code, Eye, Trash2, Printer } from 'lucide-vue-next';
+import CheckoutBanner from '../ui/CheckoutBanner.vue';
+import { ArrowLeft, Code, Eye, Trash2, Printer, CloudDownload, RefreshCw } from 'lucide-vue-next';
 import { printNote } from '../../lib/printNote.js';
+import { getCheckout } from '../../lib/checkouts.js';
+import { flush as flushCheckouts } from '../../lib/checkoutSync.js';
 
 const props = defineProps({
   noteId: { type: String, required: true }
@@ -18,22 +22,101 @@ const router = useRouter();
 const notesStore = useNotesStore();
 const notebooksStore = useNotebooksStore();
 const uiStore = useUIStore();
+const toastsStore = useToastsStore();
 
 const noteTitle = ref('');
 const editorContent = ref('');
 const showDeleteConfirm = ref(false);
+const showDiscardOfflineConfirm = ref(false);
+const checkoutState = ref({ checkedOut: false, dirty: false });
 let saveTimer = null;
+let checkoutPoll = null;
 
 watch(() => props.noteId, async (id) => {
   if (id) await loadNote(id);
+  await refreshCheckoutState();
 }, { immediate: true });
+
+onMounted(() => {
+  checkoutPoll = setInterval(refreshCheckoutState, 1500);
+  refreshCheckoutState();
+});
 
 onBeforeUnmount(() => {
   if (saveTimer) {
     clearTimeout(saveTimer);
     saveNote();
   }
+  if (checkoutPoll) clearInterval(checkoutPoll);
 });
+
+async function refreshCheckoutState() {
+  if (!notesStore.currentNote) {
+    checkoutState.value = { checkedOut: false, dirty: false };
+    return;
+  }
+  const row = await getCheckout(notesStore.currentNote.id);
+  checkoutState.value = { checkedOut: !!row, dirty: row?.dirty === 1 };
+}
+
+async function handleCheckout() {
+  if (!notesStore.currentNote) return;
+  try {
+    if (saveTimer) { clearTimeout(saveTimer); await saveNote(); }
+    await notesStore.checkoutNote(notesStore.currentNote.id);
+    if (navigator.storage?.persist) {
+      try { await navigator.storage.persist(); } catch { /* ignore */ }
+    }
+    await refreshCheckoutState();
+    toastsStore.addToast({ message: 'Saved for offline use', type: 'success' });
+  } catch (err) {
+    toastsStore.addToast({ message: err?.message || 'Failed to make available offline', type: 'error' });
+  }
+}
+
+async function handleCheckIn() {
+  if (!notesStore.currentNote) return;
+  if (saveTimer) { clearTimeout(saveTimer); await saveNote(); }
+  const result = await flushCheckouts();
+  await refreshCheckoutState();
+  if (result.synced > 0) toastsStore.addToast({ message: 'Checked in to server', type: 'success' });
+  else if (result.offline) toastsStore.addToast({ message: "You're offline — will sync later", type: 'info' });
+  else if (result.conflicts === 0) toastsStore.addToast({ message: 'Nothing to check in', type: 'info' });
+}
+
+async function handleRefreshOffline() {
+  if (!notesStore.currentNote) return;
+  try {
+    const fresh = await notesStore.refreshOfflineCopy(notesStore.currentNote.id);
+    noteTitle.value = fresh.title;
+    editorContent.value = fresh.content;
+    await refreshCheckoutState();
+    toastsStore.addToast({ message: 'Offline copy refreshed', type: 'success' });
+  } catch (err) {
+    toastsStore.addToast({ message: err?.message || 'Refresh failed', type: 'error' });
+  }
+}
+
+function handleDiscardOffline() {
+  if (!notesStore.currentNote) return;
+  if (checkoutState.value.dirty) {
+    showDiscardOfflineConfirm.value = true;
+  } else {
+    doDiscardOffline();
+  }
+}
+
+async function doDiscardOffline() {
+  showDiscardOfflineConfirm.value = false;
+  if (!notesStore.currentNote) return;
+  await notesStore.discardOfflineCopy(notesStore.currentNote.id);
+  if (notesStore.currentNote) {
+    noteTitle.value = notesStore.currentNote.title;
+    editorContent.value = notesStore.currentNote.content;
+  }
+  await refreshCheckoutState();
+  toastsStore.addToast({ message: 'Offline copy discarded', type: 'info' });
+}
 
 async function loadNote(id) {
   const note = await notesStore.fetchNote(id);
@@ -124,6 +207,22 @@ function onRemoveReference(attachmentId) {
         <Code v-if="uiStore.editorMode === 'normal'" :size="18" />
         <Eye v-else :size="18" />
       </button>
+      <button
+        v-if="!checkoutState.checkedOut"
+        class="offline-btn"
+        @click="handleCheckout"
+        title="Make available offline"
+      >
+        <CloudDownload :size="18" />
+      </button>
+      <button
+        v-else-if="!checkoutState.dirty"
+        class="offline-btn"
+        @click="handleRefreshOffline"
+        title="Refresh offline copy from server"
+      >
+        <RefreshCw :size="18" />
+      </button>
       <button class="print-btn" @click="handlePrint" title="Print or save as PDF">
         <Printer :size="18" />
       </button>
@@ -131,6 +230,13 @@ function onRemoveReference(attachmentId) {
         <Trash2 :size="18" />
       </button>
     </header>
+
+    <CheckoutBanner
+      v-if="notesStore.currentNote"
+      :noteId="notesStore.currentNote.id"
+      @check-in="handleCheckIn"
+      @discard="handleDiscardOffline"
+    />
 
     <ConfirmModal
       v-if="showDeleteConfirm"
@@ -140,6 +246,16 @@ function onRemoveReference(attachmentId) {
       danger
       @confirm="confirmDelete"
       @cancel="showDeleteConfirm = false"
+    />
+
+    <ConfirmModal
+      v-if="showDiscardOfflineConfirm"
+      title="Discard offline copy"
+      message="You have unsaved local changes. Discard them and revert to the server version?"
+      confirmText="Discard"
+      danger
+      @confirm="doDiscardOffline"
+      @cancel="showDiscardOfflineConfirm = false"
     />
 
     <div class="mobile-editor-body">
@@ -213,7 +329,8 @@ function onRemoveReference(attachmentId) {
   color: var(--accent-primary);
 }
 
-.print-btn {
+.print-btn,
+.offline-btn {
   background: none;
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
@@ -223,7 +340,8 @@ function onRemoveReference(attachmentId) {
   display: flex;
   align-items: center;
 }
-.print-btn:hover {
+.print-btn:hover,
+.offline-btn:hover {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
 }

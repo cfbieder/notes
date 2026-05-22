@@ -488,6 +488,8 @@ function onMobileVoiceCapture() {
   window.dispatchEvent(new KeyboardEvent('keydown', { altKey: true, key: 'v' }));
 }
 
+const appVersion = import.meta.env.VITE_APP_VERSION || 'dev';
+
 // ===== CR027 — offline checkout =====
 // Tracked via a local poll so toolbar button state stays in sync with IDB
 // even when edits arrive from outside this component (e.g. background sync).
@@ -630,6 +632,7 @@ async function handleRefreshOffline() {
       <div v-if="!notesStore.currentNote" class="no-note">
         <FileText :size="48" />
         <p>Select a note or create a new one</p>
+        <p class="no-note-version">Noted v{{ appVersion }}</p>
       </div>
       <template v-if="notesStore.currentNote">
         <CheckoutBanner
@@ -906,6 +909,13 @@ async function handleRefreshOffline() {
   color: var(--text-muted);
   gap: 12px;
   font-size: 15px;
+}
+
+.no-note .no-note-version {
+  margin-top: 32px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  opacity: 0.8;
 }
 </style>
 

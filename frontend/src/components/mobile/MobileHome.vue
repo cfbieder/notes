@@ -18,6 +18,7 @@ const ideasStore = useIdeasStore();
 const recentExpanded = ref(false);
 const showReminders = ref(false);
 const recentNotes = ref([]);
+const appVersion = import.meta.env.VITE_APP_VERSION || 'dev';
 
 onMounted(async () => {
   await Promise.all([
@@ -177,6 +178,8 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+
+    <footer class="version-footer">Noted v{{ appVersion }}</footer>
   </div>
   <RemindersPanel v-if="showReminders" @close="showReminders = false" />
 </template>
@@ -358,5 +361,14 @@ onMounted(async () => {
   text-align: center;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.version-footer {
+  margin-top: 32px;
+  padding: 16px 0 8px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
 }
 </style>
