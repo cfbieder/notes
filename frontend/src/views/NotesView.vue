@@ -304,14 +304,23 @@ onBeforeUnmount(() => {
   }
 });
 
-// Watch route changes to load notes
-watch(() => route.params.id, async (newId) => {
-  if (newId && (route.name === 'NoteDetail' || route.name === 'IdeaDetail')) {
-    if (saveTimer) {
-      clearTimeout(saveTimer);
-      await saveNote();
-    }
+// Watch route changes — load a note for detail routes, clear the selected
+// note for list-only routes (All Notes, Notebook, Tag, Ideas). Without this,
+// navigating away from /notes/:id leaves currentNote populated and the editor
+// pane (toolbar, backlinks, attachments) stays visible for the previous note.
+watch(() => [route.name, route.params.id], async ([newName, newId]) => {
+  const isDetailView = newName === 'NoteDetail' || newName === 'IdeaDetail';
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    if (notesStore.currentNote) await saveNote();
+  }
+  if (isDetailView && newId) {
     await loadNote(newId);
+  } else if (notesStore.currentNote) {
+    notesStore.currentNote = null;
+    noteTitle.value = '';
+    editorContent.value = '';
+    uiStore.setSaveStatus('saved');
   }
 });
 
