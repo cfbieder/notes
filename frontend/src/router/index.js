@@ -13,6 +13,15 @@ const routes = [
     meta: { public: true }
   },
   {
+    // Mobile dashboard. On desktop falls through to the standard list layout
+    // (no editor pane until a note is picked). NotesView decides which UI to
+    // render based on route.name.
+    path: '/home',
+    name: 'Home',
+    component: () => import('../views/NotesView.vue'),
+    meta: { rail: 'notes' }
+  },
+  {
     path: '/notes',
     name: 'Notes',
     component: () => import('../views/NotesView.vue'),

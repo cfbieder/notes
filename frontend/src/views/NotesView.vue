@@ -193,6 +193,13 @@ let saveTimer = null;
 
 const isSourceMode = computed(() => uiStore.editorMode === 'source');
 
+// True when the route addresses a specific note (NoteDetail / IdeaDetail).
+// On list-only routes (Notes, NotebookNotes, TagNotes, Ideas) we hide the
+// editor pane entirely and let the note list expand — mirroring Inbox.
+const isDetailRoute = computed(() =>
+  route.name === 'NoteDetail' || route.name === 'IdeaDetail'
+);
+
 // HTML notes default to a sanitized read view; "Edit source" toggles to a
 // plain-text CodeMirror surface. Resets when the loaded note changes.
 const htmlEditMode = ref(false);
@@ -281,9 +288,9 @@ onMounted(async () => {
     notesStore.clearFilters();
     notesStore.setFilter('note_type', 'idea');
     await notesStore.fetchNotes();
-  } else if (route.name === 'Notes') {
-    // Direct landing on All Notes — clear any stale notebook/tag filter so
-    // mobile users (and desktop) see the full list.
+  } else if (route.name === 'Notes' || route.name === 'Home') {
+    // Direct landing on All Notes or Home — clear any stale notebook/tag
+    // filter so the list (or Recent panel on MobileHome) reads fresh.
     notesStore.clearFilters();
     await notesStore.fetchNotes();
   } else if (notesStore.notes.length === 0) {
@@ -343,6 +350,10 @@ const mobileShowList = computed(() => {
     || route.name === 'NotebookNotes'
     || route.name === 'TagNotes';
 });
+
+// Mobile: dashboard. /home explicitly renders it; other mobile routes
+// (Settings/Tasks/etc.) use their own views.
+const mobileShowHome = computed(() => isMobile.value && route.name === 'Home');
 
 const mobileListTitle = computed(() => {
   if (route.name === 'TagNotes') return `#${route.params.name}`;
@@ -606,7 +617,7 @@ async function handleRefreshOffline() {
     :noteId="route.params.id"
   />
 
-  <!-- Mobile: Notebook/Tag notes list (drawer-driven) -->
+  <!-- Mobile: All Notes / Notebook / Tag list (drawer-driven) -->
   <template v-else-if="mobileShowList">
     <MobileNotesList
       :title="mobileListTitle"
@@ -621,8 +632,8 @@ async function handleRefreshOffline() {
     </Teleport>
   </template>
 
-  <!-- Mobile: Home screen -->
-  <template v-else-if="isMobile">
+  <!-- Mobile: Home screen (only on the /home route now that /notes shows the list) -->
+  <template v-else-if="mobileShowHome">
     <MobileHome
       @open-sidebar="mobileSidebarOpen = true"
       @open-capture="onMobileCapture"
@@ -643,11 +654,11 @@ async function handleRefreshOffline() {
   <!-- Desktop: Three-pane layout -->
   <div v-else class="notes-layout">
     <AppSidebar />
-    <NoteListPanel v-if="!uiStore.noteListCollapsed" />
-    <main class="editor-pane">
+    <NoteListPanel v-if="!uiStore.noteListCollapsed" :expanded="!isDetailRoute" />
+    <main v-if="isDetailRoute" class="editor-pane">
       <div v-if="!notesStore.currentNote" class="no-note">
         <FileText :size="48" />
-        <p>Select a note or create a new one</p>
+        <p>Loading…</p>
         <p class="no-note-version">Noted v{{ appVersion }}</p>
       </div>
       <template v-if="notesStore.currentNote">

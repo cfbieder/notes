@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AppSidebar from '../sidebar/AppSidebar.vue';
-import { ArrowLeft, Menu } from 'lucide-vue-next';
+import { ArrowLeft, Menu, Home } from 'lucide-vue-next';
 
 defineProps({
   title: { type: String, default: '' }
@@ -14,16 +14,23 @@ const sidebarOpen = ref(false);
 function goBack() {
   router.push('/notes');
 }
+
+function goHome() {
+  router.push('/home');
+}
 </script>
 
 <template>
   <div class="mobile-layout">
     <header class="mobile-view-header">
-      <button class="back-btn" @click="goBack">
+      <button class="back-btn" @click="goBack" aria-label="Back">
         <ArrowLeft :size="20" />
       </button>
+      <button class="home-btn" @click="goHome" aria-label="Home">
+        <Home :size="20" />
+      </button>
       <h2 class="view-title">{{ title }}</h2>
-      <button class="menu-btn" @click="sidebarOpen = true">
+      <button class="menu-btn" @click="sidebarOpen = true" aria-label="Menu">
         <Menu :size="20" />
       </button>
     </header>
@@ -59,7 +66,7 @@ function goBack() {
   flex-shrink: 0;
 }
 
-.back-btn, .menu-btn {
+.back-btn, .home-btn, .menu-btn {
   background: none;
   border: none;
   color: var(--text-secondary);
@@ -68,7 +75,7 @@ function goBack() {
   display: flex;
   align-items: center;
 }
-.back-btn:hover, .menu-btn:hover { color: var(--text-primary); }
+.back-btn:hover, .home-btn:hover, .menu-btn:hover { color: var(--text-primary); }
 
 .view-title {
   flex: 1;

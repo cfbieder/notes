@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNotesStore } from '../../stores/notes.js';
-import { FileText, Menu, Pin, CloudDownload } from 'lucide-vue-next';
+import { FileText, Menu, Pin, CloudDownload, Home } from 'lucide-vue-next';
 import { cachedNoteIds, dirtyNoteIds } from '../../lib/checkouts.js';
 
 const props = defineProps({
@@ -18,6 +18,10 @@ const sortedNotes = computed(() => notesStore.notes);
 
 function openNote(note) {
   router.push(`/notes/${note.id}`);
+}
+
+function goHome() {
+  router.push('/home');
 }
 
 function formatDate(dateStr) {
@@ -60,6 +64,9 @@ function getPreview(content, format) {
 <template>
   <div class="mobile-notes-list">
     <header class="list-header">
+      <button class="home-btn" @click="goHome" aria-label="Home">
+        <Home :size="20" />
+      </button>
       <h2 class="list-title">{{ title }}</h2>
       <span class="list-count">{{ notesStore.meta.total ?? sortedNotes.length }}</span>
       <span v-if="notesStore.offlineFallback" class="offline-fallback-chip">
@@ -150,8 +157,8 @@ function getPreview(content, format) {
   border: 1px solid var(--accent-warn, #ffb800);
 }
 
-.menu-btn {
-  margin-left: auto;
+.menu-btn,
+.home-btn {
   background: none;
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
@@ -161,6 +168,7 @@ function getPreview(content, format) {
   display: flex;
   align-items: center;
 }
+.menu-btn { margin-left: auto; }
 
 .loading, .empty {
   display: flex;

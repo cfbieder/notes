@@ -6,6 +6,13 @@ import { useNotebooksStore } from '../../stores/notebooks.js';
 import { FileText, Pin, Trash2, FolderOpen, ChevronRight, CloudDownload } from 'lucide-vue-next';
 import { cachedNoteIds, dirtyNoteIds } from '../../lib/checkouts.js';
 
+defineProps({
+  // When true, the panel stretches to fill remaining width (used when no
+  // note is open so the list reads like Inbox instead of leaving an empty
+  // editor pane to the right).
+  expanded: { type: Boolean, default: false }
+});
+
 const router = useRouter();
 const route = useRoute();
 const notesStore = useNotesStore();
@@ -108,7 +115,7 @@ function getPreview(content, format) {
 </script>
 
 <template>
-  <section class="note-list-panel" @click="closeContextMenu">
+  <section class="note-list-panel" :class="{ 'note-list-panel--expanded': expanded }" @click="closeContextMenu">
     <div class="list-header">
       <span class="list-count">{{ notesStore.meta.total }} notes</span>
       <span v-if="notesStore.offlineFallback" class="offline-fallback-chip" title="You're offline — showing notes you've taken offline. The full list will return when you're back online.">
@@ -196,6 +203,13 @@ function getPreview(content, format) {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+}
+
+.note-list-panel--expanded {
+  width: auto;
+  min-width: 0;
+  flex: 1;
+  border-right: none;
 }
 
 .list-header {
