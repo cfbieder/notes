@@ -72,21 +72,20 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   async function fetchNote(id) {
-    // Checked-out notes are sourced from local IDB so offline reads work and
-    // online reads see the user's in-progress local edits.
+    // Checked-out notes are sourced from local IDB only. We do NOT try to
+    // refresh server metadata here — on iPad Safari in Airplane mode,
+    // navigator.onLine stays `true` so apiFetch can't fast-fail, and the
+    // actual fetch hangs ~30s before the OS gives up. That delay made the
+    // editor render blank for half a minute. For a checked-out note the
+    // local snapshot is the canonical view; users who want fresh metadata
+    // use the "Refresh offline copy" toolbar action.
     const checkout = await getCheckout(id);
     if (checkout) {
-      // Best-effort: pull fresh server metadata if we're online, but never
-      // overwrite the local title/content. Falls back to the checkout-time
-      // snapshot when offline.
-      let serverMeta = null;
-      try { serverMeta = (await api.get(`/notes/${id}`)).data; } catch { /* offline */ }
       const merged = {
-        ...(serverMeta || {}),
         id,
         title: checkout.localTitle,
         content: checkout.localContent,
-        notebook_id: checkout.localNotebookId ?? serverMeta?.notebook_id ?? null,
+        notebook_id: checkout.localNotebookId ?? null,
         updated_at: checkout.baseVersion,
         _checkedOut: true,
         _dirty: checkout.dirty === 1
