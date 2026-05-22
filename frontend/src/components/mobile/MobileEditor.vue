@@ -9,7 +9,7 @@ import CodeMirrorEditor from '../editor/CodeMirrorEditor.vue';
 import AttachmentZone from '../editor/AttachmentZone.vue';
 import ConfirmModal from '../ui/ConfirmModal.vue';
 import CheckoutBanner from '../ui/CheckoutBanner.vue';
-import { ArrowLeft, Code, Eye, Trash2, Printer, CloudDownload, RefreshCw } from 'lucide-vue-next';
+import { ArrowLeft, Code, Eye, Trash2, Printer, CloudDownload, CloudOff, RefreshCw } from 'lucide-vue-next';
 import { printNote } from '../../lib/printNote.js';
 import { getCheckout } from '../../lib/checkouts.js';
 import { flush as flushCheckouts } from '../../lib/checkoutSync.js';
@@ -215,14 +215,23 @@ function onRemoveReference(attachmentId) {
       >
         <CloudDownload :size="18" />
       </button>
-      <button
-        v-else-if="!checkoutState.dirty"
-        class="offline-btn"
-        @click="handleRefreshOffline"
-        title="Refresh offline copy from server"
-      >
-        <RefreshCw :size="18" />
-      </button>
+      <template v-else>
+        <button
+          v-if="!checkoutState.dirty"
+          class="offline-btn"
+          @click="handleRefreshOffline"
+          title="Refresh offline copy from server"
+        >
+          <RefreshCw :size="18" />
+        </button>
+        <button
+          class="offline-btn"
+          @click="handleDiscardOffline"
+          title="Remove from offline mode (local copy only — server is untouched)"
+        >
+          <CloudOff :size="18" />
+        </button>
+      </template>
       <button class="print-btn" @click="handlePrint" title="Print or save as PDF">
         <Printer :size="18" />
       </button>

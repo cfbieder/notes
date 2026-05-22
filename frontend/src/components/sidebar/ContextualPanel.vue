@@ -12,6 +12,7 @@ import SettingsPanel from './panels/SettingsPanel.vue';
 import OfflinePanel from './panels/OfflinePanel.vue';
 
 const route = useRoute();
+const appVersion = import.meta.env.VITE_APP_VERSION || 'dev';
 
 const panelMap = {
   notes: NotesPanel,
@@ -30,7 +31,10 @@ const activePanel = computed(() => panelMap[route.meta?.rail] || NotesPanel);
 
 <template>
   <aside class="contextual-panel">
-    <component :is="activePanel" />
+    <div class="panel-content">
+      <component :is="activePanel" />
+    </div>
+    <div class="panel-version" :title="`Noted v${appVersion}`">Noted v{{ appVersion }}</div>
   </aside>
 </template>
 
@@ -45,5 +49,22 @@ const activePanel = computed(() => panelMap[route.meta?.rail] || NotesPanel);
   flex-direction: column;
   box-sizing: border-box;
   overflow: hidden;
+}
+
+.panel-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-version {
+  border-top: 1px solid var(--border-subtle);
+  padding: 6px 12px;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  letter-spacing: 0.04em;
 }
 </style>

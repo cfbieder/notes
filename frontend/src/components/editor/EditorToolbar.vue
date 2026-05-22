@@ -1,7 +1,7 @@
 <script setup>
 import { useUIStore } from '../../stores/ui.js';
 import { computed } from 'vue';
-import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom, Printer, RefreshCw, Download, CheckSquare, CloudOff, CloudDownload } from 'lucide-vue-next';
+import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom, Printer, RefreshCw, Download, CheckSquare, CloudOff, CloudDownload, CloudUpload } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
 import NoteNotebooks from './NoteNotebooks.vue';
 import ReminderPicker from '../ui/ReminderPicker.vue';
@@ -166,7 +166,7 @@ function onTitleInput(e) {
           @click="$emit('check-in')"
           title="Check in offline edits to the server"
         >
-          <CloudOff :size="14" />
+          <CloudUpload :size="14" />
           <span>Check in</span>
         </button>
         <button
@@ -179,11 +179,12 @@ function onTitleInput(e) {
           <span>Refresh offline</span>
         </button>
         <button
-          class="offline-btn ghost"
+          class="offline-btn"
           @click="$emit('discard-offline')"
-          title="Discard the offline copy"
+          title="Remove this note from offline mode (local copy only — server is untouched)"
         >
-          <Trash2 :size="14" />
+          <CloudOff :size="14" />
+          <span>Remove offline</span>
         </button>
       </template>
 

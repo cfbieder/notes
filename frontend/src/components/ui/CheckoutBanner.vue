@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { CloudOff, RefreshCw, Trash2, AlertTriangle } from 'lucide-vue-next';
+import { CloudOff, RefreshCw, CloudUpload, AlertTriangle } from 'lucide-vue-next';
 import { getCheckout } from '../../lib/checkouts.js';
 
 const props = defineProps({
@@ -70,11 +70,11 @@ const lastSyncedLabel = computed(() => {
 
     <div class="banner-actions">
       <button v-if="online && (dirty || hasConflictError)" class="banner-btn" @click="emit('check-in')">
-        <RefreshCw :size="12" />
+        <CloudUpload :size="12" />
         <span>Check in now</span>
       </button>
-      <button class="banner-btn ghost" @click="emit('discard')" title="Discard offline copy">
-        <Trash2 :size="12" />
+      <button class="banner-btn ghost" @click="emit('discard')" title="Remove from offline mode (local copy only — server is untouched)">
+        <CloudOff :size="12" />
       </button>
     </div>
   </div>
