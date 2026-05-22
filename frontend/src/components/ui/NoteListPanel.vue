@@ -3,7 +3,8 @@ import { ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useNotesStore } from '../../stores/notes.js';
 import { useNotebooksStore } from '../../stores/notebooks.js';
-import { FileText, Pin, Trash2, FolderOpen, ChevronRight } from 'lucide-vue-next';
+import { FileText, Pin, Trash2, FolderOpen, ChevronRight, CloudDownload } from 'lucide-vue-next';
+import { cachedNoteIds, dirtyNoteIds } from '../../lib/checkouts.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -134,6 +135,13 @@ function getPreview(content, format) {
           <span v-if="note.note_type === 'idea'" class="idea-chip" title="Idea">💡</span>
           <span class="note-title">{{ note.title }}</span>
           <span v-if="note.format === 'html'" class="format-badge" title="HTML note">HTML</span>
+          <CloudDownload
+            v-if="cachedNoteIds.has(note.id)"
+            :size="12"
+            class="offline-icon"
+            :class="{ dirty: dirtyNoteIds.has(note.id) }"
+            :title="dirtyNoteIds.has(note.id) ? 'Available offline · unsaved changes' : 'Available offline'"
+          />
           <Pin v-if="note.pinned" :size="12" class="pin-icon" />
         </div>
         <div class="note-preview">{{ getPreview(note.content, note.format) }}</div>
@@ -245,6 +253,14 @@ function getPreview(content, format) {
 
 .pin-icon { color: var(--accent-warn); }
 .idea-chip { font-size: 13px; line-height: 1; }
+
+.offline-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.offline-icon.dirty {
+  color: var(--accent-warn, #ffb800);
+}
 
 .format-badge {
   font-size: 9px;

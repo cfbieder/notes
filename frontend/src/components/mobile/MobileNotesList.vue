@@ -2,7 +2,8 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNotesStore } from '../../stores/notes.js';
-import { FileText, Menu, Pin } from 'lucide-vue-next';
+import { FileText, Menu, Pin, CloudDownload } from 'lucide-vue-next';
+import { cachedNoteIds, dirtyNoteIds } from '../../lib/checkouts.js';
 
 const props = defineProps({
   title: { type: String, default: 'Notes' }
@@ -84,6 +85,12 @@ function getPreview(content, format) {
           <span v-if="note.note_type === 'idea'" class="idea-chip">💡</span>
           <span class="note-title">{{ note.title }}</span>
           <span v-if="note.format === 'html'" class="format-badge">HTML</span>
+          <CloudDownload
+            v-if="cachedNoteIds.has(note.id)"
+            :size="12"
+            class="offline-icon"
+            :class="{ dirty: dirtyNoteIds.has(note.id) }"
+          />
           <Pin v-if="note.pinned" :size="12" class="pin-icon" />
         </div>
         <div class="note-preview">{{ getPreview(note.content, note.format) }}</div>
@@ -188,6 +195,14 @@ function getPreview(content, format) {
 
 .pin-icon { color: var(--accent-warn); }
 .idea-chip { font-size: 14px; line-height: 1; }
+
+.offline-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.offline-icon.dirty {
+  color: var(--accent-warn, #ffb800);
+}
 
 .format-badge {
   font-size: 9px;

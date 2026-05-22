@@ -1,16 +1,28 @@
-import { ref } from 'vue';
+import { ref, shallowRef } from 'vue';
 import { dbPromise } from './offlineOutbox.js';
 
 const STORE = 'checkouts';
 
 export const checkoutCount = ref(0);
 export const dirtyCount = ref(0);
+// Sets of note IDs — used by note-list rows to show an "available offline"
+// indicator. shallowRef so reassigning a fresh Set triggers reactivity.
+export const cachedNoteIds = shallowRef(new Set());
+export const dirtyNoteIds = shallowRef(new Set());
 
 async function refreshCounts() {
   const db = await dbPromise;
-  checkoutCount.value = await db.count(STORE);
-  // Boolean indexes in IDB only work with 0/1; count rows where dirty === 1.
-  dirtyCount.value = await db.countFromIndex(STORE, 'dirty', IDBKeyRange.only(1));
+  const rows = await db.getAll(STORE);
+  checkoutCount.value = rows.length;
+  const cached = new Set();
+  const dirty = new Set();
+  for (const r of rows) {
+    cached.add(r.noteId);
+    if (r.dirty === 1) dirty.add(r.noteId);
+  }
+  cachedNoteIds.value = cached;
+  dirtyNoteIds.value = dirty;
+  dirtyCount.value = dirty.size;
 }
 
 export async function createCheckout(note) {
