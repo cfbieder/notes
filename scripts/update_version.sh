@@ -183,8 +183,11 @@ main() {
     git -C "$PROJECT_ROOT" add \
       VERSION \
       backend/package.json \
-      frontend/package.json \
-      frontend/.env
+      frontend/package.json
+
+    # frontend/.env carries VITE_APP_VERSION but is usually gitignored. Try
+    # to stage it without aborting under `set -e` when it's not trackable.
+    git -C "$PROJECT_ROOT" add frontend/.env 2>/dev/null || true
 
     # Also stage lock files if they changed
     for lockfile in backend/package-lock.json frontend/package-lock.json; do
