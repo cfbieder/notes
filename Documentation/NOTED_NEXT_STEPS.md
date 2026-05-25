@@ -88,6 +88,12 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
 
+### Released v0.11.11 (2026-05-25)
+
+- **fix(ui): notebook picker dropdown no longer clips off the right edge of the editor toolbar.** The "Inbox" pill at the top-right of [NoteNotebooks.vue](../frontend/src/components/editor/NoteNotebooks.vue) anchored its 200px dropdown with `left: 0`, so on narrow / right-positioned toolbars the "New notebook name…" input was pushed past the viewport and unreachable when creating a notebook from a note. Switched the anchor to `right: 0` so the panel expands leftward from the button's right edge.
+- **fix(scripts): `update_version.sh` tolerates gitignored `frontend/.env`.** The version bumper writes `VITE_APP_VERSION` to `frontend/.env`, which is gitignored — under `set -e` the staging `git add` aborted before commit + tag were created. Split it off and pipe to `/dev/null || true`, matching how lock files are handled. ([scripts/update_version.sh](../scripts/update_version.sh))
+- **chore(docs):** CLAUDE.md "4 Key Rules" preamble + `/close` release-finalisation skill in `.claude/commands/`.
+
 ### Released v0.11.10 (2026-05-22)
 
 - **fix(offline): tap-to-open a checked-out note no longer hangs on iPad Safari.** `fetchNote()`'s checkout branch previously did a best-effort `api.get('/notes/:id')` for fresh server metadata. iPad Safari leaves `navigator.onLine === true` in Airplane mode, so the fast-fail in [api/client.js](../frontend/src/api/client.js) didn't trigger and the actual `fetch()` hung ~30s before the OS gave up — during that time `MobileEditor.loadNote` was awaiting and the editor stayed blank with the "Untitled" placeholder. For a checked-out note the local IDB snapshot is the canonical view by design; users who want fresh metadata use the **Refresh offline copy** toolbar button. Drop the server fetch from the hot path — the editor now renders instantly regardless of platform. ([stores/notes.js](../frontend/src/stores/notes.js))
