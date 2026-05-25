@@ -1,4 +1,5 @@
-const WIKILINK_REGEX = /\[\[([^\]]+)\]\]/g;
+// Negative lookbehind skips `![[…]]` attachment embeds — those are not note links.
+const WIKILINK_REGEX = /(?<!!)\[\[([^\]]+)\]\]/g;
 
 /**
  * Extract all [[wikilink]] references from markdown content.

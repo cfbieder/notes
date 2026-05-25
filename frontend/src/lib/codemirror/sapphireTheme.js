@@ -76,6 +76,28 @@ export const sapphireTheme = EditorView.theme({
   '.cm-wikilink-broken:hover': {
     borderBottomColor: 'var(--status-error)'
   },
+  /* PDF embed (![[file.pdf]]) */
+  '.cm-pdf-embed': {
+    display: 'block',
+    margin: '8px 0',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: '6px',
+    overflow: 'hidden',
+    background: 'var(--bg-card)'
+  },
+  '.cm-pdf-embed iframe': {
+    display: 'block',
+    width: '100%',
+    height: '640px',
+    border: 'none',
+    background: '#ffffff'
+  },
+  '.cm-embed-broken': {
+    color: 'var(--status-error)',
+    borderBottom: '1px dashed var(--status-error)',
+    fontFamily: 'monospace',
+    fontSize: '0.9em'
+  },
   /* Autocomplete tooltip */
   '.cm-tooltip-autocomplete': {
     backgroundColor: 'var(--bg-card)',

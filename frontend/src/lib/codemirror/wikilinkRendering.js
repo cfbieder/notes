@@ -38,7 +38,8 @@ class WikilinkWidget extends WidgetType {
   }
 }
 
-const WIKILINK_REGEX = /\[\[([^\]]+)\]\]/g;
+// Negative lookbehind excludes `![[…]]` embeds — those are handled by pdfEmbedRendering.js.
+const WIKILINK_REGEX = /(?<!!)\[\[([^\]]+)\]\]/g;
 
 function buildWikilinkDecorations(view, getNoteMap, onNavigate) {
   const builder = new RangeSetBuilder();

@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { useAttachmentsStore } from '../../stores/attachments.js';
 import { useNotesStore } from '../../stores/notes.js';
-import { Paperclip, Upload, Trash2, FileText, Image, File } from 'lucide-vue-next';
+import { Paperclip, Upload, Trash2, FileText, Image, File, CornerDownLeft } from 'lucide-vue-next';
 
 const attachmentsStore = useAttachmentsStore();
 const notesStore = useNotesStore();
@@ -15,7 +15,7 @@ const imageAttachments = computed(() =>
   attachmentsStore.attachments.filter(a => a.mime_type.startsWith('image/'))
 );
 
-const emit = defineEmits(['insert-image', 'remove-reference']);
+const emit = defineEmits(['insert-image', 'insert-attachment', 'remove-reference']);
 
 watch(() => notesStore.currentNote?.id, async (noteId) => {
   if (noteId) {
@@ -160,6 +160,13 @@ function formatSize(bytes) {
           {{ att.filename }}
         </a>
         <span class="att-size">{{ formatSize(att.size_bytes) }}</span>
+        <button
+          class="att-insert"
+          @click="emit('insert-attachment', att)"
+          title="Insert into document at cursor"
+        >
+          <CornerDownLeft :size="12" />
+        </button>
         <button class="att-delete" @click="handleDelete(att.id)" title="Delete attachment">
           <Trash2 :size="12" />
         </button>
@@ -276,6 +283,7 @@ function formatSize(bytes) {
   flex-shrink: 0;
 }
 
+.att-insert,
 .att-delete {
   background: none;
   border: none;
@@ -284,6 +292,7 @@ function formatSize(bytes) {
   padding: 2px;
   flex-shrink: 0;
 }
+.att-insert:hover { color: var(--accent-primary); }
 .att-delete:hover { color: var(--status-error); }
 
 .preview-grid {

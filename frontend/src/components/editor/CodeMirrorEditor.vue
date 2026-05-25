@@ -9,6 +9,7 @@ import { sapphireTheme, sapphireHighlight } from '../../lib/codemirror/sapphireT
 import { markdownRenderPlugin } from '../../lib/codemirror/markdownRendering.js';
 import { wikilinkAutocomplete } from '../../lib/codemirror/wikilinkAutocomplete.js';
 import { wikilinkRenderPlugin } from '../../lib/codemirror/wikilinkRendering.js';
+import { pdfEmbedRenderPlugin } from '../../lib/codemirror/pdfEmbedRendering.js';
 import { tableKeymap } from '../../lib/codemirror/tableKeymap.js';
 
 const props = defineProps({
@@ -17,6 +18,7 @@ const props = defineProps({
   format: { type: String, default: 'markdown' },
   noteTitles: { type: Array, default: () => [] },
   noteMap: { type: Map, default: () => new Map() },
+  attachmentMap: { type: Map, default: () => new Map() },
   onNavigateToNote: { type: Function, default: null }
 });
 
@@ -77,6 +79,7 @@ function createState(doc) {
         () => props.noteMap,
         props.onNavigateToNote
       ));
+      extensions.push(pdfEmbedRenderPlugin(() => props.attachmentMap));
     }
 
     extensions.push(wikilinkAutocomplete(() => props.noteTitles));

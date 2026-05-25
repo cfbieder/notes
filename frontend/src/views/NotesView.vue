@@ -254,6 +254,17 @@ const noteMap = computed(() => {
   return map;
 });
 
+// Attachment embed support: filename → { id, mime_type } for ![[file.pdf]] resolution
+const attachmentMap = computed(() => {
+  const map = new Map();
+  for (const a of attachmentsStore.attachments) {
+    if (a.filename) {
+      map.set(a.filename.toLowerCase(), { id: a.id, mime_type: a.mime_type });
+    }
+  }
+  return map;
+});
+
 function navigateToNote(noteId) {
   if (route.name === 'IdeaDetail') {
     router.push(`/ideas/${noteId}`);
@@ -495,6 +506,28 @@ function onInsertImage(attachment) {
   const markdownImg = `![${attachment.filename}](/api/v1/attachments/${attachment.id})`;
   editorContent.value = editorContent.value + '\n' + markdownImg + '\n';
   scheduleSave();
+}
+
+function onInsertAttachment(attachment) {
+  // Build the right markdown for the attachment type:
+  //   image → standard image embed (existing pattern)
+  //   pdf   → ![[filename]] embed picked up by pdfEmbedRenderPlugin
+  //   other → plain markdown link
+  let snippet;
+  if (attachment.mime_type.startsWith('image/')) {
+    snippet = `![${attachment.filename}](/api/v1/attachments/${attachment.id})`;
+  } else if (attachment.mime_type === 'application/pdf') {
+    snippet = `![[${attachment.filename}]]`;
+  } else {
+    snippet = `[${attachment.filename}](/api/v1/attachments/${attachment.id})`;
+  }
+  if (editorRef.value && typeof editorRef.value.insertAtCursor === 'function') {
+    editorRef.value.insertAtCursor(snippet);
+    scheduleSave();
+  } else {
+    editorContent.value = editorContent.value + '\n' + snippet + '\n';
+    scheduleSave();
+  }
 }
 
 async function onPasteImage(file) {
@@ -740,6 +773,7 @@ async function handleRefreshOffline() {
               :format="noteFormat"
               :noteTitles="noteTitles"
               :noteMap="noteMap"
+              :attachmentMap="attachmentMap"
               :onNavigateToNote="navigateToNote"
               @update:modelValue="onContentChange"
               @paste-image="onPasteImage"
@@ -750,7 +784,11 @@ async function handleRefreshOffline() {
         <template v-if="!uiStore.contextPanelsCollapsed">
           <BacklinksPanel v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />
           <LocalGraph v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />
-          <AttachmentZone @insert-image="onInsertImage" @remove-reference="onRemoveReference" />
+          <AttachmentZone
+            @insert-image="onInsertImage"
+            @insert-attachment="onInsertAttachment"
+            @remove-reference="onRemoveReference"
+          />
         </template>
       </template>
       <ConfirmModal
