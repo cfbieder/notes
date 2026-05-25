@@ -145,12 +145,56 @@ export async function enroll({ userId, userName, rawMasterKey }) {
     throw new Error('Enrollment returned no credential.');
   }
 
-  const ext = credential.getClientExtensionResults?.();
-  const prfResult = ext?.prf?.results?.first;
+  // PRF retrieval is two-phase on most platforms:
+  //
+  //   1. navigator.credentials.create() registers PRF support on the new
+  //      credential. Some authenticators DO evaluate the eval.first salt
+  //      immediately here and return results.first — but Chrome on most
+  //      platforms only marks `prf.enabled: true` and skips evaluation.
+  //   2. navigator.credentials.get() with eval.first then returns the
+  //      actual PRF output for that salt.
+  //
+  // So we accept the create() result if present, otherwise immediately do
+  // an assertion against the just-registered credential to retrieve the
+  // secret. That costs one extra biometric tap during enrollment only —
+  // subsequent unlocks are still single-tap.
+  const createExt = credential.getClientExtensionResults?.();
+  let prfResult = createExt?.prf?.results?.first;
+
   if (!prfResult) {
-    throw new Error(
-      'This browser/device does not support the WebAuthn PRF extension — biometric unlock unavailable.'
-    );
+    if (createExt?.prf?.enabled === false) {
+      throw new Error(
+        'This authenticator does not support the WebAuthn PRF extension — biometric unlock unavailable.'
+      );
+    }
+    let assertion;
+    try {
+      assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: randomBytes(32),
+          allowCredentials: [{
+            type: 'public-key',
+            id: new Uint8Array(credential.rawId),
+            transports: ['internal']
+          }],
+          userVerification: 'required',
+          extensions: { prf: { eval: { first: prfSalt } } },
+          timeout: 60000
+        }
+      });
+    } catch (err) {
+      if (err?.name === 'NotAllowedError') {
+        throw new Error('Enrollment was cancelled or timed out on the second biometric tap.');
+      }
+      throw new Error(err?.message || 'Failed to retrieve PRF secret during enrollment.');
+    }
+    const assertionExt = assertion?.getClientExtensionResults?.();
+    prfResult = assertionExt?.prf?.results?.first;
+    if (!prfResult) {
+      throw new Error(
+        'This browser/device does not support the WebAuthn PRF extension — biometric unlock unavailable.'
+      );
+    }
   }
 
   const prfBytes = new Uint8Array(prfResult);
