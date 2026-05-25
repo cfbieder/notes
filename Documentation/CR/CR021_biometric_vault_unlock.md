@@ -1,6 +1,6 @@
 # CR021 — Biometric Vault Unlock (WebAuthn PRF)
 
-**Status:** Completed (shipped in v0.11.13)
+**Status:** Completed (shipped in v0.11.14)
 **Severity:** Feature (security-sensitive)
 **Origin:** User question on CR020 follow-up, 2026-05-01
 
