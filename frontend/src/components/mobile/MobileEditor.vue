@@ -1,8 +1,9 @@
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNotesStore } from '../../stores/notes.js';
 import { useNotebooksStore } from '../../stores/notebooks.js';
+import { useAttachmentsStore } from '../../stores/attachments.js';
 import { useUIStore } from '../../stores/ui.js';
 import { useToastsStore } from '../../stores/toasts.js';
 import CodeMirrorEditor from '../editor/CodeMirrorEditor.vue';
@@ -21,8 +22,28 @@ const props = defineProps({
 const router = useRouter();
 const notesStore = useNotesStore();
 const notebooksStore = useNotebooksStore();
+const attachmentsStore = useAttachmentsStore();
 const uiStore = useUIStore();
 const toastsStore = useToastsStore();
+
+// Wikilink + attachment-embed maps (mirror NotesView.vue so CR031 ![[file.pdf]]
+// embeds resolve on mobile too — without these the plugin sees an empty map
+// and every embed falls through to the "broken" widget rendering raw text).
+const noteTitles = computed(() => notesStore.notes.map(n => n.title).filter(Boolean));
+const noteMap = computed(() => {
+  const map = new Map();
+  for (const n of notesStore.notes) {
+    if (n.title) map.set(n.title.toLowerCase(), { id: n.id, deleted_at: null });
+  }
+  return map;
+});
+const attachmentMap = computed(() => {
+  const map = new Map();
+  for (const a of attachmentsStore.attachments) {
+    if (a.filename) map.set(a.filename.toLowerCase(), { id: a.id, mime_type: a.mime_type });
+  }
+  return map;
+});
 
 const noteTitle = ref('');
 const editorContent = ref('');
@@ -205,6 +226,19 @@ function onInsertImage(attachment) {
   scheduleSave();
 }
 
+function onInsertAttachment(attachment) {
+  let snippet;
+  if (attachment.mime_type.startsWith('image/')) {
+    snippet = `![${attachment.filename}](/api/v1/attachments/${attachment.id})`;
+  } else if (attachment.mime_type === 'application/pdf') {
+    snippet = `![[${attachment.filename}]]`;
+  } else {
+    snippet = `[${attachment.filename}](/api/v1/attachments/${attachment.id})`;
+  }
+  editorContent.value = editorContent.value + '\n' + snippet + '\n';
+  scheduleSave();
+}
+
 function handlePrint() {
   printNote(noteTitle.value, editorContent.value);
 }
@@ -300,11 +334,18 @@ function onRemoveReference(attachmentId) {
       <CodeMirrorEditor
         :modelValue="editorContent"
         :sourceMode="uiStore.editorMode === 'source'"
+        :noteTitles="noteTitles"
+        :noteMap="noteMap"
+        :attachmentMap="attachmentMap"
         @update:modelValue="onContentChange"
       />
     </div>
 
-    <AttachmentZone @insert-image="onInsertImage" @remove-reference="onRemoveReference" />
+    <AttachmentZone
+      @insert-image="onInsertImage"
+      @insert-attachment="onInsertAttachment"
+      @remove-reference="onRemoveReference"
+    />
   </div>
 </template>
 
