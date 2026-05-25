@@ -1,5 +1,11 @@
 # Noted — Claude Code Project Context
 
+### 4 Key Rules
+- Think before coding: state assumptions, ask when unsure, never guess
+- Simplicity first: write the minimum code that solves the problem, nothing extra
+- Surgical changes: every changed line must trace back to your request
+- Goal-driven: turn vague instructions into verifiable success criteria before starting
+
 ## Documentation Layout
 
 - **`Documentation/NOTED_CURRENT_STATE.md`** — Authoritative description of what's built (features, data model, APIs).
