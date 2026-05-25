@@ -81,6 +81,8 @@ Scope is deliberately small and does not introduce a Library surface, PDF.js, or
 | `frontend/src/components/editor/AttachmentZone.vue` | Insert button + `insert-attachment` emit |
 | `frontend/src/views/NotesView.vue` | `attachmentMap` computed; `onInsertAttachment`; pass map; wire emit |
 | `backend/src/services/wikilinkParser.js` | Same regex change — embeds are not note links |
+| `nginx/noted.conf` | `X-Frame-Options: DENY` → `SAMEORIGIN` (v0.11.18 hotfix) so the same-origin iframe can render |
+| `frontend/src/components/mobile/MobileEditor.vue` | Wire `noteMap`/`noteTitles`/`attachmentMap` + `onInsertAttachment` (v0.11.20 mobile fix) |
 
 ---
 
@@ -93,12 +95,15 @@ Scope is deliberately small and does not introduce a Library surface, PDF.js, or
 - [x] `![[name-not-found]]` renders as a red dashed "broken embed" indicator instead of silently disappearing.
 - [x] Existing `[[wikilinks]]` continue to render and resolve correctly; backend `note_links` is no longer polluted by `![[…]]` references.
 - [x] Each attachment row in `AttachmentZone` has an insert button (between size and trash). Click inserts type-appropriate markdown at the cursor.
+- [x] Embedded PDF viewer chrome (filename bar, page-nav, zoom) is hidden via `#toolbar=0&navpanes=0&scrollbar=0` Open Parameters appended to the iframe `src` (v0.11.19).
+- [x] Nginx allows the same-origin iframe (`X-Frame-Options: SAMEORIGIN`, not `DENY`) — applied as v0.11.18 hotfix when the first deploy of CR031 showed "refused to connect."
+- [x] Mobile editor renders embeds and supports the Insert button — `MobileEditor.vue` threads `attachmentMap` into `CodeMirrorEditor` (v0.11.20). Known limitation: Android Chrome has no native inline PDF viewer, so the iframe may render blank or trigger a download on Android; desktop Chrome renders fully inline.
 
 ---
 
 ## 6. Out of Scope / Follow-ons
 
-- PDF.js viewer with page/search/zoom — see CR025.
+- PDF.js viewer with page/search/zoom — see CR025. Would also solve the Android inline-render gap noted above.
 - Cross-note `[[doc:Title]]` resolution — see CR025.
 - Right-click context menu on attachment rows — not requested; current dedicated button is discoverable.
 - Print/PDF-export rendering for embeds — `printNote.js` would need its own embed substitution pass; deferred.
