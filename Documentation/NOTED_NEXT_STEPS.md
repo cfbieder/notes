@@ -91,6 +91,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
 
+### Released v0.11.18 (2026-05-25)
+
+- **fix(nginx): `X-Frame-Options: DENY` → `SAMEORIGIN` so CR031 inline PDF embeds load.** `DENY` blocks all framing — including same-origin — so the `![[file.pdf]]` iframe rendered "refused to connect" against its own host. `SAMEORIGIN` keeps clickjacking protection from external sites while letting the editor frame its own `/api/v1/attachments/:id` endpoint. ([nginx/noted.conf](../nginx/noted.conf))
+
 ### Released v0.11.17 (2026-05-25)
 
 - **[CR031](CR/CR031_inline_pdf_attachment_embeds.md) — Inline PDF attachment embeds + Insert button.** New Obsidian-style `![[filename.pdf]]` syntax renders PDF attachments as an inline `<iframe>` in Normal Mode (browser-native PDF viewer; ~640 px tall, full editor width). Each row in the `AttachmentZone` gets a corner-down-left **Insert** button that drops the right markdown at the cursor — `![filename](url)` for images, `![[filename]]` for PDFs, `[filename](url)` for everything else. Wikilink regex (frontend renderer + backend `wikilinkParser`) now uses a negative lookbehind `(?<!!)` so embed syntax is no longer mis-classified as a broken wikilink. Source Mode still shows raw `![[…]]`. Out of scope: PDF.js viewer, standalone documents, print/export rendering — those remain CR025. See `Documentation/CR/CR031_inline_pdf_attachment_embeds.md`.
