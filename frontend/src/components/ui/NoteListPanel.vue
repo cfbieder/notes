@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useNotesStore } from '../../stores/notes.js';
 import { useNotebooksStore } from '../../stores/notebooks.js';
-import { FileText, Pin, Trash2, FolderOpen, ChevronRight, CloudDownload } from 'lucide-vue-next';
+import { FileText, Pin, Trash2, FolderOpen, ChevronRight, ChevronUp, ChevronDown, CloudDownload } from 'lucide-vue-next';
 import { cachedNoteIds, dirtyNoteIds } from '../../lib/checkouts.js';
 
 defineProps({
@@ -18,7 +18,37 @@ const route = useRoute();
 const notesStore = useNotesStore();
 const notebooksStore = useNotebooksStore();
 
-const sortedNotes = computed(() => notesStore.notes);
+// Sort state — applies to the expanded layout only (narrow sidebar keeps
+// the backend's pinned+updated order). Default mirrors the server order so
+// the first paint matches what the user had before CR030.
+const sortKey = ref('updated_at');
+const sortDir = ref('desc');
+
+function setSort(key) {
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortKey.value = key;
+    sortDir.value = key === 'title' ? 'asc' : 'desc';
+  }
+}
+
+const sortedNotes = computed(() => {
+  const arr = notesStore.notes.slice();
+  const dir = sortDir.value === 'asc' ? 1 : -1;
+  const cmp = (a, b) => {
+    if (sortKey.value === 'title') {
+      return (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' }) * dir;
+    }
+    // updated_at: missing values sort to the bottom regardless of direction.
+    const av = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+    const bv = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+    return (av - bv) * dir;
+  };
+  const pinned = arr.filter(n => n.pinned).sort(cmp);
+  const rest = arr.filter(n => !n.pinned).sort(cmp);
+  return [...pinned, ...rest];
+});
 
 // Context menu state
 const contextMenu = ref({ show: false, x: 0, y: 0, noteId: null });
@@ -128,6 +158,46 @@ function getPreview(content, format) {
     <div v-else-if="sortedNotes.length === 0" class="empty-state">
       <FileText :size="32" />
       <p>No notes yet</p>
+    </div>
+
+    <div v-else-if="expanded" class="note-list note-list--columns">
+      <div class="column-header" role="row">
+        <button class="col-header col-title" :class="{ active: sortKey === 'title' }" @click="setSort('title')">
+          <span>Title</span>
+          <ChevronUp v-if="sortKey === 'title' && sortDir === 'asc'" :size="12" />
+          <ChevronDown v-if="sortKey === 'title' && sortDir === 'desc'" :size="12" />
+        </button>
+        <button class="col-header col-date" :class="{ active: sortKey === 'updated_at' }" @click="setSort('updated_at')">
+          <span>Last used</span>
+          <ChevronUp v-if="sortKey === 'updated_at' && sortDir === 'asc'" :size="12" />
+          <ChevronDown v-if="sortKey === 'updated_at' && sortDir === 'desc'" :size="12" />
+        </button>
+      </div>
+      <button
+        v-for="note in sortedNotes"
+        :key="note.id"
+        class="note-item note-item--row"
+        :class="{ active: isActive(note) }"
+        draggable="true"
+        @dragstart="onDragStart($event, note)"
+        @click="selectNote(note)"
+        @contextmenu="onContextMenu($event, note)"
+      >
+        <div class="note-title-row col-title">
+          <span v-if="note.note_type === 'idea'" class="idea-chip" title="Idea">💡</span>
+          <span class="note-title">{{ note.title }}</span>
+          <span v-if="note.format === 'html'" class="format-badge" title="HTML note">HTML</span>
+          <CloudDownload
+            v-if="cachedNoteIds.has(note.id)"
+            :size="12"
+            class="offline-icon"
+            :class="{ dirty: dirtyNoteIds.has(note.id) }"
+            :title="dirtyNoteIds.has(note.id) ? 'Available offline · unsaved changes' : 'Available offline'"
+          />
+          <Pin v-if="note.pinned" :size="12" class="pin-icon" />
+        </div>
+        <div class="note-meta col-date">{{ formatDate(note.updated_at) }}</div>
+      </button>
     </div>
 
     <div v-else class="note-list">
@@ -319,6 +389,56 @@ function getPreview(content, format) {
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 4px;
+}
+
+/* Expanded two-column layout (CR030) */
+.column-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-main);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.col-header {
+  background: none;
+  border: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.col-header:hover { color: var(--text-primary); }
+.col-header.active { color: var(--text-primary); }
+
+.col-title { flex: 1; min-width: 0; }
+.col-date {
+  width: 110px;
+  flex-shrink: 0;
+  text-align: right;
+  justify-content: flex-end;
+}
+
+.note-item--row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.note-item--row .col-title {
+  overflow: hidden;
+}
+.note-item--row .col-date {
+  margin-top: 0;
 }
 </style>
 
