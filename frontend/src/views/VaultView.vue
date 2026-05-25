@@ -7,7 +7,7 @@ import ConfirmModal from '../components/ui/ConfirmModal.vue';
 import { useVaultStore } from '../stores/vault.js';
 import { useToastsStore } from '../stores/toasts.js';
 import { useMobile } from '../composables/useMobile.js';
-import { Lock, Unlock, Plus, Search, Copy, Eye, EyeOff, ExternalLink, KeyRound, AlertTriangle, User } from 'lucide-vue-next';
+import { Lock, Unlock, Plus, Search, Copy, Eye, EyeOff, ExternalLink, KeyRound, AlertTriangle, User, CreditCard, Landmark, Hash } from 'lucide-vue-next';
 
 const { isMobile } = useMobile();
 const vault = useVaultStore();
@@ -25,22 +25,66 @@ const unlockError = ref('');
 
 // List view
 const filter = ref('');
-const typeFilter = ref('password');           // 'password' | 'key'
+const typeFilter = ref('password');           // 'password' | 'key' | 'card' | 'bank'
 const showEntryModal = ref(false);
 const editingEntry = ref(null);
 const confirmDelete = ref(null);
 const revealedId = ref(null);
 
+const TYPE_TABS = [
+  { value: 'password', label: 'Passwords', icon: Lock },
+  { value: 'key', label: 'Keys', icon: KeyRound },
+  { value: 'card', label: 'Cards', icon: CreditCard },
+  { value: 'bank', label: 'Bank', icon: Landmark }
+];
+
+function normaliseType(t) {
+  return (t === 'key' || t === 'card' || t === 'bank') ? t : 'password';
+}
+
+// Per-type display helpers — used by the list row template to keep the
+// markup small and read off a single config per entry.
+function maskedField(e) {
+  if (e.type === 'card') return e.card_number || '';
+  if (e.type === 'bank') return e.account_number || '';
+  return e.password || '';
+}
+function primaryCopy(e) {
+  if (e.type === 'card') return { value: e.card_number, label: 'Card number', short: 'Number' };
+  if (e.type === 'bank') return { value: e.account_number, label: 'Account number', short: 'Acct' };
+  if (e.type === 'key') return { value: e.password, label: 'Key', short: 'Key' };
+  return { value: e.password, label: 'Password', short: 'Pass' };
+}
+function secondaryCopy(e) {
+  if (e.type === 'card' && e.cvv) return { value: e.cvv, label: 'Security code', short: 'CVV' };
+  if (e.type === 'bank' && e.routing_number) return { value: e.routing_number, label: 'Routing number', short: 'Routing' };
+  if (e.type === 'password' && e.username) return { value: e.username, label: 'Username', short: 'User', icon: User };
+  return null;
+}
+
 const filteredEntries = computed(() => {
   const q = filter.value.trim().toLowerCase();
   return vault.entries.filter(e => {
-    const t = e.type === 'key' ? 'key' : 'password';
-    if (t !== typeFilter.value) return false;
+    if (normaliseType(e.type) !== typeFilter.value) return false;
     if (!q) return true;
-    return e.name.toLowerCase().includes(q) ||
-           e.username.toLowerCase().includes(q) ||
-           e.url.toLowerCase().includes(q);
+    if (e.name.toLowerCase().includes(q)) return true;
+    // Search the most identifying field per type so a partial last-4 match
+    // on a card or last digits of an account number finds the entry.
+    if (e.type === 'card') {
+      return (e.card_number || '').toLowerCase().includes(q);
+    }
+    if (e.type === 'bank') {
+      return (e.account_number || '').toLowerCase().includes(q) ||
+             (e.routing_number || '').toLowerCase().includes(q);
+    }
+    return (e.username || '').toLowerCase().includes(q) ||
+           (e.url || '').toLowerCase().includes(q);
   });
+});
+
+const activeTypeLabel = computed(() => {
+  const t = TYPE_TABS.find(x => x.value === typeFilter.value);
+  return t ? t.label.toLowerCase() : 'entries';
 });
 
 const setupCanSubmit = computed(() =>
@@ -239,15 +283,27 @@ function maskedDots() {
             </div>
           </div>
 
+          <div class="type-tabs" role="tablist" aria-label="Entry type">
+            <button
+              v-for="tab in TYPE_TABS"
+              :key="tab.value"
+              type="button"
+              role="tab"
+              :aria-selected="typeFilter === tab.value"
+              class="type-tab"
+              :class="{ active: typeFilter === tab.value }"
+              @click="typeFilter = tab.value"
+            >
+              <component :is="tab.icon" :size="13" />
+              {{ tab.label }}
+            </button>
+          </div>
+
           <div class="filter-bar">
             <div class="filter-input">
               <Search :size="14" />
               <input v-model="filter" placeholder="Filter…" />
             </div>
-            <select v-model="typeFilter" class="type-filter" aria-label="Filter by type">
-              <option value="password">Password</option>
-              <option value="key">Key</option>
-            </select>
           </div>
 
           <div v-if="vault.entries.length === 0" class="vault-empty">
@@ -259,55 +315,61 @@ function maskedDots() {
           </div>
 
           <div v-else-if="filteredEntries.length === 0" class="vault-empty">
-            <p v-if="filter">No {{ typeFilter }} entries match “{{ filter }}”.</p>
-            <p v-else>No {{ typeFilter }} entries.</p>
+            <p v-if="filter">No {{ activeTypeLabel }} entries match “{{ filter }}”.</p>
+            <p v-else>No {{ activeTypeLabel }} entries.</p>
           </div>
 
           <ul v-else class="entry-list">
-            <li v-for="e in filteredEntries" :key="e.id" class="entry-row" :class="{ undecryptable: e.undecryptable, 'is-key': e.type === 'key' }">
+            <li v-for="e in filteredEntries" :key="e.id" class="entry-row" :class="['type-' + normaliseType(e.type), { undecryptable: e.undecryptable }]">
               <button class="entry-name" @click="openEdit(e)">
                 <span class="entry-title-row">
                   <KeyRound v-if="e.type === 'key'" :size="13" class="type-badge" />
+                  <CreditCard v-else-if="e.type === 'card'" :size="13" class="type-badge" />
+                  <Landmark v-else-if="e.type === 'bank'" :size="13" class="type-badge" />
                   <Lock v-else :size="13" class="type-badge" />
                   <strong>{{ e.name }}</strong>
                 </span>
-                <span v-if="e.username" class="entry-username">{{ e.username }}</span>
+                <span v-if="e.type === 'password' && e.username" class="entry-username">{{ e.username }}</span>
+                <span v-else-if="e.type === 'card' && e.expiration" class="entry-username">Exp {{ e.expiration }}</span>
+                <span v-else-if="e.type === 'bank' && e.swift_bic" class="entry-username">SWIFT {{ e.swift_bic }}</span>
               </button>
 
               <div class="entry-secret">
-                <span v-if="revealedId === e.id" class="entry-password-revealed">{{ e.password || '—' }}</span>
-                <span v-else class="entry-password-masked">{{ e.password ? maskedDots() : '—' }}</span>
+                <span v-if="revealedId === e.id" class="entry-password-revealed">{{ maskedField(e) || '—' }}</span>
+                <span v-else class="entry-password-masked">{{ maskedField(e) ? maskedDots() : '—' }}</span>
               </div>
 
               <!-- Quick-copy action group: prominent labeled buttons (mobile + desktop). -->
               <div class="entry-actions">
                 <button
-                  v-if="e.type !== 'key' && e.username"
+                  v-if="secondaryCopy(e)"
                   class="quick-copy-btn"
-                  @click.stop="copyField(e.username, 'Username')"
-                  :title="`Copy ${e.username}`"
+                  @click.stop="copyField(secondaryCopy(e).value, secondaryCopy(e).label)"
+                  :title="`Copy ${secondaryCopy(e).label.toLowerCase()}`"
                 >
-                  <User :size="14" />
+                  <component :is="secondaryCopy(e).icon || Hash" :size="14" />
                   <Copy :size="11" class="copy-overlay" />
-                  <span class="quick-copy-label">User</span>
+                  <span class="quick-copy-label">{{ secondaryCopy(e).short }}</span>
                 </button>
                 <button
                   class="quick-copy-btn primary-copy"
-                  :disabled="!e.password"
-                  @click.stop="copyField(e.password, e.type === 'key' ? 'Key' : 'Password')"
-                  :title="e.type === 'key' ? 'Copy key' : 'Copy password'"
+                  :disabled="!primaryCopy(e).value"
+                  @click.stop="copyField(primaryCopy(e).value, primaryCopy(e).label)"
+                  :title="`Copy ${primaryCopy(e).label.toLowerCase()}`"
                 >
                   <KeyRound v-if="e.type === 'key'" :size="14" />
+                  <CreditCard v-else-if="e.type === 'card'" :size="14" />
+                  <Landmark v-else-if="e.type === 'bank'" :size="14" />
                   <Lock v-else :size="14" />
                   <Copy :size="11" class="copy-overlay" />
-                  <span class="quick-copy-label">{{ e.type === 'key' ? 'Key' : 'Pass' }}</span>
+                  <span class="quick-copy-label">{{ primaryCopy(e).short }}</span>
                 </button>
 
                 <button class="icon-action" @click.stop="toggleReveal(e.id)" :title="revealedId === e.id ? 'Hide' : 'Reveal'">
                   <Eye v-if="revealedId !== e.id" :size="14" />
                   <EyeOff v-else :size="14" />
                 </button>
-                <a v-if="e.url" class="icon-action" :href="e.url" target="_blank" rel="noopener" title="Open URL">
+                <a v-if="e.type === 'password' && e.url" class="icon-action" :href="e.url" target="_blank" rel="noopener" title="Open URL">
                   <ExternalLink :size="14" />
                 </a>
               </div>
@@ -321,6 +383,7 @@ function maskedDots() {
     <VaultEntryModal
       v-if="showEntryModal"
       :entry="editingEntry"
+      :default-type="typeFilter"
       @save="saveEntry"
       @cancel="showEntryModal = false; editingEntry = null"
       @delete="askDelete"
@@ -415,6 +478,37 @@ function maskedDots() {
   font-size: 12px;
 }
 
+.type-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.type-tab {
+  flex: 1;
+  min-width: 90px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 7px 12px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.type-tab.active {
+  background: var(--bg-input, var(--bg-main));
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.type-tab:hover:not(.active) { color: var(--text-primary); }
+
 .filter-bar {
   display: flex; align-items: center; gap: 8px;
   margin-bottom: 12px;
@@ -434,20 +528,9 @@ function maskedDots() {
   background: none; border: none; outline: none;
   color: var(--text-primary); font-size: 13px;
 }
-.type-filter {
-  margin-left: auto;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: 7px 10px;
-  color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  cursor: pointer;
-}
-.type-filter:focus { outline: none; border-color: var(--accent-primary); }
 @media (max-width: 640px) {
   .filter-input { width: auto; flex: 1; }
+  .type-tab { min-width: 0; padding: 8px 6px; font-size: 12px; }
 }
 
 .vault-empty {
@@ -477,7 +560,9 @@ function maskedDots() {
 .entry-title-row { display: inline-flex; align-items: center; gap: 6px; }
 .entry-title-row strong { font-size: 14px; font-weight: 500; }
 .type-badge { color: var(--text-secondary); flex-shrink: 0; }
-.is-key .type-badge { color: var(--accent-warn, #e8a13b); }
+.type-key .type-badge { color: var(--accent-warn, #e8a13b); }
+.type-card .type-badge { color: var(--accent-primary); }
+.type-bank .type-badge { color: var(--accent-success, #4caf50); }
 .entry-username { font-size: 11px; color: var(--text-secondary); }
 .entry-name:hover strong { color: var(--accent-primary); }
 

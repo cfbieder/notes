@@ -283,18 +283,47 @@ export const useVaultStore = defineStore('vault', () => {
   }
 
   function normaliseRecord(r) {
-    // type: 'password' (default for legacy entries) | 'key'
-    // Both shapes share the same JSON schema; the type discriminator just tells
-    // the UI which fields to render. For 'key' entries the secret lives in the
-    // `password` field (reused as the key payload) and `username` / `url` are blank.
-    const type = r.type === 'key' ? 'key' : 'password';
+    // Type discriminator drives the UI's per-type field set. Each type only
+    // persists fields relevant to itself; irrelevant fields are dropped so a
+    // legacy 'password' entry edited as a 'card' wouldn't carry orphan data.
+    // (In practice the modal locks the type on edit, but normalise stays
+    // defensive.)
+    const rawType = r.type;
+    const type = rawType === 'key' || rawType === 'card' || rawType === 'bank'
+      ? rawType
+      : 'password';
+    const name = String(r.name ?? '').trim();
+    const notes = String(r.notes ?? '');
+
+    if (type === 'card') {
+      return {
+        type,
+        name,
+        card_number: String(r.card_number ?? ''),
+        expiration: String(r.expiration ?? ''),
+        cvv: String(r.cvv ?? ''),
+        notes
+      };
+    }
+    if (type === 'bank') {
+      return {
+        type,
+        name,
+        account_number: String(r.account_number ?? ''),
+        routing_number: String(r.routing_number ?? ''),
+        swift_bic: String(r.swift_bic ?? ''),
+        notes
+      };
+    }
+    // password / key — secret lives in `password`; key entries leave
+    // username/url blank.
     return {
       type,
-      name: String(r.name ?? '').trim(),
+      name,
       username: type === 'key' ? '' : String(r.username ?? ''),
       password: String(r.password ?? ''),
       url: type === 'key' ? '' : String(r.url ?? ''),
-      notes: String(r.notes ?? '')
+      notes
     };
   }
 

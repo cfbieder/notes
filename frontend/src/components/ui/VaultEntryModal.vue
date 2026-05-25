@@ -1,38 +1,82 @@
 <script setup>
 import { ref, watch, computed } from 'vue';
-import { Eye, EyeOff, Copy, RefreshCw, X, KeyRound, Lock } from 'lucide-vue-next';
+import { Eye, EyeOff, Copy, RefreshCw, X, KeyRound, Lock, CreditCard, Landmark } from 'lucide-vue-next';
 import { generatePassword } from '../../lib/vaultCrypto.js';
 import { useToastsStore } from '../../stores/toasts.js';
 
 const props = defineProps({
-  entry: { type: Object, default: null }    // null = create
+  entry: { type: Object, default: null },     // null = create
+  defaultType: { type: String, default: 'password' }
 });
 const emit = defineEmits(['save', 'cancel', 'delete']);
 
 const toasts = useToastsStore();
 
-const type = ref('password');                // 'password' | 'key'
+// 'password' | 'key' | 'card' | 'bank'
+const type = ref('password');
+
+// Shared
 const name = ref('');
+const notes = ref('');
+const saving = ref(false);
+
+// Password / Key
 const username = ref('');
 const password = ref('');
 const url = ref('');
-const notes = ref('');
 const reveal = ref(false);
-const saving = ref(false);
 const genLength = ref(24);
+
+// Card
+const cardNumber = ref('');
+const expiration = ref('');
+const cvv = ref('');
+const revealCardNumber = ref(false);
+const revealCvv = ref(false);
+
+// Bank
+const accountNumber = ref('');
+const routingNumber = ref('');
+const swiftBic = ref('');
+const revealAccountNumber = ref(false);
 
 const isEdit = computed(() => !!props.entry?.id);
 const canSave = computed(() => name.value.trim().length > 0);
+const isPassword = computed(() => type.value === 'password');
 const isKey = computed(() => type.value === 'key');
+const isCard = computed(() => type.value === 'card');
+const isBank = computed(() => type.value === 'bank');
+
+function isValidType(t) {
+  return t === 'password' || t === 'key' || t === 'card' || t === 'bank';
+}
 
 watch(() => props.entry, (e) => {
-  type.value = e?.type === 'key' ? 'key' : 'password';
+  // On edit, lock to entry's existing type. On create, honor defaultType so the
+  // "+ New entry" button respects the currently-selected list tab.
+  const initialType = e?.type && isValidType(e.type)
+    ? e.type
+    : (isValidType(props.defaultType) ? props.defaultType : 'password');
+  type.value = initialType;
+
   name.value = e?.name ?? '';
+  notes.value = e?.notes ?? '';
+
   username.value = e?.username ?? '';
   password.value = e?.password ?? '';
   url.value = e?.url ?? '';
-  notes.value = e?.notes ?? '';
   reveal.value = false;
+
+  cardNumber.value = e?.card_number ?? '';
+  expiration.value = e?.expiration ?? '';
+  cvv.value = e?.cvv ?? '';
+  revealCardNumber.value = false;
+  revealCvv.value = false;
+
+  accountNumber.value = e?.account_number ?? '';
+  routingNumber.value = e?.routing_number ?? '';
+  swiftBic.value = e?.swift_bic ?? '';
+  revealAccountNumber.value = false;
 }, { immediate: true });
 
 async function copy(value, label) {
@@ -57,23 +101,54 @@ async function save() {
   if (!canSave.value) return;
   saving.value = true;
   try {
-    emit('save', {
-      type: type.value,
-      name: name.value.trim(),
-      username: isKey.value ? '' : username.value,
-      password: password.value,
-      url: isKey.value ? '' : url.value,
-      notes: notes.value
-    });
+    const base = { type: type.value, name: name.value.trim(), notes: notes.value };
+    let payload;
+    if (isCard.value) {
+      payload = {
+        ...base,
+        card_number: cardNumber.value,
+        expiration: expiration.value,
+        cvv: cvv.value
+      };
+    } else if (isBank.value) {
+      payload = {
+        ...base,
+        account_number: accountNumber.value,
+        routing_number: routingNumber.value,
+        swift_bic: swiftBic.value
+      };
+    } else if (isKey.value) {
+      payload = { ...base, username: '', password: password.value, url: '' };
+    } else {
+      payload = {
+        ...base,
+        username: username.value,
+        password: password.value,
+        url: url.value
+      };
+    }
+    emit('save', payload);
   } finally {
     saving.value = false;
   }
 }
 
-const secretLabel = computed(() => isKey.value ? 'Key' : 'Password');
-const secretPlaceholder = computed(() => isKey.value
+const passwordSecretLabel = computed(() => isKey.value ? 'Key' : 'Password');
+const passwordSecretPlaceholder = computed(() => isKey.value
   ? '-----BEGIN PRIVATE KEY-----\n…or paste an API token, recovery code, etc.'
   : '••••••••');
+const notesLabel = computed(() => (isCard.value || isBank.value) ? 'Comments' : 'Notes');
+const nameLabel = computed(() => {
+  if (isCard.value) return 'Card Name *';
+  if (isBank.value) return 'Account Name *';
+  return 'Name *';
+});
+const namePlaceholder = computed(() => {
+  if (isCard.value) return 'Personal Visa';
+  if (isBank.value) return 'Checking — Bank of X';
+  if (isKey.value) return 'SSH Production';
+  return 'GitHub';
+});
 </script>
 
 <template>
@@ -92,94 +167,200 @@ const secretPlaceholder = computed(() => isKey.value
             <button
               type="button"
               class="type-option"
-              :class="{ active: type === 'password' }"
+              :class="{ active: isPassword }"
               :disabled="isEdit"
               @click="type = 'password'"
             >
-              <Lock :size="14" /> Password
+              <Lock :size="13" /> Password
             </button>
             <button
               type="button"
               class="type-option"
-              :class="{ active: type === 'key' }"
+              :class="{ active: isKey }"
               :disabled="isEdit"
               @click="type = 'key'"
             >
-              <KeyRound :size="14" /> Key
+              <KeyRound :size="13" /> Key
+            </button>
+            <button
+              type="button"
+              class="type-option"
+              :class="{ active: isCard }"
+              :disabled="isEdit"
+              @click="type = 'card'"
+            >
+              <CreditCard :size="13" /> Card
+            </button>
+            <button
+              type="button"
+              class="type-option"
+              :class="{ active: isBank }"
+              :disabled="isEdit"
+              @click="type = 'bank'"
+            >
+              <Landmark :size="13" /> Bank
             </button>
           </div>
 
           <label>
-            <span>Name *</span>
-            <input v-model="name" :placeholder="isKey ? 'SSH Production' : 'GitHub'" autofocus />
+            <span>{{ nameLabel }}</span>
+            <input v-model="name" :placeholder="namePlaceholder" autofocus />
           </label>
 
-          <label v-if="!isKey">
-            <span>Username</span>
-            <div class="field-with-action">
-              <input v-model="username" placeholder="user@example.com" />
-              <button type="button" class="field-action" :disabled="!username" @click="copy(username, 'Username')" title="Copy">
-                <Copy :size="14" />
-              </button>
-            </div>
-          </label>
-
-          <label>
-            <span>{{ secretLabel }}</span>
-            <div v-if="isKey" class="key-field">
-              <textarea
-                :class="{ revealed: reveal }"
-                v-model="password"
-                rows="6"
-                spellcheck="false"
-                autocomplete="off"
-                :placeholder="secretPlaceholder"
-              ></textarea>
-              <div class="key-field-actions">
-                <button type="button" class="field-action" @click="reveal = !reveal" :title="reveal ? 'Mask' : 'Reveal'">
-                  <Eye v-if="!reveal" :size="14" />
-                  <EyeOff v-else :size="14" />
-                </button>
-                <button type="button" class="field-action" :disabled="!password" @click="copy(password, 'Key')" title="Copy">
+          <!-- ===== PASSWORD ===== -->
+          <template v-if="isPassword">
+            <label>
+              <span>Username</span>
+              <div class="field-with-action">
+                <input v-model="username" placeholder="user@example.com" />
+                <button type="button" class="field-action" :disabled="!username" @click="copy(username, 'Username')" title="Copy">
                   <Copy :size="14" />
                 </button>
               </div>
-            </div>
-            <div v-else class="field-with-action">
-              <input :type="reveal ? 'text' : 'password'" v-model="password" :placeholder="secretPlaceholder" autocomplete="new-password" />
-              <button type="button" class="field-action" @click="reveal = !reveal" :title="reveal ? 'Hide' : 'Reveal'">
-                <Eye v-if="!reveal" :size="14" />
-                <EyeOff v-else :size="14" />
-              </button>
-              <button type="button" class="field-action" :disabled="!password" @click="copy(password, 'Password')" title="Copy">
-                <Copy :size="14" />
-              </button>
-              <button type="button" class="field-action" @click="generate" title="Generate password">
-                <RefreshCw :size="14" />
-              </button>
-            </div>
-            <div v-if="!isKey" class="generate-row">
-              <label class="length-label">
-                Length
-                <input type="number" min="4" max="128" v-model.number="genLength" class="length-input" />
-              </label>
-              <span class="hint">Click <RefreshCw :size="11" class="inline-icon" /> to generate</span>
-            </div>
-          </label>
+            </label>
 
-          <label v-if="!isKey">
-            <span>URL</span>
-            <div class="field-with-action">
-              <input v-model="url" placeholder="https://example.com" />
-              <button type="button" class="field-action" :disabled="!url" @click="copy(url, 'URL')" title="Copy">
-                <Copy :size="14" />
-              </button>
-            </div>
-          </label>
+            <label>
+              <span>Password</span>
+              <div class="field-with-action">
+                <input :type="reveal ? 'text' : 'password'" v-model="password" placeholder="••••••••" autocomplete="new-password" />
+                <button type="button" class="field-action" @click="reveal = !reveal" :title="reveal ? 'Hide' : 'Reveal'">
+                  <Eye v-if="!reveal" :size="14" />
+                  <EyeOff v-else :size="14" />
+                </button>
+                <button type="button" class="field-action" :disabled="!password" @click="copy(password, 'Password')" title="Copy">
+                  <Copy :size="14" />
+                </button>
+                <button type="button" class="field-action" @click="generate" title="Generate password">
+                  <RefreshCw :size="14" />
+                </button>
+              </div>
+              <div class="generate-row">
+                <label class="length-label">
+                  Length
+                  <input type="number" min="4" max="128" v-model.number="genLength" class="length-input" />
+                </label>
+                <span class="hint">Click <RefreshCw :size="11" class="inline-icon" /> to generate</span>
+              </div>
+            </label>
+
+            <label>
+              <span>URL</span>
+              <div class="field-with-action">
+                <input v-model="url" placeholder="https://example.com" />
+                <button type="button" class="field-action" :disabled="!url" @click="copy(url, 'URL')" title="Copy">
+                  <Copy :size="14" />
+                </button>
+              </div>
+            </label>
+          </template>
+
+          <!-- ===== KEY ===== -->
+          <template v-else-if="isKey">
+            <label>
+              <span>{{ passwordSecretLabel }}</span>
+              <div class="key-field">
+                <textarea
+                  :class="{ revealed: reveal }"
+                  v-model="password"
+                  rows="6"
+                  spellcheck="false"
+                  autocomplete="off"
+                  :placeholder="passwordSecretPlaceholder"
+                ></textarea>
+                <div class="key-field-actions">
+                  <button type="button" class="field-action" @click="reveal = !reveal" :title="reveal ? 'Mask' : 'Reveal'">
+                    <Eye v-if="!reveal" :size="14" />
+                    <EyeOff v-else :size="14" />
+                  </button>
+                  <button type="button" class="field-action" :disabled="!password" @click="copy(password, 'Key')" title="Copy">
+                    <Copy :size="14" />
+                  </button>
+                </div>
+              </div>
+            </label>
+          </template>
+
+          <!-- ===== CARD ===== -->
+          <template v-else-if="isCard">
+            <label>
+              <span>Card Number</span>
+              <div class="field-with-action">
+                <input :type="revealCardNumber ? 'text' : 'password'" v-model="cardNumber" placeholder="•••• •••• •••• ••••" autocomplete="off" />
+                <button type="button" class="field-action" @click="revealCardNumber = !revealCardNumber" :title="revealCardNumber ? 'Hide' : 'Reveal'">
+                  <Eye v-if="!revealCardNumber" :size="14" />
+                  <EyeOff v-else :size="14" />
+                </button>
+                <button type="button" class="field-action" :disabled="!cardNumber" @click="copy(cardNumber, 'Card number')" title="Copy">
+                  <Copy :size="14" />
+                </button>
+              </div>
+            </label>
+
+            <label>
+              <span>Expiration Date</span>
+              <div class="field-with-action">
+                <input v-model="expiration" placeholder="MM/YY" autocomplete="off" />
+                <button type="button" class="field-action" :disabled="!expiration" @click="copy(expiration, 'Expiration')" title="Copy">
+                  <Copy :size="14" />
+                </button>
+              </div>
+            </label>
+
+            <label>
+              <span>Security Code</span>
+              <div class="field-with-action">
+                <input :type="revealCvv ? 'text' : 'password'" v-model="cvv" placeholder="•••" autocomplete="off" />
+                <button type="button" class="field-action" @click="revealCvv = !revealCvv" :title="revealCvv ? 'Hide' : 'Reveal'">
+                  <Eye v-if="!revealCvv" :size="14" />
+                  <EyeOff v-else :size="14" />
+                </button>
+                <button type="button" class="field-action" :disabled="!cvv" @click="copy(cvv, 'Security code')" title="Copy">
+                  <Copy :size="14" />
+                </button>
+              </div>
+            </label>
+          </template>
+
+          <!-- ===== BANK ===== -->
+          <template v-else-if="isBank">
+            <label>
+              <span>Account Number / IBAN</span>
+              <div class="field-with-action">
+                <input :type="revealAccountNumber ? 'text' : 'password'" v-model="accountNumber" placeholder="••••••••••••" autocomplete="off" />
+                <button type="button" class="field-action" @click="revealAccountNumber = !revealAccountNumber" :title="revealAccountNumber ? 'Hide' : 'Reveal'">
+                  <Eye v-if="!revealAccountNumber" :size="14" />
+                  <EyeOff v-else :size="14" />
+                </button>
+                <button type="button" class="field-action" :disabled="!accountNumber" @click="copy(accountNumber, 'Account number')" title="Copy">
+                  <Copy :size="14" />
+                </button>
+              </div>
+            </label>
+
+            <label>
+              <span>Routing Number</span>
+              <div class="field-with-action">
+                <input v-model="routingNumber" placeholder="123456789" autocomplete="off" />
+                <button type="button" class="field-action" :disabled="!routingNumber" @click="copy(routingNumber, 'Routing number')" title="Copy">
+                  <Copy :size="14" />
+                </button>
+              </div>
+            </label>
+
+            <label>
+              <span>SWIFT / BIC Code</span>
+              <div class="field-with-action">
+                <input v-model="swiftBic" placeholder="BOFAUS3N" autocomplete="off" />
+                <button type="button" class="field-action" :disabled="!swiftBic" @click="copy(swiftBic, 'SWIFT/BIC')" title="Copy">
+                  <Copy :size="14" />
+                </button>
+              </div>
+            </label>
+          </template>
 
           <label>
-            <span>Notes</span>
-            <textarea v-model="notes" rows="3" placeholder="Recovery codes, security questions, ..."></textarea>
+            <span>{{ notesLabel }}</span>
+            <textarea v-model="notes" rows="3" :placeholder="(isCard || isBank) ? 'Any extra info…' : 'Recovery codes, security questions, ...'"></textarea>
           </label>
         </div>
 
@@ -241,15 +422,16 @@ const secretPlaceholder = computed(() => isKey.value
 .type-selector.is-locked { opacity: 0.6; }
 .type-option {
   flex: 1;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 6px 10px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 6px 8px;
   background: none;
   border: 1px solid transparent;
   border-radius: 6px;
   color: var(--text-secondary);
   font-family: 'Inter', sans-serif;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
+  white-space: nowrap;
 }
 .type-option.active {
   background: var(--bg-card);

@@ -39,6 +39,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR009](CR/CR009_signed_attachment_urls.md) | Replace Attachment Query-String JWT with Signed URLs |
 | [CR020](CR/CR020_encrypted_password_vault.md) | Encrypted Password & Key Vault (client-side, zero-knowledge) — **Completed** |
 | [CR021](CR/CR021_biometric_vault_unlock.md) | Biometric Vault Unlock (WebAuthn PRF) — planning only |
+| [CR029](CR/CR029_vault_card_bank_entry_types.md) | Vault: Credit Card & Bank Account entry types — **Completed** |
 
 ### Settings & UX
 
@@ -87,6 +88,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ## Recently Completed
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
+
+### Released v0.11.12 (2026-05-25)
+
+- **[CR029](CR/CR029_vault_card_bank_entry_types.md) — Vault gains Credit Card & Bank Account entry types.** Two new `type` discriminators (`card`, `bank`) added alongside the existing `password` / `key`. Card fields: name, card number (masked + reveal + copy), expiration date, security code (masked + reveal + copy), comments. Bank fields: account name, account number / IBAN (masked + reveal + copy), routing number, SWIFT / BIC code, comments. List view replaced the dropdown filter with a 4-tab segmented control; list rows show a type-specific badge icon + two quick-copy buttons per row (Card → CVV + Number; Bank → Routing + Acct). Zero backend changes — the server is strictly zero-knowledge so new types are an encrypted-blob shape only. ([CR020](CR/CR020_encrypted_password_vault.md)'s `changePassword` rotation already re-encrypts all blobs opaquely, so it works unchanged for the new types.) See [§5.17 in NOTED_CURRENT_STATE.md](NOTED_CURRENT_STATE.md#517-encrypted-vault-cr020--cr029-implemented).
 
 ### Released v0.11.11 (2026-05-25)
 
