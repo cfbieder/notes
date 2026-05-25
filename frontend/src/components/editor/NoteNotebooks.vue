@@ -150,7 +150,7 @@ async function createAndSelect() {
 .notebook-dropdown {
   position: absolute;
   top: 100%;
-  left: 0;
+  right: 0;
   margin-top: 4px;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
