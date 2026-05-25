@@ -52,6 +52,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR024](CR/CR024_task_inline_edit.md) | Task Inline Edit (content / due date / linked note) — **Completed** |
 | [CR025](CR/CR025_pdf_document_management.md) | PDF Document Management (import, in-app viewer, folder storage in notebooks, Drive import) — depends on CR009 |
 | [CR026](CR/CR026_activity_rail_navigation.md) | Activity Rail + Contextual Panel Navigation (replace tall sidebar; VS Code/Obsidian pattern) — **In progress** (foundation shipped v0.10.9; mobile drawer→list patch v0.10.10; richer panel content + mobile tab bar deferred) |
+| [CR030](CR/CR030_sortable_notes_list_columns.md) | Sortable Notes List Columns — expanded `NoteListPanel` becomes Title + Last-used columns with click-to-sort headers; narrow sidebar unchanged — **Completed** |
 
 ### Offline & Sync
 
@@ -88,6 +89,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ## Recently Completed
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
+
+### Released v0.11.13 (2026-05-25)
+
+- **[CR030](CR/CR030_sortable_notes_list_columns.md) — Sortable Notes List Columns.** The expanded `NoteListPanel` (shown on `/notes`, `/notebooks/:id`, `/tags/:name` when no note is open) is now a two-column table with **Title** and **Last used** as clickable sticky headers. Clicking a header toggles sort direction; switching columns resets to that column's sensible default (`title` → asc, `updated_at` → desc, matching the prior order). Pinned notes always lead each sort group. Sorting is client-side over `notesStore.notes` (case-insensitive `localeCompare` for titles); the narrow sidebar layout used while editing a note is unchanged. See [§5 Desktop list-only layout entry in NOTED_CURRENT_STATE.md](NOTED_CURRENT_STATE.md).
 
 ### Released v0.11.12 (2026-05-25)
 
