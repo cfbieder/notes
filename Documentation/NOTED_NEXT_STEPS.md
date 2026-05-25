@@ -91,6 +91,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
 
+### Released v0.11.19 (2026-05-25)
+
+- **fix(editor): hide embedded PDF viewer chrome for CR031 inline embeds.** Iframe `src` now appends `#toolbar=0&navpanes=0&scrollbar=0` — PDF Open Parameters honoured by Chrome's built-in viewer (and most others) — so inline PDF embeds render flush against the editor without the viewer's filename bar, page-nav, and zoom controls. ([frontend/src/lib/codemirror/pdfEmbedRendering.js](../frontend/src/lib/codemirror/pdfEmbedRendering.js))
+
 ### Released v0.11.18 (2026-05-25)
 
 - **fix(nginx): `X-Frame-Options: DENY` → `SAMEORIGIN` so CR031 inline PDF embeds load.** `DENY` blocks all framing — including same-origin — so the `![[file.pdf]]` iframe rendered "refused to connect" against its own host. `SAMEORIGIN` keeps clickjacking protection from external sites while letting the editor frame its own `/api/v1/attachments/:id` endpoint. ([nginx/noted.conf](../nginx/noted.conf))
