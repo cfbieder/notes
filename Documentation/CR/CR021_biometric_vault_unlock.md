@@ -1,8 +1,17 @@
 # CR021 — Biometric Vault Unlock (WebAuthn PRF)
 
-**Status:** Open (planning only — to revisit later)
+**Status:** Completed (shipped in v0.11.13)
 **Severity:** Feature (security-sensitive)
 **Origin:** User question on CR020 follow-up, 2026-05-01
+
+## Shipped Implementation
+
+- **Crypto:** Raw 32-byte master key derived (Argon2id, same params as CR020) at enrollment time, wrapped under the PRF secret via AES-256-GCM, stored as base64 in `localStorage` under key `noted.vaultBiometric` alongside `credentialId`, `prfSalt`, and `wrappedIv`.
+- **Lock screen:** when a wrapped key exists for this device, the `/vault` lock screen shows a prominent "Use biometric unlock" button above the password form. The password form remains visible and usable — biometric is purely a shortcut.
+- **Settings:** "Biometric Vault Unlock" card under Vault settings (visible only when a vault exists). Toggle to enable (prompts for current vault password → verifier check → WebAuthn enrollment ceremony) or remove. Shows a hint when no platform authenticator is configured in the OS.
+- **Master-password rotation:** clears the locally-stored wrapped key, since the old key won't unwrap anymore. User re-enrolls if they want biometric back on this device.
+- **Stale-key handling:** if the unwrapped key fails the verifier check (e.g. master password was rotated on another device since enrollment), the wrapped key is auto-cleared and the user is told to re-enroll via password.
+- **Code:** `frontend/src/lib/biometricUnlock.js` (new — WebAuthn enrollment / unlock ceremony + localStorage management), `frontend/src/lib/vaultCrypto.js` (extended with `deriveRawKey`, `importMasterKey`, `wrapBytes`, `unwrapBytes` for the biometric wrap flow), `frontend/src/stores/vault.js` (`enrollBiometric` / `unlockWithBiometric` / `disableBiometric` actions + auto-clear on rotation), `frontend/src/views/VaultView.vue` (lock-screen button), `frontend/src/views/SettingsView.vue` (enrollment card).
 
 ## Problem
 

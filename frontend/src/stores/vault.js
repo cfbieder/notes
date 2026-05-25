@@ -14,6 +14,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { api } from '../api/client.js';
+import { useAuthStore } from './auth.js';
 import {
   DEFAULT_KDF_PARAMS,
   generateSalt,
@@ -24,6 +25,7 @@ import {
   encryptEntry,
   decryptEntry
 } from '../lib/vaultCrypto.js';
+import * as biometric from '../lib/biometricUnlock.js';
 
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 
@@ -35,6 +37,12 @@ export const useVaultStore = defineStore('vault', () => {
   const entries = ref([]);           // [{id, name, username, password, url, notes, updated_at}]
   const busy = ref(false);
   const error = ref(null);
+
+  // Biometric (CR021) — per-device opt-in. `biometricSupported` is a
+  // capability check (browser exposes WebAuthn APIs); `biometricEnrolled`
+  // tracks whether THIS browser has wrapped-key material in localStorage.
+  const biometricSupported = ref(biometric.isSupported());
+  const biometricEnrolled = ref(!!biometric.getStored());
 
   // Held in closure so it never appears in DevTools as a reactive value.
   let masterKey = null;
@@ -266,12 +274,116 @@ export const useVaultStore = defineStore('vault', () => {
         masterKey = newKey;
         resetIdleTimer();
       }
+
+      // Any biometric enrollment on this device wrapped the OLD master key —
+      // it would unwrap to bytes that no longer match the verifier. Drop it
+      // so the user can re-enroll if they want biometric back.
+      if (biometric.getStored()) {
+        biometric.clearEnrollment();
+        biometricEnrolled.value = false;
+      }
+
       // Refresh local meta cache.
       await loadMeta();
       return true;
     } finally {
       busy.value = false;
     }
+  }
+
+  /**
+   * Enroll biometric unlock for this device (CR021).
+   *
+   * Takes the master password (the user just re-typed it in Settings),
+   * verifies it against the existing vault verifier, derives the raw
+   * master-key bytes, then hands them to the WebAuthn PRF enrollment flow
+   * which wraps them under a per-device biometric secret and stashes the
+   * wrapped blob in localStorage.
+   *
+   * Returns true on success, false if the supplied password is wrong.
+   * Throws on cancel or WebAuthn / PRF errors (caller surfaces via toast).
+   */
+  async function enrollBiometric(password) {
+    error.value = null;
+    busy.value = true;
+    let rawKey;
+    try {
+      if (!biometric.isSupported()) {
+        throw new Error('Biometric unlock is not supported in this browser.');
+      }
+      await loadMeta();
+      if (!meta.value) throw new Error('Vault not set up');
+
+      const salt = b64ToBytesLocal(meta.value.kdf_salt);
+      rawKey = await biometric.deriveRawKey(password, salt, meta.value.kdf_params);
+
+      // Verify the password by importing the same bytes as a CryptoKey and
+      // checking the existing verifier — avoids a second Argon2id call.
+      const probeKey = await biometric.importMasterKey(rawKey);
+      const ok = await checkVerifier(probeKey, meta.value.verifier_ciphertext, meta.value.verifier_iv);
+      if (!ok) return false;
+
+      const auth = useAuthStore();
+      const userId = auth.user?.id || 'noted-vault-user';
+      const userName = auth.user?.username || auth.user?.email || 'noted';
+
+      await biometric.enroll({ userId, userName, rawMasterKey: rawKey });
+      biometricEnrolled.value = true;
+      return true;
+    } finally {
+      // Best-effort zero of the raw bytes so they don't linger on the heap.
+      if (rawKey) rawKey.fill(0);
+      busy.value = false;
+    }
+  }
+
+  /**
+   * Biometric unlock — prompts the platform authenticator and uses the
+   * resulting PRF secret to unwrap the locally-stored master key. Returns
+   * true on success, false if the unwrapped key fails verifier check (e.g.
+   * the master password was rotated on another device since enrollment).
+   * Throws on cancel / no enrollment / WebAuthn errors.
+   */
+  async function unlockWithBiometric() {
+    error.value = null;
+    busy.value = true;
+    let rawKey;
+    try {
+      if (!meta.value) await loadMeta();
+      if (!meta.value) throw new Error('Vault not set up');
+
+      rawKey = await biometric.unlock();
+      const key = await biometric.importMasterKey(rawKey);
+
+      // Sanity-check against the verifier. If it fails, the wrapped key is
+      // stale (master password rotated elsewhere) — clear it and tell the
+      // caller to fall back to password unlock.
+      const ok = await checkVerifier(key, meta.value.verifier_ciphertext, meta.value.verifier_iv);
+      if (!ok) {
+        biometric.clearEnrollment();
+        biometricEnrolled.value = false;
+        return false;
+      }
+
+      masterKey = key;
+      isUnlocked.value = true;
+      await loadEntries();
+      resetIdleTimer();
+      return true;
+    } finally {
+      if (rawKey) rawKey.fill(0);
+      busy.value = false;
+    }
+  }
+
+  /**
+   * Remove the biometric enrollment from this device. The credential itself
+   * stays registered with the OS (we can't delete it from the browser side),
+   * but without the wrapped-key blob it can't unlock anything.
+   */
+  function disableBiometric() {
+    biometric.clearEnrollment();
+    biometricEnrolled.value = false;
   }
 
   /**
@@ -337,7 +449,9 @@ export const useVaultStore = defineStore('vault', () => {
 
   return {
     isSetUp, isUnlocked, meta, entries, busy, error, status,
+    biometricSupported, biometricEnrolled,
     loadMeta, setup, unlock, lock, loadEntries,
-    createEntry, updateEntry, deleteEntry, touch, changePassword
+    createEntry, updateEntry, deleteEntry, touch, changePassword,
+    enrollBiometric, unlockWithBiometric, disableBiometric
   };
 });

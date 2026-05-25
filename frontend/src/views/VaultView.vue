@@ -7,7 +7,7 @@ import ConfirmModal from '../components/ui/ConfirmModal.vue';
 import { useVaultStore } from '../stores/vault.js';
 import { useToastsStore } from '../stores/toasts.js';
 import { useMobile } from '../composables/useMobile.js';
-import { Lock, Unlock, Plus, Search, Copy, Eye, EyeOff, ExternalLink, KeyRound, AlertTriangle, User, CreditCard, Landmark, Hash } from 'lucide-vue-next';
+import { Lock, Unlock, Plus, Search, Copy, Eye, EyeOff, ExternalLink, KeyRound, AlertTriangle, User, CreditCard, Landmark, Hash, Fingerprint } from 'lucide-vue-next';
 
 const { isMobile } = useMobile();
 const vault = useVaultStore();
@@ -126,6 +126,18 @@ async function doUnlock() {
     unlockPassword.value = '';
   } catch (err) {
     unlockError.value = err.message || 'Failed to unlock';
+  }
+}
+
+async function doBiometricUnlock() {
+  unlockError.value = '';
+  try {
+    const ok = await vault.unlockWithBiometric();
+    if (!ok) {
+      unlockError.value = 'Saved biometric credential is out of date — enter your password to re-enroll.';
+    }
+  } catch (err) {
+    unlockError.value = err.message || 'Biometric unlock failed';
   }
 }
 
@@ -257,6 +269,22 @@ function maskedDots() {
             <h2>Vault is locked</h2>
           </div>
           <p class="card-intro">Enter your master password to decrypt your entries.</p>
+
+          <button
+            v-if="vault.biometricEnrolled && vault.biometricSupported"
+            type="button"
+            class="btn-biometric"
+            :disabled="vault.busy"
+            @click="doBiometricUnlock"
+          >
+            <Fingerprint :size="16" />
+            {{ vault.busy ? 'Verifying…' : 'Use biometric unlock' }}
+          </button>
+
+          <div v-if="vault.biometricEnrolled && vault.biometricSupported" class="or-divider">
+            <span>or</span>
+          </div>
+
           <form class="setup-form" @submit.prevent="doUnlock">
             <label>
               <span>Master password</span>
@@ -454,6 +482,37 @@ function maskedDots() {
   color: var(--text-primary);
 }
 .warning-box svg { color: #e53935; flex-shrink: 0; margin-top: 2px; }
+
+.btn-biometric {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-input, var(--bg-main));
+  border: 1px solid var(--accent-primary);
+  border-radius: 8px;
+  color: var(--accent-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.btn-biometric:hover:not(:disabled) {
+  background: rgba(var(--accent-primary-rgb, 80, 120, 200), 0.08);
+}
+.btn-biometric:disabled { opacity: 0.5; cursor: not-allowed; }
+.or-divider {
+  display: flex; align-items: center; gap: 8px;
+  margin: 12px 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.or-divider::before, .or-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--border-subtle);
+}
 
 .setup-form { display: flex; flex-direction: column; gap: 12px; }
 .setup-form label {

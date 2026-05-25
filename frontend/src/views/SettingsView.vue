@@ -7,7 +7,8 @@ import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import SystemStatusCard from '../components/ui/SystemStatusCard.vue';
 import { useMobile } from '../composables/useMobile.js';
-import { Settings, HardDrive, RefreshCw, CheckCircle, XCircle, Loader2, Unplug, ExternalLink, Lock, Palette, AlertTriangle, KeyRound } from 'lucide-vue-next';
+import { Settings, HardDrive, RefreshCw, CheckCircle, XCircle, Loader2, Unplug, ExternalLink, Lock, Palette, AlertTriangle, KeyRound, Fingerprint } from 'lucide-vue-next';
+import { hasPlatformAuthenticator } from '../lib/biometricUnlock.js';
 import { api } from '../api/client.js';
 import { useVaultStore } from '../stores/vault.js';
 
@@ -76,6 +77,41 @@ const canSubmitVaultPassword = () =>
   vaultNewPassword.value.length >= 6 &&
   vaultNewPassword.value === vaultConfirmPassword.value;
 
+// Biometric vault unlock (CR021)
+const biometricPassword = ref('');
+const biometricSaving = ref(false);
+const biometricMessage = ref('');
+const biometricError = ref(false);
+const platformAuthAvailable = ref(false);
+
+async function enableBiometric() {
+  biometricMessage.value = '';
+  biometricError.value = false;
+  if (!biometricPassword.value) return;
+  biometricSaving.value = true;
+  try {
+    const ok = await vault.enrollBiometric(biometricPassword.value);
+    if (!ok) {
+      biometricMessage.value = 'Incorrect vault password';
+      biometricError.value = true;
+      return;
+    }
+    biometricMessage.value = 'Biometric unlock enabled on this device';
+    biometricPassword.value = '';
+  } catch (err) {
+    biometricMessage.value = err.message || 'Failed to enable biometric unlock';
+    biometricError.value = true;
+  } finally {
+    biometricSaving.value = false;
+  }
+}
+
+function disableBiometric() {
+  vault.disableBiometric();
+  biometricMessage.value = 'Biometric unlock removed from this device';
+  biometricError.value = false;
+}
+
 async function changeVaultPassword() {
   vaultPasswordMessage.value = '';
   vaultPasswordError.value = false;
@@ -117,6 +153,12 @@ onMounted(async () => {
   // change-vault-password card. Failures are silent — the vault store will
   // surface its own errors when the card is interacted with.
   try { await vault.loadMeta(); } catch { /* ignore */ }
+
+  // Cheap probe: does this device have a usable platform authenticator?
+  // We still let users try to enroll if the probe fails (it's advisory).
+  if (vault.biometricSupported) {
+    platformAuthAvailable.value = await hasPlatformAuthenticator();
+  }
 });
 
 async function connectGoogleDrive() {
@@ -284,6 +326,55 @@ function formatDate(dateStr) {
                 {{ vaultPasswordSaving ? 'Re-encrypting…' : 'Update Vault Password' }}
               </button>
               <span v-if="vaultPasswordMessage" :class="['config-msg', { 'config-msg-error': vaultPasswordError }]">{{ vaultPasswordMessage }}</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Biometric Vault Unlock (CR021) — per-device opt-in -->
+        <section v-if="vault.isSetUp" class="settings-section">
+          <h3><Fingerprint :size="16" /> Biometric Vault Unlock</h3>
+          <p class="section-desc">
+            Use your device's fingerprint, Face ID, or Windows Hello to unlock the vault on this browser
+            without typing the master password. Your master password is still the source of truth — this
+            is a per-device shortcut. The wrapped key is stored locally only; the server never sees it.
+          </p>
+
+          <div v-if="!vault.biometricSupported" class="biometric-unsupported">
+            <AlertTriangle :size="14" />
+            This browser does not expose WebAuthn — biometric unlock is unavailable here.
+          </div>
+
+          <div v-else-if="vault.biometricEnrolled" class="biometric-card-row">
+            <div class="biometric-status">
+              <CheckCircle :size="16" class="status-ok" />
+              <div>
+                <strong>Enabled on this device.</strong>
+                <span class="section-hint">
+                  Removing it here only clears the local wrapped key — the OS credential stays registered.
+                </span>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-secondary" @click="disableBiometric">Remove from this device</button>
+              <span v-if="biometricMessage" :class="['config-msg', { 'config-msg-error': biometricError }]">{{ biometricMessage }}</span>
+            </div>
+          </div>
+
+          <div v-else class="config-form">
+            <div v-if="!platformAuthAvailable" class="biometric-hint">
+              <AlertTriangle :size="14" />
+              No platform authenticator detected. Set up a fingerprint / Face ID / Windows Hello in your OS first.
+            </div>
+            <div class="form-group">
+              <label>Vault password (to verify before enrolling)</label>
+              <input v-model="biometricPassword" type="password" class="form-input" autocomplete="current-password" @keyup.enter="enableBiometric" />
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" @click="enableBiometric" :disabled="biometricSaving || !biometricPassword">
+                <Fingerprint :size="14" />
+                {{ biometricSaving ? 'Enrolling…' : 'Enable biometric unlock' }}
+              </button>
+              <span v-if="biometricMessage" :class="['config-msg', { 'config-msg-error': biometricError }]">{{ biometricMessage }}</span>
             </div>
           </div>
         </section>
@@ -654,6 +745,38 @@ function formatDate(dateStr) {
   font-size: 13px;
   color: var(--text-muted);
   margin: 0 0 16px 0;
+}
+
+.biometric-unsupported, .biometric-hint {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px;
+  background: rgba(229, 165, 57, 0.08);
+  border: 1px solid rgba(229, 165, 57, 0.3);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.biometric-unsupported svg, .biometric-hint svg { color: var(--accent-warn, #e8a13b); flex-shrink: 0; }
+
+.biometric-card-row {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.biometric-status {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg-input, var(--bg-main));
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.biometric-status strong { color: var(--text-primary); display: block; margin-bottom: 2px; }
+.biometric-status .status-ok { color: var(--accent-success, #4caf50); flex-shrink: 0; margin-top: 2px; }
+.section-hint {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: normal;
 }
 
 /* Connect card */

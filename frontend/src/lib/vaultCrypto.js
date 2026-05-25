@@ -59,10 +59,19 @@ export function generateSalt() {
 // ---- key derivation --------------------------------------------------------
 
 export async function deriveKey(password, salt, params = DEFAULT_KDF_PARAMS) {
+  const hashBytes = await deriveRawKey(password, salt, params);
+  return importMasterKey(hashBytes);
+}
+
+/**
+ * Like deriveKey, but returns the raw 32 bytes so callers can wrap them
+ * (used only during biometric enrollment — never persisted in plaintext).
+ */
+export async function deriveRawKey(password, salt, params = DEFAULT_KDF_PARAMS) {
   if (params.algo !== 'argon2id') {
     throw new Error(`Unsupported KDF: ${params.algo}`);
   }
-  const hashBytes = await argon2id({
+  return argon2id({
     password,
     salt,
     parallelism: params.p,
@@ -71,13 +80,44 @@ export async function deriveKey(password, salt, params = DEFAULT_KDF_PARAMS) {
     hashLength: 32,
     outputType: 'binary'
   });
+}
+
+/**
+ * Import raw 32-byte master-key material as a non-extractable AES-GCM key.
+ */
+export async function importMasterKey(rawBytes) {
   return crypto.subtle.importKey(
     'raw',
-    hashBytes,
+    rawBytes,
     { name: 'AES-GCM' },
     /* extractable */ false,
     ['encrypt', 'decrypt']
   );
+}
+
+/**
+ * Wrap raw key bytes under a separate raw AES-GCM secret (e.g. a WebAuthn PRF
+ * output). Returns base64 of ciphertext + iv. Used by biometric enrollment.
+ */
+export async function wrapBytes(plaintextBytes, secretBytes) {
+  const wrapKey = await crypto.subtle.importKey(
+    'raw', secretBytes, { name: 'AES-GCM' }, false, ['encrypt']
+  );
+  const iv = randomBytes(12);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrapKey, plaintextBytes);
+  return { ciphertext: bytesToB64(new Uint8Array(ct)), iv: bytesToB64(iv) };
+}
+
+export async function unwrapBytes(ciphertextB64, ivB64, secretBytes) {
+  const wrapKey = await crypto.subtle.importKey(
+    'raw', secretBytes, { name: 'AES-GCM' }, false, ['decrypt']
+  );
+  const pt = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: b64ToBytes(ivB64) },
+    wrapKey,
+    b64ToBytes(ciphertextB64)
+  );
+  return new Uint8Array(pt);
 }
 
 // ---- AES-GCM ---------------------------------------------------------------
