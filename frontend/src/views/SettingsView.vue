@@ -571,6 +571,55 @@ function formatDate(dateStr) {
           </div>
         </section>
 
+        <!-- Biometric Vault Unlock (CR021) — per-device opt-in -->
+        <section v-if="vault.isSetUp" class="settings-section">
+          <h3><Fingerprint :size="16" /> Biometric Vault Unlock</h3>
+          <p class="section-desc">
+            Use your device's fingerprint, Face ID, or Windows Hello to unlock the vault on this browser
+            without typing the master password. Your master password is still the source of truth — this
+            is a per-device shortcut. The wrapped key is stored locally only; the server never sees it.
+          </p>
+
+          <div v-if="!vault.biometricSupported" class="biometric-unsupported">
+            <AlertTriangle :size="14" />
+            This browser does not expose WebAuthn — biometric unlock is unavailable here.
+          </div>
+
+          <div v-else-if="vault.biometricEnrolled" class="biometric-card-row">
+            <div class="biometric-status">
+              <CheckCircle :size="16" class="status-ok" />
+              <div>
+                <strong>Enabled on this device.</strong>
+                <span class="section-hint">
+                  Removing it here only clears the local wrapped key — the OS credential stays registered.
+                </span>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-secondary" @click="disableBiometric">Remove from this device</button>
+              <span v-if="biometricMessage" :class="['config-msg', { 'config-msg-error': biometricError }]">{{ biometricMessage }}</span>
+            </div>
+          </div>
+
+          <div v-else class="config-form">
+            <div v-if="!platformAuthAvailable" class="biometric-hint">
+              <AlertTriangle :size="14" />
+              No platform authenticator detected. Set up a fingerprint / Face ID / Windows Hello in your OS first.
+            </div>
+            <div class="form-group">
+              <label>Vault password (to verify before enrolling)</label>
+              <input v-model="biometricPassword" type="password" class="form-input" autocomplete="current-password" @keyup.enter="enableBiometric" />
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" @click="enableBiometric" :disabled="biometricSaving || !biometricPassword">
+                <Fingerprint :size="14" />
+                {{ biometricSaving ? 'Enrolling…' : 'Enable biometric unlock' }}
+              </button>
+              <span v-if="biometricMessage" :class="['config-msg', { 'config-msg-error': biometricError }]">{{ biometricMessage }}</span>
+            </div>
+          </div>
+        </section>
+
         <!-- Google Drive Integration -->
         <section class="settings-section">
           <h3>Google Drive Import</h3>
