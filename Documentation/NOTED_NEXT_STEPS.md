@@ -53,6 +53,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR025](CR/CR025_pdf_document_management.md) | PDF Document Management (import, in-app viewer, folder storage in notebooks, Drive import) — depends on CR009 |
 | [CR026](CR/CR026_activity_rail_navigation.md) | Activity Rail + Contextual Panel Navigation (replace tall sidebar; VS Code/Obsidian pattern) — **In progress** (foundation shipped v0.10.9; mobile drawer→list patch v0.10.10; richer panel content + mobile tab bar deferred) |
 | [CR030](CR/CR030_sortable_notes_list_columns.md) | Sortable Notes List Columns — expanded `NoteListPanel` becomes Title + Last-used columns with click-to-sort headers; narrow sidebar unchanged — **Completed** |
+| [CR031](CR/CR031_inline_pdf_attachment_embeds.md) | Inline PDF attachment embeds (`![[file.pdf]]` → iframe) + "Insert into document" button on attachment rows — **Completed** |
 
 ### Offline & Sync
 
@@ -89,6 +90,14 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ## Recently Completed
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
+
+### Released v0.11.17 (2026-05-25)
+
+- **[CR031](CR/CR031_inline_pdf_attachment_embeds.md) — Inline PDF attachment embeds + Insert button.** New Obsidian-style `![[filename.pdf]]` syntax renders PDF attachments as an inline `<iframe>` in Normal Mode (browser-native PDF viewer; ~640 px tall, full editor width). Each row in the `AttachmentZone` gets a corner-down-left **Insert** button that drops the right markdown at the cursor — `![filename](url)` for images, `![[filename]]` for PDFs, `[filename](url)` for everything else. Wikilink regex (frontend renderer + backend `wikilinkParser`) now uses a negative lookbehind `(?<!!)` so embed syntax is no longer mis-classified as a broken wikilink. Source Mode still shows raw `![[…]]`. Out of scope: PDF.js viewer, standalone documents, print/export rendering — those remain CR025. See `Documentation/CR/CR031_inline_pdf_attachment_embeds.md`.
+
+### Released v0.11.16 (2026-05-25)
+
+- **fix(vault): biometric enrollment now retrieves the PRF secret via a follow-up `get()` when `create()` doesn't evaluate it.** Chrome (and most platform authenticators) register PRF support on `navigator.credentials.create()` but only evaluate `eval.first` on subsequent `get()` assertions — so the v0.11.14 enrollment code threw "PRF unsupported" even on Chrome 132+ where it actually works fine. Take the `create()` PRF result if present; otherwise immediately run an assertion against the just-registered credential to retrieve the secret. One extra biometric tap during enrollment only; unlock stays single-tap. ([frontend/src/lib/biometricUnlock.js](../frontend/src/lib/biometricUnlock.js))
 
 ### Released v0.11.15 (2026-05-25)
 
