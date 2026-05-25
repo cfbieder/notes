@@ -90,6 +90,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
 
+### Released v0.11.15 (2026-05-25)
+
+- **fix(settings): biometric vault card now appears in the desktop Settings page too.** SettingsView has separate mobile (`<MobileLayout v-if="isMobile">`) and desktop templates; the v0.11.14 CR021 enrollment card landed only in the mobile branch, so desktop users saw nothing between "Change Vault Password" and "Google Drive Import". Mirrored the section into the desktop branch. ([frontend/src/views/SettingsView.vue](../frontend/src/views/SettingsView.vue))
+
 ### Released v0.11.14 (2026-05-25)
 
 - **[CR021](CR/CR021_biometric_vault_unlock.md) — Biometric Vault Unlock via WebAuthn PRF.** Opt-in per device: enrollment runs a WebAuthn ceremony with the PRF extension on the platform authenticator (Touch ID / Windows Hello / Android fingerprint), wraps a copy of the 32-byte master key under the PRF secret (AES-256-GCM), and stores the wrapped blob in `localStorage["noted.vaultBiometric"]`. Lock screen gains a "Use biometric unlock" button when a wrapped key is present; master password remains primary and mandatory. Master-password rotation auto-clears the local wrapped key; a stale wrap (e.g. password rotated on another device) is detected via verifier check after unwrap and auto-cleared. Zero backend changes — wrapped key blobs live in the browser only; the server has no awareness of biometric enrollment. New file `frontend/src/lib/biometricUnlock.js`; `vaultCrypto.js` extended with `deriveRawKey` / `importMasterKey` / `wrapBytes` / `unwrapBytes`; Settings card under Vault for enroll/disable. See [§5.17 in NOTED_CURRENT_STATE.md](NOTED_CURRENT_STATE.md#517-encrypted-vault-cr020--cr029--cr021-implemented).
