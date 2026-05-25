@@ -91,6 +91,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
 
+### Released v0.11.20 (2026-05-25)
+
+- **fix(mobile): wire `noteMap`/`noteTitles`/`attachmentMap` into the mobile `CodeMirrorEditor`.** Without these props the CR031 embed plugin sees an empty attachment map and every `![[file.pdf]]` falls through to the "broken" widget that renders the raw `![[…]]` text — which is exactly what users saw on Android. Also added an `onInsertAttachment` handler so the new attachment-row Insert button works on mobile. Note: even with this fix, Android Chrome has no native inline PDF viewer — the iframe will render but the browser may show a blank frame or download prompt for PDFs. Inline rendering works fully on desktop Chrome. ([frontend/src/components/mobile/MobileEditor.vue](../frontend/src/components/mobile/MobileEditor.vue))
+
 ### Released v0.11.19 (2026-05-25)
 
 - **fix(editor): hide embedded PDF viewer chrome for CR031 inline embeds.** Iframe `src` now appends `#toolbar=0&navpanes=0&scrollbar=0` — PDF Open Parameters honoured by Chrome's built-in viewer (and most others) — so inline PDF embeds render flush against the editor without the viewer's filename bar, page-nav, and zoom controls. ([frontend/src/lib/codemirror/pdfEmbedRendering.js](../frontend/src/lib/codemirror/pdfEmbedRendering.js))
