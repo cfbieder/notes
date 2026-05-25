@@ -1,6 +1,11 @@
 # CR021 — Biometric Vault Unlock (WebAuthn PRF)
 
-**Status:** Completed (shipped in v0.11.14)
+**Status:** Completed (shipped in v0.11.14; follow-up fixes v0.11.15 + v0.11.16)
+
+## Post-Release Fixes
+
+- **v0.11.15** — `SettingsView.vue` has separate mobile (`<MobileLayout v-if="isMobile">`) and desktop templates; the initial v0.11.14 enrollment card landed only in the mobile branch. Mirrored it into the desktop branch so desktop users see "Biometric Vault Unlock" between Change Vault Password and Google Drive Import.
+- **v0.11.16** — Chrome and most platform authenticators register PRF support on `navigator.credentials.create()` but only evaluate `eval.first` on subsequent `get()` assertions, so v0.11.14 enrollment threw "PRF unsupported" on Chrome ≥ 132 where PRF actually works. Now take the `create()` PRF result if present, otherwise immediately run an assertion against the just-registered credential to retrieve the secret. One extra biometric tap during enrollment only; unlock stays single-tap.
 **Severity:** Feature (security-sensitive)
 **Origin:** User question on CR020 follow-up, 2026-05-01
 
