@@ -63,7 +63,7 @@ async function run() {
   assert(articleRes.status === 201, 'Article clip returns 201');
   assert(articleRes.data?.data?.note?.id, 'Article clip returns note id');
   assert(articleRes.data?.data?.note?.source_url === 'https://example.com/article', 'source_url stored');
-  assert(articleRes.data?.data?.note?.is_inbox === true, 'Inbox flag set');
+  assert(articleRes.data?.data?.note?.notebook_id === null, 'send_to_inbox=true → notebook-less (lands in Inbox via derived filter)');
   assert(articleRes.data?.data?.note?.content?.includes('Clipped from'), 'Note body has source header');
   assert(articleRes.data?.data?.note?.content?.includes('This is the clipped body'), 'Body content preserved');
   assert(Array.isArray(articleRes.data?.data?.tag_ids) && articleRes.data.data.tag_ids.length === 2, 'Two tags attached');
@@ -80,7 +80,7 @@ async function run() {
     }
   });
   assert(selRes.status === 201, 'Selection clip returns 201');
-  assert(selRes.data?.data?.note?.is_inbox === true, 'Selection defaults to inbox when no notebook');
+  assert(selRes.data?.data?.note?.notebook_id === null, 'Selection defaults to notebook-less (Inbox) when no notebook');
   if (selRes.data?.data?.note?.id) createdNoteIds.push(selRes.data.data.note.id);
 
   console.log('\nClip — link-only mode:');

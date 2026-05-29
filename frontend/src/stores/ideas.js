@@ -22,7 +22,7 @@ export const useIdeasStore = defineStore('ideas', () => {
   }
 
   async function createIdea(data) {
-    const res = await api.post('/notes', { ...data, note_type: 'idea', is_inbox: false });
+    const res = await api.post('/notes', { ...data, note_type: 'idea' });
     await fetchIdeas();
     return res.data;
   }

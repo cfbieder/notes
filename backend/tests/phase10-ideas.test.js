@@ -58,7 +58,6 @@ async function run() {
   const idea = createRes.data?.data;
   assert(createRes.status === 201, 'POST /notes returns 201');
   assert(idea?.note_type === 'idea', 'Created note has note_type=idea');
-  assert(idea?.is_inbox === false, 'Idea is not in inbox');
   assert(idea?.notebook_id === null, 'Idea has null notebook_id');
   assert(idea?.title === 'Test idea title', 'Title has no 💡 prefix');
   assert(!idea?.content?.includes('**Idea**'), 'Content has no blockquote wrapper');

@@ -51,9 +51,10 @@ async function importDriveFile(fastify, drive, file, userId, integrationId) {
         // Re-sync wikilinks for the updated content
         await syncNoteWikilinks(fastify, noteId, userId, textContent);
       } else {
+        // notebook_id left NULL → note shows up in /inbox.
         noteResult = await fastify.db.query(
-          `INSERT INTO notes (user_id, title, content, is_inbox)
-           VALUES ($1, $2, $3, TRUE) RETURNING *`,
+          `INSERT INTO notes (user_id, title, content)
+           VALUES ($1, $2, $3) RETURNING *`,
           [userId, title, textContent]
         );
       }
@@ -83,11 +84,11 @@ async function importDriveFile(fastify, drive, file, userId, integrationId) {
       contentStream = response.data;
     }
 
-    // Binary files: create inbox note with attachment
+    // Binary files: create inbox note with attachment (notebook_id NULL).
     const title = path.basename(file.name, path.extname(file.name));
     const noteResult = await fastify.db.query(
-      `INSERT INTO notes (user_id, title, content, is_inbox)
-       VALUES ($1, $2, $3, TRUE) RETURNING *`,
+      `INSERT INTO notes (user_id, title, content)
+       VALUES ($1, $2, $3) RETURNING *`,
       [userId, title, `Imported from Google Drive: ${file.name}`]
     );
     const noteId = noteResult.rows[0].id;

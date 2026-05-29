@@ -48,7 +48,7 @@ async function noteRoutes(fastify) {
         properties: {
           notebook_id: { type: 'string', format: 'uuid' },
           tag_id: { type: 'string', format: 'uuid' },
-          is_inbox: { type: 'string', enum: ['true', 'false'] },
+          in_inbox: { type: 'string', enum: ['true', 'false'] },
           note_type: { type: 'string', enum: ['note', 'idea'] },
           search: { type: 'string' },
           pinned: { type: 'string', enum: ['true', 'false'] },
@@ -58,21 +58,32 @@ async function noteRoutes(fastify) {
       }
     }
   }, async (request) => {
-    const { notebook_id, tag_id, is_inbox, note_type, search, pinned, limit = 50, offset = 0 } = request.query;
+    const { notebook_id, tag_id, in_inbox, note_type, search, pinned, limit = 50, offset = 0 } = request.query;
     const userId = request.user.id;
 
     const conditions = ['n.user_id = $1', 'n.deleted_at IS NULL'];
     const params = [userId];
     let paramIndex = 2;
+    // Inbox derivation needs a join to the user's default notebook; only added
+    // when in_inbox is requested so the common list query stays cheap.
+    let inboxJoin = '';
 
     if (notebook_id) {
       conditions.push(`n.notebook_id = $${paramIndex++}`);
       params.push(notebook_id);
     }
 
-    if (is_inbox !== undefined) {
-      conditions.push(`n.is_inbox = $${paramIndex++}`);
-      params.push(is_inbox === 'true');
+    if (in_inbox !== undefined) {
+      // Inbox is for *notes* awaiting triage — ideas live in their own
+      // surface (note_type='idea' → /ideas), so they're excluded regardless
+      // of notebook assignment.
+      inboxJoin = `LEFT JOIN notebooks inbox_nb ON inbox_nb.id = n.notebook_id`;
+      if (in_inbox === 'true') {
+        conditions.push(`n.note_type <> 'idea'`);
+        conditions.push(`(n.notebook_id IS NULL OR inbox_nb.is_default = TRUE)`);
+      } else {
+        conditions.push(`(n.note_type = 'idea' OR (n.notebook_id IS NOT NULL AND inbox_nb.is_default = FALSE))`);
+      }
     }
 
     if (note_type !== undefined) {
@@ -92,9 +103,9 @@ async function noteRoutes(fastify) {
       paramIndex += 2;
     }
 
-    let joinClause = '';
+    let joinClause = inboxJoin;
     if (tag_id) {
-      joinClause = `JOIN note_tags nt ON nt.note_id = n.id`;
+      joinClause = `${joinClause} JOIN note_tags nt ON nt.note_id = n.id`;
       conditions.push(`nt.tag_id = $${paramIndex++}`);
       params.push(tag_id);
     }
@@ -108,7 +119,7 @@ async function noteRoutes(fastify) {
 
     params.push(limit, offset);
     const result = await fastify.db.query(
-      `SELECT DISTINCT n.id, n.title, n.content, n.notebook_id, n.is_inbox, n.note_type, n.pinned,
+      `SELECT DISTINCT n.id, n.title, n.content, n.notebook_id, n.note_type, n.pinned,
               n.reminder_at, n.created_at, n.updated_at
        FROM notes n ${joinClause}
        WHERE ${where}
@@ -171,8 +182,7 @@ async function noteRoutes(fastify) {
         properties: {
           title: { type: 'string', maxLength: 500 },
           content: { type: 'string' },
-          notebook_id: { type: 'string', format: 'uuid' },
-          is_inbox: { type: 'boolean' },
+          notebook_id: { type: ['string', 'null'], format: 'uuid', nullable: true },
           note_type: { type: 'string', enum: ['note', 'idea'] },
           reminder_at: { type: 'string', format: 'date-time' },
           client_id: { type: 'string', format: 'uuid' },
@@ -184,7 +194,7 @@ async function noteRoutes(fastify) {
       }
     }
   }, async (request, reply) => {
-    const { title, content, notebook_id, is_inbox, note_type, reminder_at, client_id, tag_ids, is_ai_generated, ai_prompt, format } = request.body;
+    const { title, content, notebook_id, note_type, reminder_at, client_id, tag_ids, is_ai_generated, ai_prompt, format } = request.body;
     const userId = request.user.id;
 
     // Idempotency: if this client_id already exists for the user, return existing row.
@@ -199,9 +209,11 @@ async function noteRoutes(fastify) {
     }
 
     const finalNoteType = note_type || 'note';
+    // notebook_id===null means "explicit Inbox" (notebook-less capture); only
+    // fall back to the default notebook when the caller didn't mention it at
+    // all (undefined) and the note isn't an idea (ideas live notebook-less).
     let finalNotebookId = notebook_id;
-    // Ideas are notebook-less by default; only regular notes fall back to default notebook
-    if (!finalNotebookId && !is_inbox && finalNoteType !== 'idea') {
+    if (finalNotebookId === undefined && finalNoteType !== 'idea') {
       const defaultNb = await fastify.db.query(
         'SELECT id FROM notebooks WHERE user_id = $1 AND is_default = TRUE LIMIT 1',
         [userId]
@@ -214,10 +226,10 @@ async function noteRoutes(fastify) {
     const finalFormat = format || 'markdown';
 
     const result = await fastify.db.query(
-      `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox, note_type, reminder_at, client_id, is_ai_generated, ai_prompt, format)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO notes (user_id, notebook_id, title, content, note_type, reminder_at, client_id, is_ai_generated, ai_prompt, format)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [userId, finalNotebookId || null, title || 'Untitled', content || '', is_inbox || false, finalNoteType, reminder_at || null, client_id || null, is_ai_generated || false, ai_prompt || null, finalFormat]
+      [userId, finalNotebookId || null, title || 'Untitled', content || '', finalNoteType, reminder_at || null, client_id || null, is_ai_generated || false, ai_prompt || null, finalFormat]
     );
 
     const note = result.rows[0];
@@ -247,9 +259,8 @@ async function noteRoutes(fastify) {
         properties: {
           title: { type: 'string', maxLength: 500 },
           content: { type: 'string' },
-          notebook_id: { type: 'string', format: 'uuid' },
+          notebook_id: { type: ['string', 'null'], format: 'uuid', nullable: true },
           pinned: { type: 'boolean' },
-          is_inbox: { type: 'boolean' },
           note_type: { type: 'string', enum: ['note', 'idea'] },
           reminder_at: { type: ['string', 'null'], format: 'date-time', nullable: true },
           auto_update: { type: 'boolean' },
@@ -260,19 +271,22 @@ async function noteRoutes(fastify) {
     }
   }, async (request, reply) => {
     const { id } = request.params;
-    const { title, content, notebook_id, pinned, is_inbox, note_type, tag_ids, format } = request.body;
+    const { title, content, pinned, note_type, tag_ids, format } = request.body;
 
-    // Build SET clause — reminder_at needs explicit null handling
+    // Build SET clause — notebook_id and reminder_at need explicit null handling.
     const setClauses = [
       'title = COALESCE($1, title)',
       'content = COALESCE($2, content)',
-      'notebook_id = COALESCE($3, notebook_id)',
-      'pinned = COALESCE($4, pinned)',
-      'is_inbox = COALESCE($5, is_inbox)',
-      'note_type = COALESCE($6, note_type)'
+      'pinned = COALESCE($3, pinned)',
+      'note_type = COALESCE($4, note_type)'
     ];
-    const params = [title, content, notebook_id, pinned, is_inbox, note_type];
-    let idx = 7;
+    const params = [title, content, pinned, note_type];
+    let idx = 5;
+
+    if ('notebook_id' in request.body) {
+      setClauses.push(`notebook_id = $${idx++}`);
+      params.push(request.body.notebook_id);
+    }
 
     if ('reminder_at' in request.body) {
       setClauses.push(`reminder_at = $${idx++}`);
@@ -535,7 +549,7 @@ async function noteRoutes(fastify) {
 
     const result = await fastify.db.query(
       `UPDATE notes
-       SET note_type = 'note', notebook_id = $1, is_inbox = FALSE
+       SET note_type = 'note', notebook_id = $1
        WHERE id = $2 AND user_id = $3
        RETURNING *`,
       [notebook_id, id, userId]

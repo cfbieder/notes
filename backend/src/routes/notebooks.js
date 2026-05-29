@@ -132,7 +132,7 @@ async function notebookRoutes(fastify) {
     if (defaultNb.rows.length > 0) {
       // Move all notes from this notebook to Inbox
       await fastify.db.query(
-        'UPDATE notes SET notebook_id = $1, is_inbox = TRUE WHERE notebook_id = $2 AND user_id = $3',
+        'UPDATE notes SET notebook_id = $1 WHERE notebook_id = $2 AND user_id = $3',
         [defaultNb.rows[0].id, id, request.user.id]
       );
     }

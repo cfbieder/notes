@@ -92,7 +92,7 @@ onMounted(async () => {
   } catch { /* ignore */ }
   try {
     notesStore.clearFilters();
-    notesStore.setFilter('is_inbox', 'true');
+    notesStore.setFilter('in_inbox', 'true');
     await notesStore.fetchNotes();
     inboxCount.value = notesStore.meta.total;
     notesStore.clearFilters();

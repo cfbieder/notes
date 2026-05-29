@@ -43,8 +43,7 @@ function toggleDropdown() {
 async function selectNotebook(notebook) {
   if (!notesStore.currentNote) return;
   await notesStore.updateNote(notesStore.currentNote.id, {
-    notebook_id: notebook.id,
-    is_inbox: !!notebook.is_default
+    notebook_id: notebook.id
   });
   await Promise.all([
     notesStore.fetchNote(notesStore.currentNote.id),

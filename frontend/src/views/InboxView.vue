@@ -19,7 +19,7 @@ const openMenuId = ref(null);
 
 onMounted(async () => {
   notesStore.clearFilters();
-  notesStore.setFilter('is_inbox', 'true');
+  notesStore.setFilter('in_inbox', 'true');
   await notesStore.fetchNotes();
   if (notebooksStore.notebooks.length === 0) {
     await notebooksStore.fetchNotebooks();
@@ -32,10 +32,7 @@ function toggleMoveMenu(noteId) {
 
 async function moveToNotebook(noteId, notebookId) {
   openMenuId.value = null;
-  await notesStore.updateNote(noteId, {
-    notebook_id: notebookId,
-    is_inbox: false
-  });
+  await notesStore.updateNote(noteId, { notebook_id: notebookId });
   await notesStore.fetchNotes();
   await notebooksStore.fetchNotebooks();
 }

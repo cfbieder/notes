@@ -18,7 +18,7 @@ export const useNotesStore = defineStore('notes', () => {
   const filters = ref({
     notebook_id: null,
     tag_id: null,
-    is_inbox: null,
+    in_inbox: null,
     note_type: null,
     search: null
   });
@@ -34,7 +34,7 @@ export const useNotesStore = defineStore('notes', () => {
       const params = new URLSearchParams();
       if (filters.value.notebook_id) params.set('notebook_id', filters.value.notebook_id);
       if (filters.value.tag_id) params.set('tag_id', filters.value.tag_id);
-      if (filters.value.is_inbox !== null) params.set('is_inbox', filters.value.is_inbox);
+      if (filters.value.in_inbox !== null) params.set('in_inbox', filters.value.in_inbox);
       if (filters.value.note_type) params.set('note_type', filters.value.note_type);
       if (filters.value.search) params.set('search', filters.value.search);
 
@@ -57,7 +57,6 @@ export const useNotesStore = defineStore('notes', () => {
           updated_at: new Date(r.lastEditedAt || r.checkedOutAt).toISOString(),
           // Filters can narrow this further client-side if needed.
           note_type: 'note',
-          is_inbox: false,
           pinned: false,
           format: 'markdown',
           _localOnly: true
@@ -155,7 +154,7 @@ export const useNotesStore = defineStore('notes', () => {
     if (currentNote.value && currentNote.value.id === id) {
       currentNote.value = { ...currentNote.value, ...res.data };
     }
-    if (data.notebook_id !== undefined || data.is_inbox !== undefined) {
+    if (data.notebook_id !== undefined) {
       useNotebooksStore().fetchNotebooks();
     }
     return res.data;
@@ -207,7 +206,7 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   function clearFilters() {
-    filters.value = { notebook_id: null, tag_id: null, is_inbox: null, note_type: null, search: null };
+    filters.value = { notebook_id: null, tag_id: null, in_inbox: null, note_type: null, search: null };
   }
 
   // ===== CR027: Offline checkout actions =====

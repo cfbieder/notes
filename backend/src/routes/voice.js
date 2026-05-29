@@ -106,11 +106,12 @@ async function voiceRoutes(fastify) {
     });
     const title = `Voice Note — ${titleDate} ${titleTime}`;
 
-    // Create idea (notebook-less, not inbox) — user can promote/merge later
+    // Create idea (notebook-less, ideas live outside Inbox — note_type='idea'
+    // is what routes them to the Ideas view, not a notebook assignment).
     const noteContent = transcribedText || '*(no speech detected)*';
     const noteResult = await fastify.db.query(
-      `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox, note_type)
-       VALUES ($1, NULL, $2, $3, FALSE, 'idea')
+      `INSERT INTO notes (user_id, notebook_id, title, content, note_type)
+       VALUES ($1, NULL, $2, $3, 'idea')
        RETURNING *`,
       [userId, title, noteContent]
     );

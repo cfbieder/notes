@@ -6,8 +6,8 @@
 //   2. fetches input notes (optionally condenses each via the fast model)
 //   3. assembles the prompt and calls llmService.generateText with the deep
 //      task name (or bridging deep model when /task routing is disabled)
-//   4. on success: creates an inbox note (is_inbox=true, in the user's default
-//      Inbox notebook, is_ai_generated=true) and writes result_note_id
+//   4. on success: creates a note in the user's default notebook (so it lands
+//      in /inbox), is_ai_generated=true, and writes result_note_id
 //   5. on error / abort: marks 'failed' or 'cancelled' with error_message
 //
 // Cancellation: each in-flight job has an AbortController in the in-process
@@ -128,8 +128,8 @@ function init({ db, log }) {
         throw new Error('LLM returned no content');
       }
 
-      // Find the user's default Inbox notebook so the new note shows up in the
-      // Inbox sidebar view (per migration 015's invariant).
+      // File the generated note into the user's default notebook so it lands
+      // in /inbox for triage (CR032 — Inbox is derived from default notebook).
       const defaultNb = await db.query(
         'SELECT id FROM notebooks WHERE user_id = $1 AND is_default = TRUE LIMIT 1',
         [jobRow.user_id]
@@ -140,8 +140,8 @@ function init({ db, log }) {
       const body = generated.text.trim() + buildSourcesBlock(sources);
 
       const noteRes = await db.query(
-        `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox, note_type, is_ai_generated, ai_prompt)
-         VALUES ($1, $2, $3, $4, TRUE, 'note', TRUE, $5)
+        `INSERT INTO notes (user_id, notebook_id, title, content, note_type, is_ai_generated, ai_prompt)
+         VALUES ($1, $2, $3, $4, 'note', TRUE, $5)
          RETURNING id`,
         [jobRow.user_id, inboxNotebookId, title, body, jobRow.prompt]
       );

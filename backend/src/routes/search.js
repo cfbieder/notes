@@ -90,7 +90,7 @@ async function searchRoutes(fastify) {
     if (hasTextQuery) {
       const qIdx = 2; // q is always $2 when hasTextQuery
       result = await fastify.db.query(
-        `SELECT n.id, n.title, n.notebook_id, n.is_inbox, n.note_type, n.auto_update, n.format, n.created_at, n.updated_at,
+        `SELECT n.id, n.title, n.notebook_id, n.note_type, n.auto_update, n.format, n.created_at, n.updated_at,
                 MAX(GREATEST(
                   ts_rank(n.content_tsv, websearch_to_tsquery('english', $${qIdx})),
                   ts_rank(COALESCE(a.ocr_tsv, ''::tsvector), websearch_to_tsquery('english', $${qIdx}))
@@ -110,7 +110,7 @@ async function searchRoutes(fastify) {
     } else {
       // Filter-only search (no text query) — return notes sorted by updated_at
       result = await fastify.db.query(
-        `SELECT DISTINCT n.id, n.title, n.notebook_id, n.is_inbox, n.note_type, n.auto_update, n.format,
+        `SELECT DISTINCT n.id, n.title, n.notebook_id, n.note_type, n.auto_update, n.format,
                 n.created_at, n.updated_at,
                 0 AS rank,
                 LEFT(n.content, 120) AS snippet

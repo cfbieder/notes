@@ -88,9 +88,11 @@ async function clipRoutes(fastify) {
       return reply.code(400).send({ error: 'Bad Request', message: 'URL must be http(s)', statusCode: 400 });
     }
 
-    // If a notebook is specified, verify ownership. Otherwise inbox implicit.
+    // Resolve the destination notebook. `send_to_inbox=true` forces a
+    // notebook-less clip (which shows up in /inbox). Otherwise honor the
+    // notebook_id (verifying ownership) or default to notebook-less.
     let finalNotebookId = null;
-    if (notebook_id) {
+    if (!send_to_inbox && notebook_id) {
       const nb = await fastify.db.query(
         'SELECT id FROM notebooks WHERE id = $1 AND user_id = $2',
         [notebook_id, userId]
@@ -100,8 +102,6 @@ async function clipRoutes(fastify) {
       }
       finalNotebookId = notebook_id;
     }
-
-    const isInbox = send_to_inbox === true || !finalNotebookId;
 
     // Build note body. For link mode we just save the URL; for others we
     // prepend a small source header so readers see provenance without opening
@@ -121,10 +121,10 @@ async function clipRoutes(fastify) {
     const noteTitle = (title && title.trim()) || (mode === 'link' ? url : 'Untitled clip');
 
     const noteResult = await fastify.db.query(
-      `INSERT INTO notes (user_id, notebook_id, title, content, is_inbox, source_url)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, user_id, notebook_id, title, content, is_inbox, source_url, created_at, updated_at`,
-      [userId, finalNotebookId, noteTitle.slice(0, TITLE_MAX), noteContent, isInbox, url]
+      `INSERT INTO notes (user_id, notebook_id, title, content, source_url)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, user_id, notebook_id, title, content, source_url, created_at, updated_at`,
+      [userId, finalNotebookId, noteTitle.slice(0, TITLE_MAX), noteContent, url]
     );
     const note = noteResult.rows[0];
 

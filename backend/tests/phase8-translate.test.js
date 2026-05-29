@@ -44,8 +44,7 @@ async function run() {
     method: 'POST',
     body: {
       title: 'Translate test',
-      content: 'Hello world. This is a short note about testing translation.',
-      is_inbox: true
+      content: 'Hello world. This is a short note about testing translation.'
     }
   });
   const noteId = created.data?.data?.id;
@@ -86,7 +85,7 @@ async function run() {
   // Empty content rejection
   const empty = await api('/notes', {
     method: 'POST',
-    body: { title: 'Empty', content: '', is_inbox: true }
+    body: { title: 'Empty', content: '' }
   });
   const emptyId = empty.data?.data?.id;
   cleanup.push(emptyId);

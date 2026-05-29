@@ -95,7 +95,6 @@ async function run() {
   const note = res1.data?.data?.note;
   if (note) {
     assert(/^Voice Note —/.test(note.title), 'Title follows "Voice Note — {date}" format');
-    assert(note.is_inbox === false, 'Not in inbox (idea)');
     assert(note.note_type === 'idea', 'Note type is "idea"');
     cleanup.push(note.id);
   }

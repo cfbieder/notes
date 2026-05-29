@@ -60,7 +60,7 @@ function selectTag(tag) {
 
 function goToInbox() {
   notesStore.clearFilters();
-  notesStore.setFilter('is_inbox', 'true');
+  notesStore.setFilter('in_inbox', 'true');
   notesStore.fetchNotes();
   router.push('/inbox');
 }
@@ -89,11 +89,7 @@ async function onNotebookDrop(e, nbId) {
   dragOverNotebook.value = null;
   const noteId = e.dataTransfer.getData('text/plain');
   if (!noteId) return;
-  const targetNb = notebooksStore.notebooks.find(n => n.id === nbId);
-  await notesStore.updateNote(noteId, {
-    notebook_id: nbId,
-    is_inbox: !!targetNb?.is_default
-  });
+  await notesStore.updateNote(noteId, { notebook_id: nbId });
   await notesStore.fetchNotes();
   await notebooksStore.fetchNotebooks();
 }
@@ -132,12 +128,7 @@ async function handleNewNote(format) {
 
   const payload = { title: 'Untitled', content: '', format: fmt };
   if (route.name === 'NotebookNotes' && route.params.id) {
-    const nbId = route.params.id;
-    const nb = notebooksStore.notebooks.find(n => n.id === nbId);
-    if (nb) {
-      payload.notebook_id = nbId;
-      payload.is_inbox = !!nb.is_default;
-    }
+    payload.notebook_id = route.params.id;
   }
   const note = await notesStore.createNote(payload);
   router.push(`/notes/${note.id}`);

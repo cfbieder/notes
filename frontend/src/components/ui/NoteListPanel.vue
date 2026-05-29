@@ -100,7 +100,7 @@ async function moveToNotebook(notebookId) {
   if (!contextMenu.value.noteId) return;
   const id = contextMenu.value.noteId;
   closeContextMenu();
-  await notesStore.updateNote(id, { notebook_id: notebookId, is_inbox: false });
+  await notesStore.updateNote(id, { notebook_id: notebookId });
   await notesStore.fetchNotes();
   await notebooksStore.fetchNotebooks();
 }

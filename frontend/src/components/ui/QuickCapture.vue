@@ -162,14 +162,14 @@ function buildNotePayload(text, type) {
     return {
       title: title || 'Untitled idea',
       content: text,
-      note_type: 'idea',
-      is_inbox: false
+      note_type: 'idea'
     };
   }
+  // notebook_id omitted → backend assigns the user's default notebook, which
+  // surfaces the note in /inbox for triage.
   return {
     title: title || 'Untitled',
-    content: text,
-    is_inbox: true
+    content: text
   };
 }
 
