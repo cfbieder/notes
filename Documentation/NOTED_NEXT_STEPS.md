@@ -54,6 +54,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR026](CR/CR026_activity_rail_navigation.md) | Activity Rail + Contextual Panel Navigation (replace tall sidebar; VS Code/Obsidian pattern) — **In progress** (foundation shipped v0.10.9; mobile drawer→list patch v0.10.10; richer panel content + mobile tab bar deferred) |
 | [CR030](CR/CR030_sortable_notes_list_columns.md) | Sortable Notes List Columns — expanded `NoteListPanel` becomes Title + Last-used columns with click-to-sort headers; narrow sidebar unchanged — **Completed** |
 | [CR031](CR/CR031_inline_pdf_attachment_embeds.md) | Inline PDF attachment embeds (`![[file.pdf]]` → iframe) + "Insert into document" button on attachment rows — **Completed** |
+| [CR032](CR/CR032_drop_is_inbox_flag.md) | Drop `notes.is_inbox` flag; derive Inbox from default notebook (`notebook_id IS NULL OR is_default = TRUE`) and exclude `note_type='idea'` — **Completed** |
 
 ### Offline & Sync
 
@@ -90,6 +91,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ## Recently Completed
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
+
+### Pending release
+
+- **[CR032](CR/CR032_drop_is_inbox_flag.md) — Drop `notes.is_inbox` flag.** Two redundant signals (`notes.is_inbox` boolean + `notebooks.is_default`) were kept in sync by ~6 hand-written code paths; a path missed in `NoteListPanel.vue` left notes filed to Inbox via the right-click "Move to" menu invisible in `/inbox`. Migration `019_drop_is_inbox.sql` removes the column. The Inbox is now derived: `note_type <> 'idea' AND (notebook_id IS NULL OR notebook.is_default = TRUE)`. The `note_type <> 'idea'` clause matters — notebook-less voice captures are ideas and belong in `/ideas`, not the Inbox. List API gains `?in_inbox=true|false` to expose the derived filter. Backend tests (`phase7-clips`, `phase8-voice`, `phase8-translate`, `phase10-ideas`) updated to match. ([backend/migrations/019_drop_is_inbox.sql](../backend/migrations/019_drop_is_inbox.sql), [backend/src/routes/notes.js](../backend/src/routes/notes.js))
 
 ### Released v0.11.20 (2026-05-25)
 
