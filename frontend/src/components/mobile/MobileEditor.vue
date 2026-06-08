@@ -1,12 +1,14 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNotesStore } from '../../stores/notes.js';
 import { useNotebooksStore } from '../../stores/notebooks.js';
 import { useAttachmentsStore } from '../../stores/attachments.js';
 import { useUIStore } from '../../stores/ui.js';
 import { useToastsStore } from '../../stores/toasts.js';
-import CodeMirrorEditor from '../editor/CodeMirrorEditor.vue';
+// CodeMirror (~hundreds of KB) is only needed once an editor is open — load it
+// lazily so /home and the notes list don't pull it into their first paint.
+const CodeMirrorEditor = defineAsyncComponent(() => import('../editor/CodeMirrorEditor.vue'));
 import AttachmentZone from '../editor/AttachmentZone.vue';
 import ConfirmModal from '../ui/ConfirmModal.vue';
 import CheckoutBanner from '../ui/CheckoutBanner.vue';

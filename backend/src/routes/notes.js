@@ -119,7 +119,7 @@ async function noteRoutes(fastify) {
 
     params.push(limit, offset);
     const result = await fastify.db.query(
-      `SELECT DISTINCT n.id, n.title, n.content, n.notebook_id, n.note_type, n.pinned,
+      `SELECT DISTINCT n.id, n.title, LEFT(n.content, 300) AS content, n.notebook_id, n.note_type, n.pinned,
               n.reminder_at, n.created_at, n.updated_at
        FROM notes n ${joinClause}
        WHERE ${where}

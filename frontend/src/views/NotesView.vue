@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount, computed, defineAsyncComponent } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useNotesStore } from '../stores/notes.js';
 import { useIdeasStore } from '../stores/ideas.js';
@@ -8,10 +8,12 @@ import { api } from '../api/client.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import NoteListPanel from '../components/ui/NoteListPanel.vue';
 import EditorToolbar from '../components/editor/EditorToolbar.vue';
-import CodeMirrorEditor from '../components/editor/CodeMirrorEditor.vue';
+const CodeMirrorEditor = defineAsyncComponent(() => import('../components/editor/CodeMirrorEditor.vue'));
 import AttachmentZone from '../components/editor/AttachmentZone.vue';
 import BacklinksPanel from '../components/editor/BacklinksPanel.vue';
-import LocalGraph from '../components/editor/LocalGraph.vue';
+// Desktop-only local-graph panel — pulls in D3 (~100 KB), so load it lazily
+// and keep it out of the chunk mobile parses on first paint.
+const LocalGraph = defineAsyncComponent(() => import('../components/editor/LocalGraph.vue'));
 import MobileHome from '../components/mobile/MobileHome.vue';
 import MobileEditor from '../components/mobile/MobileEditor.vue';
 import MobileNotesList from '../components/mobile/MobileNotesList.vue';
