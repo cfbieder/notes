@@ -92,6 +92,14 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
 
+### Released v0.11.23 (2026-06-08)
+
+Mobile performance — two measured bottlenecks behind the "waiting for data / laggy" feel:
+
+- **perf(api): notes list no longer ships full note bodies.** `GET /api/v1/notes` selected `n.content` for every row (up to 50), so a list fetch carried ~250 KB of markdown the UI never showed — it only renders a ~100-char preview. Switched to `LEFT(n.content, 300) AS content`, shrinking the list payload ~10×. The detail endpoint `GET /api/v1/notes/:id` still returns full `n.*`, and the editor always opens a note via that endpoint (`fetchNote`), so nothing loses access to full content. ([backend/src/routes/notes.js](../backend/src/routes/notes.js))
+- **perf(bundle): CodeMirror + D3 no longer parsed on the mobile first paint.** `NotesView.vue` statically imported `CodeMirrorEditor` (and `MobileEditor` did too) plus the D3-backed `LocalGraph`, bundling ~600 KB of editor/graph engine into the single route chunk every mobile user downloaded just to see `/home` or the notes list. Switched both to `defineAsyncComponent(() => import(...))`. Result: the `NotesView` chunk drops **797 KB → 206 KB** (282 → 79 KB gzipped); CodeMirror (592 KB) splits into its own chunk that loads on demand when a note is opened, and D3 only loads with the desktop local-graph panel. ([frontend/src/views/NotesView.vue](../frontend/src/views/NotesView.vue), [frontend/src/components/mobile/MobileEditor.vue](../frontend/src/components/mobile/MobileEditor.vue))
+- **Known follow-ons (not yet done):** `notesStore`/`notebooksStore` still refetch on every navigation (no in-memory cache guard); `api/client.js` has no in-flight request dedup; `NotesView` detail load fetches notes-list → note → attachments serially rather than in parallel. Candidate for a dedicated perf CR if mobile still drags.
+
 ### Released v0.11.22 (2026-06-08)
 
 - **fix(mobile): cut redundant fetches on the mobile Home dashboard.** `MobileHome.vue` had two separate `onMounted` hooks that raced — between them open-tasks were fetched twice and the notes list three times on every visit to `/home`. Collapsed into a single hook that fetches each thing once: open tasks (1×), then the inbox-filtered notes query for the badge count and the unfiltered query for the five recent rows (2× — genuinely distinct queries), then ideas. Net: tasks 2→1, notes 3→2 requests per load, which is most of the perceived "waiting for data" on the mobile home screen. Removed the now-dead `loadRecentNotes` helper. ([frontend/src/components/mobile/MobileHome.vue](../frontend/src/components/mobile/MobileHome.vue))
