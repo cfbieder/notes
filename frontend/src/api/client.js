@@ -1,6 +1,10 @@
 const API_BASE = '/api/v1';
 
 let accessToken = null;
+// Single in-flight refresh shared by all callers. Without this, a cold-start
+// burst of ~7 concurrent requests each fires its own /auth/refresh.
+let refreshInFlight = null;
+const SESSION_HINT_KEY = 'noted.hasSession';
 
 export class OfflineError extends Error {
   constructor(message = 'Network unavailable') {
@@ -25,6 +29,25 @@ export function getAccessToken() {
 
 export async function apiFetch(path, options = {}) {
   const url = `${API_BASE}${path}`;
+
+  // Cold-start guard: if we have a persisted session but the in-memory access
+  // token hasn't been established yet, establish it *before* firing the request
+  // instead of racing the background refresh and eating a 401. Bounded so a
+  // stalled refresh (offline-but-navigator.onLine, e.g. iPad Safari) can't hang
+  // the app — we fall through to the normal flow (offline cache / 401-retry).
+  if (
+    !accessToken &&
+    !options._retried &&
+    !path.startsWith('/auth/') &&
+    typeof navigator !== 'undefined' &&
+    navigator.onLine !== false &&
+    localStorage.getItem(SESSION_HINT_KEY) === '1'
+  ) {
+    await Promise.race([
+      refreshToken(),
+      new Promise((resolve) => setTimeout(resolve, 4000))
+    ]);
+  }
 
   const headers = { ...options.headers };
 
@@ -71,19 +94,26 @@ export async function apiFetch(path, options = {}) {
   return res.json();
 }
 
-async function refreshToken() {
-  try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include'
-    });
-    if (!res.ok) return false;
-    const data = await res.json();
-    accessToken = data.accessToken;
-    return true;
-  } catch {
-    return false;
-  }
+function refreshToken() {
+  // Coalesce concurrent callers onto one network request.
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      accessToken = data.accessToken;
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
 }
 
 // Upload file (multipart/form-data — no Content-Type header, browser sets boundary).
