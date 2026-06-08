@@ -21,20 +21,6 @@ const showReminders = ref(false);
 const recentNotes = ref([]);
 const appVersion = import.meta.env.VITE_APP_VERSION || 'dev';
 
-onMounted(async () => {
-  await Promise.all([
-    tasksStore.fetchTasks({ is_done: 'false' }),
-    loadRecentNotes()
-  ]);
-});
-
-async function loadRecentNotes() {
-  // Fetch top 5 most recent notes
-  notesStore.clearFilters();
-  await notesStore.fetchNotes();
-  recentNotes.value = notesStore.notes.slice(0, 5);
-}
-
 function openCapture() {
   emit('open-capture');
 }
@@ -197,9 +183,9 @@ onMounted(async () => {
 
 <style scoped>
 .mobile-home {
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg-main);
-  padding: 16px;
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 

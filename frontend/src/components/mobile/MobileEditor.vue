@@ -351,10 +351,12 @@ function onRemoveReference(attachmentId) {
 
 <style scoped>
 .mobile-editor {
-  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--bg-main);
+  padding-bottom: env(safe-area-inset-bottom);
+  box-sizing: border-box;
 }
 
 .mobile-editor-header {

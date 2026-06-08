@@ -112,7 +112,7 @@ function getPreview(content, format) {
 
 <style scoped>
 .mobile-notes-list {
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg-main);
   display: flex;
   flex-direction: column;

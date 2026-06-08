@@ -51,7 +51,7 @@ function goHome() {
 
 <style scoped>
 .mobile-layout {
-  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--bg-main);
@@ -61,7 +61,7 @@ function goHome() {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
