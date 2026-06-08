@@ -92,6 +92,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
 
+### Released v0.11.24 (2026-06-08)
+
+- **fix(inbox): "Discard" now actually works.** `InboxView.discardNote` called `notesStore.deleteNote(noteId)` — a method that doesn't exist on the notes store — so discarding an inbox item threw `TypeError: …deleteNote is not a function` and silently did nothing. Pointed it at the real `trashNote` action, which soft-deletes via `DELETE /api/v1/notes/:id` (recoverable from Trash) and refreshes the notes/notebooks/ideas state. ([frontend/src/views/InboxView.vue](../frontend/src/views/InboxView.vue))
+
 ### Released v0.11.23 (2026-06-08)
 
 Mobile performance — two measured bottlenecks behind the "waiting for data / laggy" feel:
