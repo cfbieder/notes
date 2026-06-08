@@ -45,7 +45,7 @@ async function convertToNote(noteId) {
 }
 
 async function discardNote(noteId) {
-  await notesStore.deleteNote(noteId);
+  await notesStore.trashNote(noteId);
 }
 
 function openNote(noteId) {
