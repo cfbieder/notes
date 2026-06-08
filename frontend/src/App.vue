@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue';
-import { RouterView } from 'vue-router';
+import { RouterView, useRouter } from 'vue-router';
 import SearchPalette from './components/ui/SearchPalette.vue';
 import QuickCapture from './components/ui/QuickCapture.vue';
 import MobileFAB from './components/mobile/MobileFAB.vue';
@@ -24,6 +24,7 @@ const aiAssistStore = useAIAssistStore();
 const notesStore = useNotesStore();
 const toastsStore = useToastsStore();
 const { isMobile } = useMobile();
+const router = useRouter();
 const showSearch = ref(false);
 const showCapture = ref(false);
 const captureInitialType = ref('note');
@@ -172,12 +173,24 @@ function onQuickCaptureEvent(e) {
   showSearch.value = false;
 }
 
+// Fired by the API client when /auth/refresh is rejected (genuine session
+// expiry). Clear local session state and bounce to login — idempotent so a
+// burst of failed calls can't loop the redirect.
+function onSessionExpired() {
+  // Already handled (redirecting, or session already cleared by a prior event).
+  if (router.currentRoute.value.name === 'Login' || !authStore.hasSessionHint) return;
+  authStore.expireSession();
+  toastsStore.addToast({ message: 'Your session expired — please log in again.', type: 'info' });
+  router.push('/login');
+}
+
 let unsubscribeConflict = null;
 
 onMounted(() => {
   window.addEventListener('keydown', onKeydown);
   window.addEventListener('noted:quick-capture', onQuickCaptureEvent);
   window.addEventListener('online', onOnline);
+  window.addEventListener('noted:session-expired', onSessionExpired);
   unsubscribeConflict = onConflict(onConflictEvent);
 });
 
@@ -185,6 +198,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown);
   window.removeEventListener('noted:quick-capture', onQuickCaptureEvent);
   window.removeEventListener('online', onOnline);
+  window.removeEventListener('noted:session-expired', onSessionExpired);
   if (unsubscribeConflict) unsubscribeConflict();
 });
 </script>

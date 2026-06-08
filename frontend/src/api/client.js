@@ -103,7 +103,17 @@ function refreshToken() {
         method: 'POST',
         credentials: 'include'
       });
-      if (!res.ok) return false;
+      if (!res.ok) {
+        // Server reachable but rejected the refresh token — a genuine session
+        // expiry, not a network blip. Drop the token and signal a redirect to
+        // login (handled in App.vue). Distinct from the catch below, which is
+        // a network/offline failure where we keep the session.
+        accessToken = null;
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('noted:session-expired'));
+        }
+        return false;
+      }
       const data = await res.json();
       accessToken = data.accessToken;
       return true;

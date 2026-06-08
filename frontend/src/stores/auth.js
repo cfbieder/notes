@@ -38,6 +38,14 @@ export const useAuthStore = defineStore('auth', () => {
     setSessionHint(false);
   }
 
+  // Clear session state locally without calling the API — used when a refresh
+  // is rejected (token already invalid, so POST /auth/logout would just 401).
+  function expireSession() {
+    user.value = null;
+    setAccessToken(null);
+    setSessionHint(false);
+  }
+
   async function refreshSession() {
     try {
       const res = await api.post('/auth/refresh');
@@ -81,6 +89,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     user, isAuthenticated, hasSessionHint, offlineMode, initialized,
-    login, logout, refreshSession, init
+    login, logout, refreshSession, expireSession, init
   };
 });
