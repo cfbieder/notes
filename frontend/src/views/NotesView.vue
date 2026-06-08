@@ -718,7 +718,10 @@ async function handleRefreshOffline() {
   <!-- Desktop: Three-pane layout -->
   <div v-else class="notes-layout">
     <AppSidebar />
-    <NoteListPanel v-if="!uiStore.noteListCollapsed" :expanded="!isDetailRoute" />
+    <!-- On list-only routes the list IS the page — never let a collapsed flag
+         hide it into a blank pane (there's no editor pane to fall back to).
+         Collapse only applies on detail routes, where it focuses the editor. -->
+    <NoteListPanel v-if="!uiStore.noteListCollapsed || !isDetailRoute" :expanded="!isDetailRoute" />
     <main v-if="isDetailRoute" class="editor-pane">
       <div v-if="!notesStore.currentNote" class="no-note">
         <FileText :size="48" />
