@@ -170,6 +170,7 @@ The desktop sidebar uses an **activity rail** + **contextual panel** pattern (VS
 - **Mobile Home route + button (v0.11.8):** The dashboard now lives at a dedicated route `/home` (`name: 'Home'`). A Home icon button is present in [MobileNotesList.vue](frontend/src/components/mobile/MobileNotesList.vue) header (top-left) and [MobileLayout.vue](frontend/src/components/mobile/MobileLayout.vue) header (between Back and title); both call `router.push('/home')` so the user can hop to the dashboard from All Notes / Inbox / etc. On desktop `/home` falls through to the standard list layout (no editor pane until a note is picked).
 - **Desktop list-only layout (v0.11.8):** On list-only routes (`Notes`, `NotebookNotes`, `TagNotes`, `Ideas`) the editor pane is hidden entirely and `NoteListPanel` expands to fill remaining width via an `expanded` prop (`flex: 1`, no right border) — mirroring Inbox's full-width list. The editor pane only renders for detail routes (`NoteDetail` / `IdeaDetail`); the "Select a note…" placeholder is replaced by a brief "Loading…" state during the fetch.
 - **Sortable notes list columns (v0.11.13, CR030):** In expanded mode `NoteListPanel` renders as a two-column table — **Title** and **Last used** — with clickable sticky column headers that toggle sort key and direction (chevron icon marks the active column). Pinned notes always lead each sort group. Title sort uses `localeCompare` (case-insensitive); default sort remains `updated_at DESC` so the initial view matches what users saw before. Sorting is client-side over the already-fetched `notesStore.notes`. The narrow sidebar layout (when a note is open) is unchanged — still stacked title/preview/date cards in backend order. State is in-component (resets on hard navigation away from `/notes`).
+- **Collapse only on detail routes (v0.11.26):** `NoteListPanel` is gated `v-if="!noteListCollapsed || !isDetailRoute"`. On a list-only route (All Notes / Notebook / Tag / Ideas) the list *is* the page, so a persisted `noted.ui.noteListCollapsed` flag is ignored and the list always renders — otherwise collapsing left the whole pane blank (no editor pane to fall back to). Collapse still hides the list on a note-detail route, where it focuses the open note.
 
 ### 5.1 Editor (Stage 1)
 
@@ -355,6 +356,7 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **JWT-based:** Access token (short-lived, 15 min) + refresh token (long-lived, 30 days, stored in httpOnly cookie).
 - **Login page:** Username + password. bcrypt password hashing.
 - **Protected routes:** All API endpoints require valid JWT. Frontend redirects to login on 401.
+- **Client token handling ([api/client.js](frontend/src/api/client.js)):** The access token lives in a module variable, set by login/refresh. On cold start the API client gates the first protected request on a single proactive `/auth/refresh` (4s-bounded so a stalled refresh can't re-introduce the iPad-offline hang) instead of firing before the token exists — this fixed a v0.11.25 401 storm where the session-hint fast-path rendered the shell and components fetched before the background refresh landed. Concurrent `/auth/refresh` calls are coalesced onto one in-flight request, and a 401 transparently triggers refresh-and-retry once. *Known gap:* a genuine refresh failure (expired session) currently surfaces failed calls rather than redirecting to `/login` — see §9 Backlog.
 - **Multi-user ready:** `users` table exists from day one. All data rows include `user_id` foreign key.
 
 ### 5.12 Trash / Soft Delete (implemented)
@@ -648,7 +650,7 @@ DELETE /api/v1/auth/token/:id       Revoke an API token
 ### Notes
 
 ```
-GET    /api/v1/notes                Query: notebook_id, tag_id, search, is_inbox, limit, offset (excludes trashed)
+GET    /api/v1/notes                Query: notebook_id, tag_id, search, in_inbox, note_type, limit, offset (excludes trashed). Rows carry a 300-char content PREVIEW, not the full body (v0.11.23 perf — list payload ~10x smaller); the editor loads full content via GET /:id.
 POST   /api/v1/notes                Body: { title, content, notebook_id, tag_ids, client_id? }
 GET    /api/v1/notes/:id
 PUT    /api/v1/notes/:id            Body: { title, content, notebook_id, tag_ids, pinned, auto_update }
