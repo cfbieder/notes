@@ -341,8 +341,14 @@ function buildDecorations(view) {
       from, to,
       enter(node) {
         // Hide heading markers: # ## ### etc.
+        // ATX markers (## ) are followed by a space we also hide. Setext
+        // underlines (--- / === under a paragraph) are also HeaderMarks but sit
+        // at the END of their line — never extend past them into the newline, or
+        // a plugin-provided decoration would replace a line break (illegal,
+        // throws and blanks the whole editor).
         if (node.name === 'HeaderMark') {
-          const end = Math.min(node.to + 1, doc.length);
+          const nextChar = doc.sliceString(node.to, Math.min(node.to + 1, doc.length));
+          const end = nextChar === ' ' ? node.to + 1 : node.to;
           builder.add(node.from, end, Decoration.replace({}));
         }
 

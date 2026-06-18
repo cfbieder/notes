@@ -71,11 +71,11 @@ function onTitleInput(e) {
         class="mode-toggle"
         :class="{ active: uiStore.editorMode === 'source' }"
         @click="uiStore.toggleEditorMode()"
-        :title="uiStore.editorMode === 'source' ? 'Normal Mode' : 'Source Mode'"
+        :title="uiStore.editorMode === 'source' ? 'Switch to Normal mode' : 'Switch to Source mode'"
       >
-        <Code v-if="uiStore.editorMode === 'normal'" :size="16" />
+        <Code v-if="uiStore.editorMode === 'source'" :size="16" />
         <Eye v-else :size="16" />
-        <span>{{ uiStore.editorMode === 'source' ? 'Normal' : 'Source' }}</span>
+        <span>{{ uiStore.editorMode === 'source' ? 'Source' : 'Normal' }}</span>
       </button>
 
       <button
