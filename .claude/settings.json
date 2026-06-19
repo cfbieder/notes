@@ -1,4 +1,5 @@
 {
+  "outputStyle": "DIRECT",
   "permissions": {
     "allow": [
       "Bash(*)",
