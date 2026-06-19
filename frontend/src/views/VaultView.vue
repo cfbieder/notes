@@ -3,11 +3,13 @@ import { ref, computed, onMounted } from 'vue';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import VaultEntryModal from '../components/ui/VaultEntryModal.vue';
+import VaultExportModal from '../components/ui/VaultExportModal.vue';
 import ConfirmModal from '../components/ui/ConfirmModal.vue';
 import { useVaultStore } from '../stores/vault.js';
 import { useToastsStore } from '../stores/toasts.js';
 import { useMobile } from '../composables/useMobile.js';
-import { Lock, Unlock, Plus, Search, Copy, Eye, EyeOff, ExternalLink, KeyRound, AlertTriangle, User, CreditCard, Landmark, Hash, Fingerprint } from 'lucide-vue-next';
+import { buildEmergencyExportHtml, downloadHtml } from '../lib/vaultExport.js';
+import { Lock, Unlock, Plus, Search, Copy, Eye, EyeOff, ExternalLink, KeyRound, AlertTriangle, User, CreditCard, Landmark, Hash, Fingerprint, Download } from 'lucide-vue-next';
 
 const { isMobile } = useMobile();
 const vault = useVaultStore();
@@ -27,6 +29,7 @@ const unlockError = ref('');
 const filter = ref('');
 const typeFilter = ref('password');           // 'password' | 'key' | 'card' | 'bank'
 const showEntryModal = ref(false);
+const showExportModal = ref(false);
 const editingEntry = ref(null);
 const confirmDelete = ref(null);
 const revealedId = ref(null);
@@ -144,6 +147,20 @@ async function doBiometricUnlock() {
 function lock() {
   vault.lock();
   toasts.addToast({ message: 'Vault locked', type: 'info', duration: 2000 });
+}
+
+async function doExport(passphrase) {
+  try {
+    const exportedAt = new Date().toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
+    const html = await buildEmergencyExportHtml(vault.entries, passphrase, exportedAt);
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadHtml(html, `noted-vault-emergency-${stamp}.html`);
+    showExportModal.value = false;
+    toasts.addToast({ message: 'Emergency export downloaded', type: 'success' });
+    vault.touch();
+  } catch (err) {
+    toasts.addToast({ message: err.message || 'Export failed', type: 'error' });
+  }
 }
 
 function openCreate() {
@@ -302,6 +319,14 @@ function maskedDots() {
           <div class="vault-header">
             <h2><Unlock :size="18" /> Vault</h2>
             <div class="header-actions">
+              <button
+                class="btn-secondary"
+                @click="showExportModal = true"
+                :disabled="vault.entries.length === 0"
+                title="Download an encrypted, offline emergency copy"
+              >
+                <Download :size="14" /> Export
+              </button>
               <button class="btn-secondary" @click="lock" title="Lock vault">
                 <Lock :size="14" /> Lock
               </button>
@@ -415,6 +440,13 @@ function maskedDots() {
       @save="saveEntry"
       @cancel="showEntryModal = false; editingEntry = null"
       @delete="askDelete"
+    />
+
+    <VaultExportModal
+      v-if="showExportModal"
+      :entry-count="vault.entries.length"
+      @export="doExport"
+      @cancel="showExportModal = false"
     />
 
     <ConfirmModal
