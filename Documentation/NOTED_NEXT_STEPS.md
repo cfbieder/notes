@@ -40,6 +40,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR020](CR/CR020_encrypted_password_vault.md) | Encrypted Password & Key Vault (client-side, zero-knowledge) — **Completed** |
 | [CR021](CR/CR021_biometric_vault_unlock.md) | Biometric Vault Unlock (WebAuthn PRF) — **Completed** |
 | [CR029](CR/CR029_vault_card_bank_entry_types.md) | Vault: Credit Card & Bank Account entry types — **Completed** |
+| [CR030](CR/CR030_vault_emergency_export.md) | Vault: Emergency export (self-decrypting HTML) — **Completed** |
 
 ### Settings & UX
 
@@ -91,6 +92,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ## Recently Completed
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
+
+### Released v0.12.0 (2026-06-19)
+
+- **[CR030](CR/CR030_vault_emergency_export.md) — Vault emergency export (self-decrypting HTML).** An "Export" button in the unlocked vault header produces a single `noted-vault-emergency-YYYY-MM-DD.html` file the user can save offline and open in any browser with no Noted app and no installed tools. The file embeds only ciphertext; opening it prompts for an **export passphrase** (separate from the master password, chosen at export time, never stored), derives a key in-browser, and renders all entries grouped by type with a filter + Print/Save-as-PDF. Crypto is native WebCrypto only — PBKDF2-HMAC-SHA-256 (600 000 iters, 16-byte salt) + AES-256-GCM (12-byte IV) — so the file carries no Argon2 wasm dependency. Runs entirely client-side from the already-unlocked vault; **no backend, API, or schema change.** Undecryptable stubs are dropped and only type-relevant fields are exported. Roundtrip + plaintext-leak verified. New files [frontend/src/lib/vaultExport.js](../frontend/src/lib/vaultExport.js), [frontend/src/components/ui/VaultExportModal.vue](../frontend/src/components/ui/VaultExportModal.vue); wired into [frontend/src/views/VaultView.vue](../frontend/src/views/VaultView.vue). See [§5.17 in NOTED_CURRENT_STATE.md](NOTED_CURRENT_STATE.md#517-encrypted-vault-cr020--cr029--cr021--cr030-implemented).
 
 ### Released v0.11.28 (2026-06-18)
 
