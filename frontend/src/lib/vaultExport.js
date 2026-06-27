@@ -38,6 +38,7 @@ function bytesToB64(bytes) {
  */
 function stripEntry(e) {
   const out = { type: e.type || 'password', name: e.name || '' };
+  if (e.group) out.group = e.group;
   const keep = {
     password: ['username', 'password', 'url', 'notes'],
     key: ['password', 'notes'],

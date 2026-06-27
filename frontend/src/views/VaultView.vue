@@ -90,6 +90,46 @@ const activeTypeLabel = computed(() => {
   return t ? t.label.toLowerCase() : 'entries';
 });
 
+// Group the visible entries under their (optional) group header. Named groups
+// come first alphabetically; entries with no group fall into a trailing
+// "Ungrouped" bucket. When nothing has a group, `hasNamedGroup` stays false and
+// the template renders a single flat list — identical to the pre-grouping UI.
+const groupedEntries = computed(() => {
+  const map = new Map();
+  for (const e of filteredEntries.value) {
+    const g = (e.group || '').trim();
+    if (!map.has(g)) map.set(g, []);
+    map.get(g).push(e);
+  }
+  const keys = [...map.keys()];
+  const hasNamedGroup = keys.some(k => k !== '');
+  keys.sort((a, b) => {
+    if (a === '') return 1;   // ungrouped always last
+    if (b === '') return -1;
+    return a.localeCompare(b);
+  });
+  return {
+    hasNamedGroup,
+    groups: keys.map(k => ({ name: k, entries: map.get(k) }))
+  };
+});
+
+// Existing group names for the type currently being edited/created, used to
+// power the modal's group autocomplete. On edit we key off the entry's own type
+// (the modal locks type on edit); on create we use the active tab.
+const groupsForType = computed(() => {
+  const t = editingEntry.value?.type
+    ? normaliseType(editingEntry.value.type)
+    : typeFilter.value;
+  const set = new Set();
+  for (const e of vault.entries) {
+    if (normaliseType(e.type) !== t) continue;
+    const g = (e.group || '').trim();
+    if (g) set.add(g);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+});
+
 const setupCanSubmit = computed(() =>
   setupPassword.value.length >= 6 &&
   setupPassword.value === setupConfirm.value &&
@@ -372,8 +412,18 @@ function maskedDots() {
             <p v-else>No {{ activeTypeLabel }} entries.</p>
           </div>
 
-          <ul v-else class="entry-list">
-            <li v-for="e in filteredEntries" :key="e.id" class="entry-row" :class="['type-' + normaliseType(e.type), { undecryptable: e.undecryptable }]">
+          <div v-else class="entry-groups">
+           <section
+             v-for="grp in groupedEntries.groups"
+             :key="grp.name || '__ungrouped'"
+             class="entry-group"
+           >
+            <h3 v-if="groupedEntries.hasNamedGroup" class="group-header">
+              <span class="group-name">{{ grp.name || 'Ungrouped' }}</span>
+              <span class="group-count">{{ grp.entries.length }}</span>
+            </h3>
+            <ul class="entry-list">
+            <li v-for="e in grp.entries" :key="e.id" class="entry-row" :class="['type-' + normaliseType(e.type), { undecryptable: e.undecryptable }]">
               <button class="entry-name" @click="openEdit(e)">
                 <span class="entry-title-row">
                   <KeyRound v-if="e.type === 'key'" :size="13" class="type-badge" />
@@ -427,7 +477,9 @@ function maskedDots() {
                 </a>
               </div>
             </li>
-          </ul>
+            </ul>
+           </section>
+          </div>
         </template>
 
       </main>
@@ -437,6 +489,7 @@ function maskedDots() {
       v-if="showEntryModal"
       :entry="editingEntry"
       :default-type="typeFilter"
+      :existing-groups="groupsForType"
       @save="saveEntry"
       @cancel="showEntryModal = false; editingEntry = null"
       @delete="askDelete"
@@ -630,6 +683,31 @@ function maskedDots() {
   color: var(--text-secondary);
 }
 
+.entry-groups { display: flex; flex-direction: column; gap: 18px; }
+.entry-group { display: flex; flex-direction: column; gap: 6px; }
+.group-header {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0;
+  padding: 0 2px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-count {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+  background: var(--bg-input, var(--bg-main));
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
 .entry-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
 .entry-row {
   display: grid;

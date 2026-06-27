@@ -178,6 +178,7 @@ export const useVaultStore = defineStore('vault', () => {
           id: row.id,
           type: 'password',
           name: '(unreadable entry)',
+          group: '',
           username: '', password: '', url: '', notes: '',
           updated_at: row.updated_at,
           created_at: row.created_at,
@@ -406,11 +407,15 @@ export const useVaultStore = defineStore('vault', () => {
       : 'password';
     const name = String(r.name ?? '').trim();
     const notes = String(r.notes ?? '');
+    // Optional grouping header. Lives inside the encrypted record like every
+    // other field, so the server never sees it.
+    const group = String(r.group ?? '').trim();
 
     if (type === 'card') {
       return {
         type,
         name,
+        group,
         card_number: String(r.card_number ?? ''),
         expiration: String(r.expiration ?? ''),
         cvv: String(r.cvv ?? ''),
@@ -421,6 +426,7 @@ export const useVaultStore = defineStore('vault', () => {
       return {
         type,
         name,
+        group,
         account_number: String(r.account_number ?? ''),
         routing_number: String(r.routing_number ?? ''),
         swift_bic: String(r.swift_bic ?? ''),
@@ -432,6 +438,7 @@ export const useVaultStore = defineStore('vault', () => {
     return {
       type,
       name,
+      group,
       username: type === 'key' ? '' : String(r.username ?? ''),
       password: String(r.password ?? ''),
       url: type === 'key' ? '' : String(r.url ?? ''),

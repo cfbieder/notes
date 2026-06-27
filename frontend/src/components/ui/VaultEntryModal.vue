@@ -6,7 +6,8 @@ import { useToastsStore } from '../../stores/toasts.js';
 
 const props = defineProps({
   entry: { type: Object, default: null },     // null = create
-  defaultType: { type: String, default: 'password' }
+  defaultType: { type: String, default: 'password' },
+  existingGroups: { type: Array, default: () => [] }  // group names already in use for this type
 });
 const emit = defineEmits(['save', 'cancel', 'delete']);
 
@@ -17,6 +18,7 @@ const type = ref('password');
 
 // Shared
 const name = ref('');
+const group = ref('');
 const notes = ref('');
 const saving = ref(false);
 
@@ -60,6 +62,7 @@ watch(() => props.entry, (e) => {
   type.value = initialType;
 
   name.value = e?.name ?? '';
+  group.value = e?.group ?? '';
   notes.value = e?.notes ?? '';
 
   username.value = e?.username ?? '';
@@ -101,7 +104,7 @@ async function save() {
   if (!canSave.value) return;
   saving.value = true;
   try {
-    const base = { type: type.value, name: name.value.trim(), notes: notes.value };
+    const base = { type: type.value, name: name.value.trim(), group: group.value.trim(), notes: notes.value };
     let payload;
     if (isCard.value) {
       payload = {
@@ -205,6 +208,18 @@ const namePlaceholder = computed(() => {
           <label>
             <span>{{ nameLabel }}</span>
             <input v-model="name" :placeholder="namePlaceholder" autofocus />
+          </label>
+
+          <label>
+            <span>Group <span class="optional">(optional)</span></span>
+            <input
+              v-model="group"
+              list="vault-group-suggestions"
+              placeholder="e.g. Work, Personal, Servers"
+            />
+            <datalist id="vault-group-suggestions">
+              <option v-for="g in existingGroups" :key="g" :value="g" />
+            </datalist>
           </label>
 
           <!-- ===== PASSWORD ===== -->
@@ -445,6 +460,7 @@ label {
   display: flex; flex-direction: column; gap: 4px;
   font-size: 12px; color: var(--text-secondary);
 }
+.optional { color: var(--text-muted, var(--text-secondary)); font-weight: 400; opacity: 0.8; }
 input, textarea {
   background: var(--bg-input, var(--bg-card));
   border: 1px solid var(--border-subtle);
