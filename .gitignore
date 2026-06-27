@@ -55,3 +55,4 @@ backups/
 backend/.env.prod
 !backend/.env.prod.example
 ocr-llm/
+noted.tail413695.ts.net.*

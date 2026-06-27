@@ -41,6 +41,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR021](CR/CR021_biometric_vault_unlock.md) | Biometric Vault Unlock (WebAuthn PRF) — **Completed** |
 | [CR029](CR/CR029_vault_card_bank_entry_types.md) | Vault: Credit Card & Bank Account entry types — **Completed** |
 | [CR030](CR/CR030_vault_emergency_export.md) | Vault: Emergency export (self-decrypting HTML) — **Completed** |
+| [CR033](CR/CR033_vault_entry_groups.md) | Vault: Optional grouping headers for entries — **Completed** |
 
 ### Settings & UX
 
@@ -92,6 +93,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ## Recently Completed
 
 Tracked in `NOTED_CURRENT_STATE.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
+
+### Released v0.13.0 (2026-06-27)
+
+- **[CR033](CR/CR033_vault_entry_groups.md) — Vault: optional grouping headers for entries.** Every vault entry gains an optional free-text **group**. Within a type tab (Passwords / Keys / Cards / Bank), entries that share a group name render under a `.group-header` (name + count pill); named groups sort alphabetically and ungrouped entries trail in an "Ungrouped" bucket. When nothing in the active tab has a group, the list renders flat exactly as before (no visual change). The entry modal's Group input autocompletes from group names already used for that type. Because the vault is zero-knowledge, `group` lives inside the encrypted record like every other field — **no backend, API, migration, or schema change.** Touches [frontend/src/stores/vault.js](../frontend/src/stores/vault.js), [frontend/src/components/ui/VaultEntryModal.vue](../frontend/src/components/ui/VaultEntryModal.vue), [frontend/src/views/VaultView.vue](../frontend/src/views/VaultView.vue), [frontend/src/lib/vaultExport.js](../frontend/src/lib/vaultExport.js). See [§5.17 in NOTED_CURRENT_STATE.md](NOTED_CURRENT_STATE.md#517-encrypted-vault-cr020--cr029--cr021--cr030--cr033-implemented).
 
 ### Released v0.12.0 (2026-06-19)
 
