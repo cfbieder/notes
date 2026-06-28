@@ -8,6 +8,7 @@ import {
 import { useIdeasStore } from '../../stores/ideas.js';
 import { useRemindersStore } from '../../stores/reminders.js';
 import { useAIAssistStore } from '../../stores/aiAssist.js';
+import { useIntegrationsStore } from '../../stores/integrations.js';
 import { checkoutCount, dirtyCount } from '../../lib/checkouts.js';
 import AIAssistPendingPill from '../ai/AIAssistPendingPill.vue';
 
@@ -21,6 +22,7 @@ const route = useRoute();
 const ideasStore = useIdeasStore();
 const remindersStore = useRemindersStore();
 const aiAssistStore = useAIAssistStore();
+const integrationsStore = useIntegrationsStore();
 
 // Active rail item is derived from route.meta.rail (set in router/index.js).
 // Falls back to 'notes' if a route doesn't declare one — keeps the rail
@@ -114,6 +116,11 @@ defineExpose({ activate, primaryItems });
       >
         <component :is="item.icon" :size="20" />
         <span v-if="item.key === 'offline' && dirtyCount > 0" class="badge badge-offline">{{ dirtyCount }}</span>
+        <span
+          v-else-if="item.key === 'settings' && integrationsStore.googleDrive.needsReconnect"
+          class="badge badge-dot badge-warning"
+          title="Google Drive reconnect required"
+        />
       </button>
     </div>
   </nav>
@@ -223,5 +230,19 @@ defineExpose({ activate, primaryItems });
 .badge-offline {
   background: var(--accent-warn, #ffb800);
   color: var(--on-accent-warn, #1a1a1a);
+}
+
+/* Dot-only badge (no count) — used for the Settings reconnect indicator */
+.badge-dot {
+  min-width: 8px;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  top: 6px;
+  right: 6px;
+}
+
+.badge-warning {
+  background: var(--status-warning, var(--accent-warn, #ffb800));
 }
 </style>

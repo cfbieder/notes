@@ -15,6 +15,7 @@ import { useUIStore } from './stores/ui.js';
 import { useAIAssistStore } from './stores/aiAssist.js';
 import { useNotesStore } from './stores/notes.js';
 import { useToastsStore } from './stores/toasts.js';
+import { useIntegrationsStore } from './stores/integrations.js';
 import { useMobile } from './composables/useMobile.js';
 import { onConflict, flush as flushCheckouts } from './lib/checkoutSync.js';
 
@@ -23,6 +24,7 @@ const uiStore = useUIStore();
 const aiAssistStore = useAIAssistStore();
 const notesStore = useNotesStore();
 const toastsStore = useToastsStore();
+const integrationsStore = useIntegrationsStore();
 const { isMobile } = useMobile();
 const router = useRouter();
 const showSearch = ref(false);
@@ -184,6 +186,29 @@ function onSessionExpired() {
   router.push('/login');
 }
 
+// On app load, check whether the Google Drive integration needs re-auth and,
+// if so, surface a non-blocking sticky toast with a Reconnect action. The
+// ActivityRail also shows a persistent warning dot on Settings so the prompt
+// survives toast dismissal. fetchStatus is a no-op shape when Drive isn't
+// connected (needsReconnect stays false), so this is safe to always run.
+async function checkDriveReconnect() {
+  if (!authStore.isAuthenticated) return;
+  try {
+    await integrationsStore.fetchStatus();
+  } catch {
+    return; // status check failed (e.g. offline) — don't nag
+  }
+  if (integrationsStore.googleDrive.needsReconnect) {
+    toastsStore.addToast({
+      message: 'Google Drive sync is paused — reconnect required.',
+      type: 'warning',
+      duration: 0,
+      actionLabel: 'Reconnect',
+      action: () => router.push('/settings')
+    });
+  }
+}
+
 let unsubscribeConflict = null;
 
 onMounted(() => {
@@ -192,6 +217,7 @@ onMounted(() => {
   window.addEventListener('online', onOnline);
   window.addEventListener('noted:session-expired', onSessionExpired);
   unsubscribeConflict = onConflict(onConflictEvent);
+  checkDriveReconnect();
 });
 
 onBeforeUnmount(() => {
