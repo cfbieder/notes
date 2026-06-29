@@ -1,6 +1,6 @@
 # Development Plan — Noted (Archived 2026-04-25)
 
-> **Archived snapshot.** This was the active development tracker through 2026-04-25. As of the documentation reorganization on that date, outstanding work is tracked as individual CRs under [../CR/](../CR/) and summarized in [../NOTED_NEXT_STEPS.md](../NOTED_NEXT_STEPS.md). Implemented features are described in [../NOTED_CURRENT_STATE.md](../NOTED_CURRENT_STATE.md). This file is preserved for historical reference only and is no longer updated.
+> **Archived snapshot.** This was the active development tracker through 2026-04-25. As of the documentation reorganization on that date, outstanding work is tracked as individual CRs under [docs/cr/](docs/cr/) and summarized in [../NOTED_NEXT_STEPS.md](docs/current/project-roadmap.md). Implemented features are described in [../NOTED_CURRENT_STATE.md](docs/current/project-description.md). This file is preserved for historical reference only and is no longer updated.
 
 > Personal Knowledge & Task Management App
 > Status: Phases 0–6, 9 complete; 8.10, 8.11, 8.12, 9.10–9.12, Phase 10 (Ideas) shipped | Last updated: 2026-04-19
@@ -533,8 +533,8 @@ These items are out of scope for Stages 1–2 but documented for future planning
 ## 13. Infrastructure Notes
 
 > Historical reference material:
-> - `Documentation/Reference/DEVELOPMENT_PRACTICES.md` — generic Node/Docker/Postgres project-setup template (scripts, env separation, dev/prod visual differentiation, backup tiers) that seeded Noter's infra conventions. Noter-specific details now live in `CLAUDE.md` and this file.
-> - `Documentation/Archive/PHASE4_TESTING_GUIDE.md` — manual test checklist for Phase 4 (attachments, reminders, PWA, mobile home). Phase 4 is shipped; kept for reference only.
+> - `docs/archive/development-practices_2026-04-25.md` — generic Node/Docker/Postgres project-setup template (scripts, env separation, dev/prod visual differentiation, backup tiers) that seeded Noter's infra conventions. Noter-specific details now live in `CLAUDE.md` and this file.
+> - `docs/archive/phase4-testing-guide.md` — manual test checklist for Phase 4 (attachments, reminders, PWA, mobile home). Phase 4 is shipped; kept for reference only.
 
 ### Cron Jobs (Production)
 

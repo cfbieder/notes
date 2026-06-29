@@ -30,7 +30,7 @@ Add a per-note `format` column (`'markdown' | 'html'`) and a render branch that 
 - Render branch in `NotesView.vue` + print/export: HTML notes render via DOMPurify in a read-mode container; markdown notes use the existing CodeMirror-with-decorations pipeline.
 - "Edit source" affordance on HTML notes that swaps the read-mode container for CodeMirror in plain-text mode (markdown lang plugin and all markdown decoration / wikilink / table-keymap extensions disabled when `format = 'html'`).
 - Sidebar / list views show a small badge or icon distinguishing HTML notes.
-- Search snippet generation strips HTML tags for `format='html'` rows so [SearchView.vue:76](../../frontend/src/views/SearchView.vue#L76) doesn't `v-html` raw markup into the result list.
+- Search snippet generation strips HTML tags for `format='html'` rows so [SearchView.vue:76](frontend/src/views/SearchView.vue#L76) doesn't `v-html` raw markup into the result list.
 
 ### Out of scope (deferred)
 

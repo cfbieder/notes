@@ -603,7 +603,7 @@ curl -s http://192.168.1.61:8080/llm/models | jq .
 
 ### POST /llm/generate
 
-Direct model access — the caller picks the exact Ollama model. For task-based routing where the server picks the model chain, use `POST /task` — see [ROUTING_RULES.md](../Project/Current State/ROUTING_RULES.md). The proxy automatically routes to the correct GPU and Ollama instance based on the current mode.
+Direct model access — the caller picks the exact Ollama model. For task-based routing where the server picks the model chain, use `POST /task` — see `ROUTING_RULES.md` (ocr-llm project). The proxy automatically routes to the correct GPU and Ollama instance based on the current mode.
 
 **Request:**
 ```
@@ -679,7 +679,7 @@ Each line of the response is a JSON object like `{"response": "1", "done": false
 - `qwen3:32b` → GPU 1 Ollama (port 11434)
 - Models on different GPUs can run **concurrently** with no swap penalty
 
-For the full routing decision flowchart and all fallback chains, see [ROUTING_RULES.md](../Project/Current State/ROUTING_RULES.md).
+For the full routing decision flowchart and all fallback chains, see `ROUTING_RULES.md` (ocr-llm project).
 
 **Migration for existing apps:** Change your Ollama endpoint from `http://192.168.1.61:11434/api/generate` to `http://192.168.1.61:8080/llm/generate`. The request/response format is the same, with the addition of `gpu` and `mode` fields in the response. For new apps, prefer `POST /task` — it provides automatic model selection and fallbacks across all providers.
 
@@ -1122,7 +1122,7 @@ curl -X POST http://192.168.1.61:8082/collections/medical_references/ingest -F "
 
 ## Integration Guide
 
-> **Recommended approach:** Use `POST /task` for all new integrations — it provides task-based routing with automatic model selection, provider fallback (Ollama → Claude → Perplexity), and guardrails. Use `GET /task/routes` to discover available tasks. Fall back to `POST /llm/generate` only when you need to target a specific Ollama model directly. See [ROUTING_RULES.md](../Project/Current State/ROUTING_RULES.md) for the full routing spec.
+> **Recommended approach:** Use `POST /task` for all new integrations — it provides task-based routing with automatic model selection, provider fallback (Ollama → Claude → Perplexity), and guardrails. Use `GET /task/routes` to discover available tasks. Fall back to `POST /llm/generate` only when you need to target a specific Ollama model directly. See `ROUTING_RULES.md` (ocr-llm project) for the full routing spec.
 
 ### Available Models
 
@@ -1344,7 +1344,7 @@ result2 = await router.generate(
 )
 ```
 
-Custom routes can be passed to `AIRouter(routes={...})`. See [ROUTING_RULES.md](../Project/Current State/ROUTING_RULES.md) for the complete routing table.
+Custom routes can be passed to `AIRouter(routes={...})`. See `ROUTING_RULES.md` (ocr-llm project) for the complete routing table.
 
 #### Health Check
 
@@ -1418,7 +1418,7 @@ Port 8080 (OCR API) is already open.
 
 ### Key Notes
 
-- **Use `POST /task` for LLM requests.** Do not call Ollama directly. The proxy handles GPU routing and load balancing automatically. `/task` is preferred for new integrations — it provides automatic model selection and fallbacks based on the task type. See [ROUTING_RULES.md](../Project/Current State/ROUTING_RULES.md) for routing details.
+- **Use `POST /task` for LLM requests.** Do not call Ollama directly. The proxy handles GPU routing and load balancing automatically. `/task` is preferred for new integrations — it provides automatic model selection and fallbacks based on the task type. See `ROUTING_RULES.md` (ocr-llm project) for routing details.
 - **Timeout:** Set HTTP client timeout to at least 300 seconds. LLM inference takes 2-30s for text, 20-40s for OCR. The 300s timeout accommodates cold model loads and qwen3:32b.
 - **Multi-page PDFs:** Pages are processed in parallel on the GPU. Response `data` is an array (one entry per page) for multi-page documents, or a single object for single-page.
 - **Prompt design:** Include "return as valid JSON only, no other text" in your prompt for cleanest results. The API strips markdown fences and extracts JSON automatically, but explicit instructions help.

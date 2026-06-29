@@ -9,7 +9,7 @@
 
 ## 1. Summary
 
-The expanded notes list (rendered by [`NoteListPanel`](../../frontend/src/components/ui/NoteListPanel.vue) when no note is open — i.e. on `/notes`, `/notebooks/:id`, `/tags/:name`) currently shows stacked title-over-preview cards sorted by `pinned DESC, updated_at DESC`. Users have no way to find a note by name without scrolling or using search.
+The expanded notes list (rendered by [`NoteListPanel`](frontend/src/components/ui/NoteListPanel.vue) when no note is open — i.e. on `/notes`, `/notebooks/:id`, `/tags/:name`) currently shows stacked title-over-preview cards sorted by `pinned DESC, updated_at DESC`. Users have no way to find a note by name without scrolling or using search.
 
 CR030 converts the expanded list into a two-column "table" — **Title** | **Last used** — with clickable column headers that toggle sort key and direction. The narrow sidebar list (when a note is open) keeps the current stacked-card style.
 

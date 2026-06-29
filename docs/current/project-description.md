@@ -1,10 +1,8 @@
-# NOTED_CURRENT_STATE.md
-
 # Noted — Personal Knowledge & Task Management App
 
 > Self-hosted, Markdown-first note-taking app combining Evernote's organizational depth with Obsidian's knowledge graph model. Built for personal use first, designed to scale to multi-user collaboration.
 
-> **Document role:** Authoritative description of the project's *current* state — what is built, how it works, the data model and APIs. Outstanding work lives in [NOTED_NEXT_STEPS.md](NOTED_NEXT_STEPS.md) and the [CR/](CR/) folder. The pre-reorg historical record of completed phases lives in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md).
+> **Document role:** Authoritative description of the project's *current* state — what is built, how it works, the data model and APIs. Outstanding work lives in [docs/current/project-roadmap.md](docs/current/project-roadmap.md) and the [docs/cr/](docs/cr/) folder (canonical status table: [docs/cr/README.md](docs/cr/README.md)). The pre-reorg historical record of completed phases lives in [docs/archive/noted-development-plan_2026-04-25.md](docs/archive/noted-development-plan_2026-04-25.md).
 
 ---
 
@@ -402,7 +400,7 @@ Soft-sync offline editing of existing notes. Use case: take notes with you on a 
 - **Storage persistence:** First successful checkout requests `navigator.storage.persist()` so the browser is less likely to evict the cache under pressure. The OfflinePanel footer reports the actual persistence state.
 - **Wikilinks while offline:** Links to non-checked-out notes still render but click-through fails when offline; v1 does not visually grey them out (refinement deferred).
 - **Inline images:** v1 caches markdown source + metadata only. Images are still loaded from the live attachment URL — they render normally online and show as broken when offline. Blob caching of inline images is deferred to a follow-on so the editor's image renderer changes can land in isolation.
-- **Tests:** Backend integration tests in [`backend/tests/cr027-checkout.test.js`](backend/tests/cr027-checkout.test.js) cover auth, clean apply, conflict 409, forced overwrite, missing/deleted note, wikilink resync, and required-field validation (20 assertions, all passing). Frontend unit-test scaffolding for `checkouts.js` and `checkoutSync.js` is described in [CR027 §13.1](Documentation/CR/CR027_offline_note_checkout.md) but the `vitest` test script + `fake-indexeddb` dep are not yet added — manual walkthrough in §13.2 of the CR is the v1 regression spec.
+- **Tests:** Backend integration tests in [`backend/tests/cr027-checkout.test.js`](backend/tests/cr027-checkout.test.js) cover auth, clean apply, conflict 409, forced overwrite, missing/deleted note, wikilink resync, and required-field validation (20 assertions, all passing). Frontend unit-test scaffolding for `checkouts.js` and `checkoutSync.js` is described in [CR027 §13.1](docs/cr/cr-027-offline-note-checkout.md) but the `vitest` test script + `fake-indexeddb` dep are not yet added — manual walkthrough in §13.2 of the CR is the v1 regression spec.
 
 ### 5.15 Settings (implemented)
 
@@ -418,7 +416,7 @@ Soft-sync offline editing of existing notes. Use case: take notes with you on a 
 - **Script workflow:** Users create a token via the API, then use `curl -H "Authorization: Bearer noted_..."` or `?token=noted_...` in shell scripts (e.g. `getDocs.sh`) to pull notes from remote machines over Tailscale.
 - **Code:** `backend/src/routes/export.js`, `backend/src/routes/auth.js` (token endpoints), `backend/src/plugins/auth.js` (token verification), `backend/migrations/011_api_tokens.sql`.
 
-### 5.17 Encrypted Vault (CR020 + CR029 + CR021 + CR030 + CR033, implemented)
+### 5.17 Encrypted Vault (CR020 + CR021 + CR029 + CR033 + CR035, implemented)
 
 Client-side, zero-knowledge vault for passwords, keys, credit cards, and bank accounts, with optional biometric unlock per device. Server stores opaque ciphertext only — the master password and derived key never leave the browser. Reachable via the sidebar (lock-key icon) or `/vault`.
 
@@ -430,9 +428,9 @@ Client-side, zero-knowledge vault for passwords, keys, credit cards, and bank ac
 - **API:** `/api/v1/vault/meta` (GET/POST) for KDF salt/params and verifier ciphertext; `/api/v1/vault/entries` (GET/POST/PUT/DELETE) for opaque ciphertext blobs; `PUT /api/v1/vault/rotate` for atomic master-password rotation (re-encrypted entries posted alongside new metadata in a single transaction). BYTEA fields are exchanged as base64 in JSON.
 - **Settings:** "Change Vault Password" card in Settings (visible only when a vault exists) takes current + new + confirm passwords, derives both keys client-side, decrypts every entry with the old key, re-encrypts with the new key, and posts the bundle to `/vault/rotate`. The server never sees either password.
 - **Biometric unlock (CR021):** opt-in per device. Settings → "Biometric Vault Unlock" card prompts for the current vault password, runs the WebAuthn enrollment ceremony with the PRF extension, wraps the raw 32-byte master key under the PRF secret (AES-256-GCM), and stores `{credentialId, prfSalt, wrappedKey, wrappedIv}` in `localStorage["noted.vaultBiometric"]`. The wrap secret lives in the OS secure enclave / TPM and never leaves the authenticator. On the lock screen, a "Use biometric unlock" button appears above the password form when a wrapped key is present for this device. Master-password rotation auto-clears the wrapped key (since it'd no longer unwrap correctly); a stale wrap (e.g. password rotated elsewhere) is detected by the verifier check after unwrap and auto-cleared. Password unlock remains the always-available fallback. Browsers without WebAuthn / PRF (Firefox in some configurations) simply don't show the option.
-- **Emergency export (CR030):** "Export" button in the unlocked vault header produces a single **self-decrypting HTML file** (`noted-vault-emergency-YYYY-MM-DD.html`) the user can save offline and open in any browser with no Noted app and no installed tools. The file embeds only ciphertext; opening it prompts for an **export passphrase** (separate from the master password, chosen at export time, never stored), derives a key in-browser, and renders all entries grouped by type with a filter + Print/Save-as-PDF. Crypto is native WebCrypto only — PBKDF2-HMAC-SHA-256 (600 000 iters, 16-byte salt) + AES-256-GCM (12-byte IV) — so the file carries no Argon2 wasm dependency. Runs entirely client-side from the already-unlocked vault; no backend/API/schema change. Undecryptable stubs are dropped and only type-relevant fields are exported.
+- **Emergency export (CR035):** "Export" button in the unlocked vault header produces a single **self-decrypting HTML file** (`noted-vault-emergency-YYYY-MM-DD.html`) the user can save offline and open in any browser with no Noted app and no installed tools. The file embeds only ciphertext; opening it prompts for an **export passphrase** (separate from the master password, chosen at export time, never stored), derives a key in-browser, and renders all entries grouped by type with a filter + Print/Save-as-PDF. Crypto is native WebCrypto only — PBKDF2-HMAC-SHA-256 (600 000 iters, 16-byte salt) + AES-256-GCM (12-byte IV) — so the file carries no Argon2 wasm dependency. Runs entirely client-side from the already-unlocked vault; no backend/API/schema change. Undecryptable stubs are dropped and only type-relevant fields are exported.
 - **Storage:** Tables `vault_meta` and `vault_entries` (UUID `user_id`, `bytea ciphertext`, `bytea iv`). No plaintext metadata is stored anywhere on the server. Biometric wrapped-key blobs live in browser `localStorage` only — the server has no awareness of biometric enrollment.
-- **Code:** `backend/migrations/017_vault.sql`, `backend/src/routes/vault.js`, `backend/tests/phase12-vault.test.js` (26 assertions including a server-side plaintext-leak check), `frontend/src/lib/vaultCrypto.js`, `frontend/src/lib/vaultExport.js` (CR030 emergency export), `frontend/src/lib/biometricUnlock.js`, `frontend/src/stores/vault.js`, `frontend/src/views/VaultView.vue`, `frontend/src/views/SettingsView.vue`, `frontend/src/components/ui/VaultEntryModal.vue`, `frontend/src/components/ui/VaultExportModal.vue` (CR030). Dependency: `hash-wasm` (Argon2id).
+- **Code:** `backend/migrations/017_vault.sql`, `backend/src/routes/vault.js`, `backend/tests/phase12-vault.test.js` (26 assertions including a server-side plaintext-leak check), `frontend/src/lib/vaultCrypto.js`, `frontend/src/lib/vaultExport.js` (CR035 emergency export), `frontend/src/lib/biometricUnlock.js`, `frontend/src/stores/vault.js`, `frontend/src/views/VaultView.vue`, `frontend/src/views/SettingsView.vue`, `frontend/src/components/ui/VaultEntryModal.vue`, `frontend/src/components/ui/VaultExportModal.vue` (CR035). Dependency: `hash-wasm` (Argon2id).
 
 ### 5.18 HTML-Format Notes (CR023, implemented)
 
@@ -867,7 +865,7 @@ useAIAssistStore    — AI Assist modal isOpen + last prompt (persisted to local
 
 ## 9. Development Stages
 
-> **Note:** See [NOTED_NEXT_STEPS.md](NOTED_NEXT_STEPS.md) and the [CR/](CR/) folder for the authoritative, in-progress tracker. This section is a high-level snapshot.
+> **Note:** See [docs/current/project-roadmap.md](docs/current/project-roadmap.md) and the [docs/cr/](docs/cr/) folder for the authoritative, in-progress tracker. This section is a high-level snapshot.
 
 ### Stage 1 — Web App MVP ✅ (shipped)
 
@@ -985,12 +983,15 @@ noted/
 │   └── noted.conf
 │
 ├── CLAUDE.md                    # Claude Code project context
-├── Documentation/
-│   ├── NOTED_CURRENT_STATE.md   # This file
-│   ├── NOTED_NEXT_STEPS.md
-│   ├── CR/                      # Change Requests (Open / In progress / Completed)
-│   ├── Reference/               # External guides + API docs
-│   └── Archive/                 # Stale / historical material
+├── docs/
+│   ├── documentation-standard.md   # Docs conventions (portable)
+│   ├── current/
+│   │   ├── status.md               # Mandatory session-start read
+│   │   ├── project-description.md  # This file (full current state)
+│   │   └── project-roadmap.md      # Planned / in-progress work
+│   ├── cr/                         # Change Requests + README.md index (canonical status)
+│   ├── guides/                     # Runbooks + stable how-tos (key-files, deployment, API)
+│   └── archive/                    # Stale / historical material
 └── docker-compose.yml           # Optional: local dev environment
 ```
 

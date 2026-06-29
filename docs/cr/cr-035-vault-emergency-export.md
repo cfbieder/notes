@@ -1,4 +1,6 @@
-# CR030 — Vault Emergency Export (self-decrypting HTML)
+# CR035 — Vault Emergency Export (self-decrypting HTML)
+
+> Renumbered from CR030 (duplicate number) during the 2026-06-28 docs migration to the documentation standard.
 
 **Status:** Completed (2026-06-19)
 **Severity:** Feature (security-sensitive)

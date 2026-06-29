@@ -11,12 +11,14 @@ allowed-tools: Bash(git *), Bash(./scripts/*), Bash(scripts/*), Bash(cat *), Bas
 - Commits since last tag: !`git log --oneline $(git describe --tags --abbrev=0 2>/dev/null)..HEAD 2>/dev/null || git log --oneline -20`
 
 ## Task
-Finalize this release end-to-end for **Noted**. Follow the project conventions in `CLAUDE.md` — release-relevant docs live under `Documentation/`.
+Finalize this release end-to-end for **Noted**. Follow the project conventions in `CLAUDE.md` — release-relevant docs live under `docs/`.
 
-1. **Update documentation** — Review the commits listed above and update:
-   - `Documentation/NOTED_CURRENT_STATE.md` — reflect any changed features, data model, routes, schema, scripts, or architecture that shipped.
-   - `Documentation/NOTED_NEXT_STEPS.md` — mark completed CRs/items as done, add a "Released vX.Y.Z (YYYY-MM-DD)" entry summarising what shipped, and capture any new known issues discovered.
-   - `Documentation/CR/CR0XX_*.md` — flip `Status:` to `Completed` (or `In progress`) on each CR that was completed or advanced; update scope/acceptance notes if they evolved. If the release warrants a new CR (substantive feature, multi-session work, architectural impact), create the next-numbered file and link it from `NOTED_NEXT_STEPS.md`. Trivial fixes stay as bullets in `NOTED_NEXT_STEPS.md`.
+1. **Update documentation** (follow `docs/documentation-standard.md`) — Review the commits listed above and update:
+   - `docs/cr/cr-NNN-*.md` — flip `Status:` to `Completed` (or `In progress`) on each CR that was completed or advanced; update scope/acceptance notes if they evolved. If the release warrants a new CR (substantive feature, multi-session work, architectural impact), create the next-numbered file (`cr-036-…`, zero-padded). Trivial fixes stay as bullets in `docs/current/project-roadmap.md`.
+   - `docs/cr/README.md` — **the canonical index.** Mark each completed CR's row ✓ and fill in its Date / Version; add a row for any new CR.
+   - `docs/current/project-description.md` — reflect any changed features, data model, routes, schema, scripts, or architecture that shipped.
+   - `docs/current/project-roadmap.md` — mark completed CRs/items as done and capture any new known issues discovered.
+   - `docs/current/status.md` — refresh the snapshot (current version, recently-shipped headlines, what's next).
 
 2. **Commit the docs** — Stage and commit the documentation updates *before* bumping the version, so the version commit stays focused. Use `docs: release notes for vX.Y.Z` (or similar Conventional Commits message). Skip if there are no doc changes.
 

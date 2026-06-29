@@ -8,7 +8,7 @@
 
 ## 1. Summary
 
-CR027 shipped "soft-sync offline editing" for **existing** notes. The complementary half — **creating brand-new notes or ideas while offline** — is partially working today via the `QuickCapture` modal (Alt+N / Alt+I), which has used the [`offlineOutbox`](../../frontend/src/lib/offlineOutbox.js) since before CR027 and already queues new captures with a `client_id` for idempotent replay. However, the **"+ New Idea"** button in [`IdeasView`](../../frontend/src/views/IdeasView.vue), the **"+ New Note"** button in [`NotesPanel`](../../frontend/src/components/sidebar/panels/NotesPanel.vue), and the **"Quick Note"** card in [`MobileHome`](../../frontend/src/components/mobile/MobileHome.vue) all bypass the outbox — they call `notesStore.createNote()` → `api.post('/notes', …)` directly. Offline, these throw `OfflineError` and the user's input is lost.
+CR027 shipped "soft-sync offline editing" for **existing** notes. The complementary half — **creating brand-new notes or ideas while offline** — is partially working today via the `QuickCapture` modal (Alt+N / Alt+I), which has used the [`offlineOutbox`](frontend/src/lib/offlineOutbox.js) since before CR027 and already queues new captures with a `client_id` for idempotent replay. However, the **"+ New Idea"** button in [`IdeasView`](frontend/src/views/IdeasView.vue), the **"+ New Note"** button in [`NotesPanel`](frontend/src/components/sidebar/panels/NotesPanel.vue), and the **"Quick Note"** card in [`MobileHome`](frontend/src/components/mobile/MobileHome.vue) all bypass the outbox — they call `notesStore.createNote()` → `api.post('/notes', …)` directly. Offline, these throw `OfflineError` and the user's input is lost.
 
 CR028 routes those creation surfaces through the same outbox pattern so a user on a plane can: open IdeasView → tap **+ New Idea** → type → save → see the idea immediately in the list (with a "pending sync" badge) → reconnect → the badge disappears and the idea becomes a normal server-backed entry.
 
@@ -70,7 +70,7 @@ Also bundles a small cleanup: the CR027 "available offline" indicator (CloudDown
 }
 ```
 
-CR028 adds one **read-side helper** to [`offlineOutbox.js`](../../frontend/src/lib/offlineOutbox.js):
+CR028 adds one **read-side helper** to [`offlineOutbox.js`](frontend/src/lib/offlineOutbox.js):
 
 ```ts
 // Reactive ref<Array<OutboxRow>> — refreshed alongside pendingCount.
@@ -94,18 +94,18 @@ export const pendingItems = ref([]);
 
 | File | Change |
 |------|--------|
-| [`frontend/src/lib/offlineOutbox.js`](../../frontend/src/lib/offlineOutbox.js) | Add `pendingItems` reactive ref. Update `refreshPending()` to also populate it via `getAllFromIndex(STORE, 'createdAt')`. |
-| [`frontend/src/stores/notes.js`](../../frontend/src/stores/notes.js) | `createNote()` wraps `api.post('/notes', data)` in try/catch; on `OfflineError`, calls `enqueue(KIND_NOTE, { …data, client_id })` and returns a stub note shaped like the server response (so caller code doesn't need to know whether it queued or POSTed). The stub has `_pendingSync: true` so views can render it correctly. |
-| [`frontend/src/stores/ideas.js`](../../frontend/src/stores/ideas.js) (if applicable — existing actions for "+ New Idea") | Same wrapping. |
+| [`frontend/src/lib/offlineOutbox.js`](frontend/src/lib/offlineOutbox.js) | Add `pendingItems` reactive ref. Update `refreshPending()` to also populate it via `getAllFromIndex(STORE, 'createdAt')`. |
+| [`frontend/src/stores/notes.js`](frontend/src/stores/notes.js) | `createNote()` wraps `api.post('/notes', data)` in try/catch; on `OfflineError`, calls `enqueue(KIND_NOTE, { …data, client_id })` and returns a stub note shaped like the server response (so caller code doesn't need to know whether it queued or POSTed). The stub has `_pendingSync: true` so views can render it correctly. |
+| [`frontend/src/stores/ideas.js`](frontend/src/stores/ideas.js) (if applicable — existing actions for "+ New Idea") | Same wrapping. |
 
 ### Modified views (list rendering)
 
 | File | Change |
 |------|--------|
-| [`frontend/src/views/IdeasView.vue`](../../frontend/src/views/IdeasView.vue) | (a) Add CloudDownload indicator next to checked-out idea titles (CR027 parity). (b) Merge `pendingItems.filter(r => r.payload.note_type === 'idea')` into the rendered list. Pending rows render with a `CloudUpload` badge + "Pending sync" tooltip and are not clickable (no server ID yet). |
-| [`frontend/src/components/ui/NoteListPanel.vue`](../../frontend/src/components/ui/NoteListPanel.vue) | Merge `pendingItems.filter(r => r.payload.note_type !== 'idea')` for note-list parity. CloudUpload badge. |
-| [`frontend/src/views/InboxView.vue`](../../frontend/src/views/InboxView.vue) | Merge `pendingItems.filter(r => r.payload.is_inbox === true)`. |
-| [`frontend/src/components/mobile/MobileNotesList.vue`](../../frontend/src/components/mobile/MobileNotesList.vue) | Same as NoteListPanel. |
+| [`frontend/src/views/IdeasView.vue`](frontend/src/views/IdeasView.vue) | (a) Add CloudDownload indicator next to checked-out idea titles (CR027 parity). (b) Merge `pendingItems.filter(r => r.payload.note_type === 'idea')` into the rendered list. Pending rows render with a `CloudUpload` badge + "Pending sync" tooltip and are not clickable (no server ID yet). |
+| [`frontend/src/components/ui/NoteListPanel.vue`](frontend/src/components/ui/NoteListPanel.vue) | Merge `pendingItems.filter(r => r.payload.note_type !== 'idea')` for note-list parity. CloudUpload badge. |
+| [`frontend/src/views/InboxView.vue`](frontend/src/views/InboxView.vue) | Merge `pendingItems.filter(r => r.payload.is_inbox === true)`. |
+| [`frontend/src/components/mobile/MobileNotesList.vue`](frontend/src/components/mobile/MobileNotesList.vue) | Same as NoteListPanel. |
 
 ### Modified creation surfaces (save handlers)
 
@@ -115,9 +115,9 @@ Once `notesStore.createNote()` is offline-aware (single change point in §6), th
 
 | File | Buttons |
 |------|---------|
-| [`frontend/src/views/IdeasView.vue`](../../frontend/src/views/IdeasView.vue) | "+ New Idea" |
-| [`frontend/src/components/sidebar/panels/NotesPanel.vue`](../../frontend/src/components/sidebar/panels/NotesPanel.vue) | "+ New Note" |
-| [`frontend/src/components/mobile/MobileHome.vue`](../../frontend/src/components/mobile/MobileHome.vue) | "Quick Note" hero card (currently opens QuickCapture — already outbox-aware — but worth confirming) |
+| [`frontend/src/views/IdeasView.vue`](frontend/src/views/IdeasView.vue) | "+ New Idea" |
+| [`frontend/src/components/sidebar/panels/NotesPanel.vue`](frontend/src/components/sidebar/panels/NotesPanel.vue) | "+ New Note" |
+| [`frontend/src/components/mobile/MobileHome.vue`](frontend/src/components/mobile/MobileHome.vue) | "Quick Note" hero card (currently opens QuickCapture — already outbox-aware — but worth confirming) |
 
 ### Reused
 
@@ -204,9 +204,9 @@ If IdeasView has zero server-backed ideas but one or more pending ones, the exis
 
 - [ ] `offlineOutbox.js` exports a `pendingItems` reactive ref that is populated on module load and on every mutation (`enqueue`, `remove`, `flush`).
 - [ ] `notesStore.createNote()` catches `OfflineError` from `api.post('/notes', …)`, calls `enqueue(KIND_NOTE, { …data, client_id })`, and returns a stub note with `_pendingSync: true` (so callers don't need a separate code path).
-- [ ] Tapping **+ New Idea** in [`IdeasView`](../../frontend/src/views/IdeasView.vue) while offline saves the idea to the outbox and shows it in the IdeasView list with a **CloudUpload** badge.
-- [ ] Tapping **+ New Note** in [`NotesPanel`](../../frontend/src/components/sidebar/panels/NotesPanel.vue) while offline behaves the same way — appears in [`NoteListPanel`](../../frontend/src/components/ui/NoteListPanel.vue) with the badge.
-- [ ] [`MobileHome`](../../frontend/src/components/mobile/MobileHome.vue) "Quick Note" hero card opens `QuickCapture`, which is **already** outbox-aware — confirm no regression. (No code change expected here; just confirm.)
+- [ ] Tapping **+ New Idea** in [`IdeasView`](frontend/src/views/IdeasView.vue) while offline saves the idea to the outbox and shows it in the IdeasView list with a **CloudUpload** badge.
+- [ ] Tapping **+ New Note** in [`NotesPanel`](frontend/src/components/sidebar/panels/NotesPanel.vue) while offline behaves the same way — appears in [`NoteListPanel`](frontend/src/components/ui/NoteListPanel.vue) with the badge.
+- [ ] [`MobileHome`](frontend/src/components/mobile/MobileHome.vue) "Quick Note" hero card opens `QuickCapture`, which is **already** outbox-aware — confirm no regression. (No code change expected here; just confirm.)
 - [ ] Pending-sync rows are non-clickable, have no context menu, and tooltip reads "Pending sync — will be saved when you're back online".
 - [ ] Toast on offline save: "Saved offline — will sync when online".
 - [ ] On reconnect, pending rows are replaced (via `client_id` idempotency) with server-backed rows without flicker or duplicates.
@@ -245,7 +245,7 @@ Cases:
 5. `notesStore.createNote()` on a simulated `OfflineError` writes to the outbox and returns a stub with `_pendingSync: true`.
 6. After a simulated `flush()` success, the stub is removed and `notesStore.fetchNotes()` would return the server-backed row.
 
-**No backend tests required.** The `/notes` endpoint and `(user_id, client_id)` unique index are pre-existing and already covered by [`backend/tests/phase4-api.test.js`](../../backend/tests/phase4-api.test.js) and the offline outbox's pre-CR027 capture coverage.
+**No backend tests required.** The `/notes` endpoint and `(user_id, client_id)` unique index are pre-existing and already covered by [`backend/tests/phase4-api.test.js`](backend/tests/phase4-api.test.js) and the offline outbox's pre-CR027 capture coverage.
 
 ### 13.2 Manual walkthrough
 
