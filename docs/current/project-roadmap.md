@@ -57,6 +57,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR030](docs/cr/cr-030-sortable-notes-list-columns.md) | Sortable Notes List Columns — expanded `NoteListPanel` becomes Title + Last-used columns with click-to-sort headers; narrow sidebar unchanged — **Completed** |
 | [CR031](docs/cr/cr-031-inline-pdf-attachment-embeds.md) | Inline PDF attachment embeds (`![[file.pdf]]` → iframe) + "Insert into document" button on attachment rows — **Completed** |
 | [CR032](docs/cr/cr-032-drop-is-inbox-flag.md) | Drop `notes.is_inbox` flag; derive Inbox from default notebook (`notebook_id IS NULL OR is_default = TRUE`) and exclude `note_type='idea'` — **Completed** |
+| [CR036](docs/cr/cr-036-export-note-as-pdf.md) | Export Note as PDF (Markdown + HTML) — relabel the print flow as "Export as PDF"; reuse the existing print-window pipeline (no new deps) — **Completed** |
 
 ### Offline & Sync
 
@@ -93,6 +94,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ## Recently Completed
 
 Tracked in `project-description.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](docs/archive/noted-development-plan_2026-04-25.md).
+
+### Released v0.15.0 (2026-07-05)
+
+- **[CR036](docs/cr/cr-036-export-note-as-pdf.md) — Export Note as PDF (Markdown + HTML).** The editor toolbar's "Print" button (printer icon) is now **"Export as PDF"** (`FileDown` icon) on both desktop ([EditorToolbar.vue](frontend/src/components/editor/EditorToolbar.vue)) and mobile ([MobileEditor.vue](frontend/src/components/mobile/MobileEditor.vue)) editors, making PDF export a discoverable first-class action for the actual use case (self-hosted notes are rarely printed on paper). It reuses the existing print-window pipeline ([printNote.js](frontend/src/lib/printNote.js)) verbatim — markdown notes rendered via markdown-it, HTML-format notes via DOMPurify — so the browser's "Save as PDF" produces a real, vector-quality, selectable-text `.pdf` with the note title as the default filename, and physical printing stays available from the same dialog. **No new dependency, no backend, no migration.** Also fixed a latent mobile bug: `MobileEditor.handlePrint` dropped the `format` argument, so an HTML note would have exported as escaped markdown — it now passes `notesStore.currentNote.format`. On-page header copy changed "Printed <date>" → "Exported <date>". Rejected the heavier alternatives (server-side Puppeteer / ~300 MB Chromium; client-side `html2pdf.js` / rasterized non-selectable text) — see the CR. Batch/multi-note export deferred to a follow-up. See [§5 Export as PDF in project-description.md](docs/current/project-description.md).
 
 ### Released v0.14.0 (2026-06-28)
 

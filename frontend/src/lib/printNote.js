@@ -187,7 +187,7 @@ export function printNote(title, content, format = 'markdown') {
 </head>
 <body>
   <div class="print-title">${escapeHtml(title || 'Untitled')}</div>
-  <div class="print-date">Printed ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+  <div class="print-date">Exported ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
   ${html}
 </body>
 </html>`);

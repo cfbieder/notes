@@ -1,7 +1,7 @@
 <script setup>
 import { useUIStore } from '../../stores/ui.js';
 import { computed } from 'vue';
-import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom, Printer, RefreshCw, Download, CheckSquare, CloudOff, CloudDownload, CloudUpload } from 'lucide-vue-next';
+import { Code, Eye, Save, Trash2, RotateCcw, ArrowRight, Languages, Table, PanelLeft, PanelBottom, FileDown, RefreshCw, Download, CheckSquare, CloudOff, CloudDownload, CloudUpload } from 'lucide-vue-next';
 import NoteTags from './NoteTags.vue';
 import NoteNotebooks from './NoteNotebooks.vue';
 import ReminderPicker from '../ui/ReminderPicker.vue';
@@ -143,10 +143,10 @@ function onTitleInput(e) {
       <button
         class="print-btn"
         @click="$emit('print')"
-        title="Print or save as PDF"
+        title="Export this note as a PDF"
       >
-        <Printer :size="14" />
-        <span>Print</span>
+        <FileDown :size="14" />
+        <span>Export as PDF</span>
       </button>
 
       <!-- CR027 — offline checkout controls -->

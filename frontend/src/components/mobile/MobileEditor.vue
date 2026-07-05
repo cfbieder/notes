@@ -12,7 +12,7 @@ const CodeMirrorEditor = defineAsyncComponent(() => import('../editor/CodeMirror
 import AttachmentZone from '../editor/AttachmentZone.vue';
 import ConfirmModal from '../ui/ConfirmModal.vue';
 import CheckoutBanner from '../ui/CheckoutBanner.vue';
-import { ArrowLeft, Code, Eye, Trash2, Printer, CloudDownload, CloudOff, RefreshCw } from 'lucide-vue-next';
+import { ArrowLeft, Code, Eye, Trash2, FileDown, CloudDownload, CloudOff, RefreshCw } from 'lucide-vue-next';
 import { printNote } from '../../lib/printNote.js';
 import { getCheckout } from '../../lib/checkouts.js';
 import { flush as flushCheckouts } from '../../lib/checkoutSync.js';
@@ -242,7 +242,8 @@ function onInsertAttachment(attachment) {
 }
 
 function handlePrint() {
-  printNote(noteTitle.value, editorContent.value);
+  const format = notesStore.currentNote?.format || 'markdown';
+  printNote(noteTitle.value, editorContent.value, format);
 }
 
 function onRemoveReference(attachmentId) {
@@ -297,8 +298,8 @@ function onRemoveReference(attachmentId) {
           <CloudOff :size="18" />
         </button>
       </template>
-      <button class="print-btn" @click="handlePrint" title="Print or save as PDF">
-        <Printer :size="18" />
+      <button class="print-btn" @click="handlePrint" title="Export this note as a PDF">
+        <FileDown :size="18" />
       </button>
       <button class="delete-btn" @click="showDeleteConfirm = true" title="Delete note">
         <Trash2 :size="18" />
