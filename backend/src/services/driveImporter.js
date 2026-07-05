@@ -3,21 +3,30 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const { pipeline } = require('stream/promises');
 const { extractWikilinks, resolveWikilinks } = require('./wikilinkParser');
+const { extractHtmlTitle, extractHtmlBody } = require('../utils/htmlImport');
 
 async function importDriveFile(fastify, drive, file, userId, integrationId) {
   const uploadDir = process.env.UPLOAD_DIR || './uploads';
 
-  const isTextFile =
+  const isMarkdownFile =
     file.mimeType === 'text/plain' ||
     file.mimeType === 'text/markdown' ||
     file.name.endsWith('.md') ||
     file.name.endsWith('.txt');
 
+  const isHtmlFile =
+    file.mimeType === 'text/html' ||
+    file.mimeType === 'application/xhtml+xml' ||
+    file.name.endsWith('.html') ||
+    file.name.endsWith('.htm');
+
   const isGoogleDoc = file.mimeType.startsWith('application/vnd.google-apps.');
 
   try {
-    // Text files: import content as note body
-    if (isTextFile && !isGoogleDoc) {
+    // Text-based files: import content as the note body. Markdown/txt store the
+    // raw content (format='markdown'); HTML files become first-class HTML-format
+    // notes (CR023) — body normalized, title from <title>, rendered via DOMPurify.
+    if ((isMarkdownFile || isHtmlFile) && !isGoogleDoc) {
       const response = await drive.files.get(
         { fileId: file.id, alt: 'media' },
         { responseType: 'stream' }
@@ -27,8 +36,16 @@ async function importDriveFile(fastify, drive, file, userId, integrationId) {
       for await (const chunk of response.data) {
         chunks.push(chunk);
       }
-      const textContent = Buffer.concat(chunks).toString('utf-8');
-      const title = path.basename(file.name, path.extname(file.name));
+      const raw = Buffer.concat(chunks).toString('utf-8');
+
+      const format = isHtmlFile ? 'html' : 'markdown';
+      let content = raw;
+      let title = path.basename(file.name, path.extname(file.name));
+      if (isHtmlFile) {
+        content = extractHtmlBody(raw);
+        const htmlTitle = extractHtmlTitle(raw);
+        if (htmlTitle) title = htmlTitle;
+      }
 
       // Check for an existing note with the same title that has auto_update enabled
       const existingNote = await fastify.db.query(
@@ -44,18 +61,21 @@ async function importDriveFile(fastify, drive, file, userId, integrationId) {
         // Auto-update: replace content in place, preserving tags/folder/metadata
         const noteId = existingNote.rows[0].id;
         noteResult = await fastify.db.query(
-          `UPDATE notes SET content = $1, updated_at = NOW()
-           WHERE id = $2 AND user_id = $3 RETURNING *`,
-          [textContent, noteId, userId]
+          `UPDATE notes SET content = $1, format = $2, updated_at = NOW()
+           WHERE id = $3 AND user_id = $4 RETURNING *`,
+          [content, format, noteId, userId]
         );
-        // Re-sync wikilinks for the updated content
-        await syncNoteWikilinks(fastify, noteId, userId, textContent);
+        // Re-sync wikilinks for markdown only — the wikilink parser is
+        // markdown-only and HTML notes don't participate in the graph (CR023).
+        if (!isHtmlFile) {
+          await syncNoteWikilinks(fastify, noteId, userId, content);
+        }
       } else {
         // notebook_id left NULL → note shows up in /inbox.
         noteResult = await fastify.db.query(
-          `INSERT INTO notes (user_id, title, content)
-           VALUES ($1, $2, $3) RETURNING *`,
-          [userId, title, textContent]
+          `INSERT INTO notes (user_id, title, content, format)
+           VALUES ($1, $2, $3, $4) RETURNING *`,
+          [userId, title, content, format]
         );
       }
 

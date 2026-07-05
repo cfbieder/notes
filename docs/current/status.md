@@ -7,14 +7,14 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.15.0 · **Live:** `https://noted.tail413695.ts.net`
+**Current version:** v0.15.1 · **Live:** `https://noted.tail413695.ts.net`
 (containers `noted-db`, `noted-api`, `noted-web`).
 
 ## Recently shipped
 See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlines:
+- v0.15.1 — fix: Google Drive `.html` imports now render as HTML notes (were placeholder-only)
 - [CR036](docs/cr/cr-036-export-note-as-pdf.md) — Export note as PDF (relabelled print flow, markdown + HTML) (v0.15.0)
 - [CR034](docs/cr/cr-034-drive-reconnect-startup-notice.md) — Google Drive reconnect notice at app startup (v0.14.0)
-- [CR033](docs/cr/cr-033-vault-entry-groups.md) — Vault entry grouping headers (v0.13.0)
 
 ## In progress / next
 - [CR026](docs/cr/cr-026-activity-rail-navigation.md) — Activity rail + contextual panel navigation (**in progress**)
