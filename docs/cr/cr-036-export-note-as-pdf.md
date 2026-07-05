@@ -1,6 +1,6 @@
 # CR036 — Export Note as PDF (Markdown + HTML)
 
-**Status:** Completed (v0.15.0, 2026-07-05)
+**Status:** Completed (v0.15.0, 2026-07-05) · fidelity fix v0.15.2
 **Severity:** Feature (small)
 **Origin:** User request, 2026-07-05
 
@@ -115,6 +115,20 @@ None.
 2. **Mobile format regression.** Mobile currently drops the `format` arg, so an
    HTML note would export as escaped markdown. Passing `noteFormat` fixes it; add
    a manual check for an HTML note on the mobile path.
+
+## Post-release fixes
+
+- **v0.15.2 — HTML notes now export with their own styling.** The initial
+  implementation rendered HTML notes in the print window via `sanitizeNoteHtml()`,
+  which *extracts and discards every `<style>` block* — so an HTML note's own CSS
+  (dark theme, cards, timeline, colored badges) was dropped and the PDF was
+  flattened, unstyled markup that didn't match the on-screen render. Fixed in
+  [printNote.js](frontend/src/lib/printNote.js) to use `sanitizeNoteHtmlSplit()`
+  with the same `.note-html` scope + container as `NotesView.vue`, re-inject the
+  note's scoped CSS into the print `<head>`, add `print-color-adjust: exact` so
+  background colors/graphics render in the PDF, and let HTML notes drive their own
+  layout (no 800px markdown-column clamp; markdown notes unchanged). Verified: the
+  discarded-CSS path captured 0 rules, the fixed path preserves all scoped rules.
 
 ## Follow-ups (separate CRs)
 

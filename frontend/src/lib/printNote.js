@@ -1,6 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import { getAccessToken } from '../api/client.js';
-import { sanitizeNoteHtml } from './htmlSanitize.js';
+import { sanitizeNoteHtmlSplit } from './htmlSanitize.js';
 
 const md = new MarkdownIt({
   html: false,
@@ -35,9 +35,19 @@ export function printNote(title, content, format = 'markdown') {
   const token = getAccessToken();
 
   // Render to HTML — markdown via markdown-it, html notes via DOMPurify.
-  let html = format === 'html'
-    ? sanitizeNoteHtml(content || '', { scope: 'body' })
-    : md.render(content || '');
+  // For HTML notes use the *split* sanitizer so the note's own <style> CSS is
+  // preserved (sanitizeNoteHtml discards it) and re-injected into the print
+  // head below. Scope + container mirror NotesView (.note-html) so the PDF
+  // matches the on-screen render exactly.
+  let html;
+  let noteCss = '';
+  if (format === 'html') {
+    const split = sanitizeNoteHtmlSplit(content || '', { scope: '.note-html' });
+    html = `<article class="note-html">${split.html}</article>`;
+    noteCss = split.css;
+  } else {
+    html = md.render(content || '');
+  }
 
   // Rewrite attachment image URLs to include auth token for the print window
   if (token) {
@@ -63,16 +73,27 @@ export function printNote(title, content, format = 'markdown') {
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
+    /* Force background/colored graphics to render in the PDF so HTML notes
+       with their own theming (dark cards, colored badges) match the screen —
+       browsers omit backgrounds in print by default. */
+    html {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 14px;
       line-height: 1.7;
       color: #1a1a1a;
       background: #fff;
-      padding: 40px 60px;
-      max-width: 800px;
-      margin: 0 auto;
     }
+
+    /* Markdown notes get the classic centered document column. HTML notes keep
+       only a light page margin and let their own CSS (scoped to .note-html)
+       drive width, background, and spacing. */
+    body.fmt-md { padding: 40px 60px; max-width: 800px; margin: 0 auto; }
+    body.fmt-html { padding: 24px; }
 
     .print-title {
       font-family: 'Plus Jakarta Sans', sans-serif;
@@ -173,7 +194,7 @@ export function printNote(title, content, format = 'markdown') {
     }
 
     @media print {
-      body { padding: 0; }
+      body.fmt-md { padding: 0; }
       .print-title { font-size: 24px; }
 
       a { color: #1a1a1a; }
@@ -184,8 +205,9 @@ export function printNote(title, content, format = 'markdown') {
       img { page-break-inside: avoid; }
     }
   </style>
+  <style>${noteCss}</style>
 </head>
-<body>
+<body class="${format === 'html' ? 'fmt-html' : 'fmt-md'}">
   <div class="print-title">${escapeHtml(title || 'Untitled')}</div>
   <div class="print-date">Exported ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
   ${html}
