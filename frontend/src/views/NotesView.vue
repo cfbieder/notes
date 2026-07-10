@@ -8,6 +8,7 @@ import { api } from '../api/client.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import NoteListPanel from '../components/ui/NoteListPanel.vue';
 import EditorToolbar from '../components/editor/EditorToolbar.vue';
+import EditorTabs from '../components/editor/EditorTabs.vue';
 const CodeMirrorEditor = defineAsyncComponent(() => import('../components/editor/CodeMirrorEditor.vue'));
 import AttachmentZone from '../components/editor/AttachmentZone.vue';
 import BacklinksPanel from '../components/editor/BacklinksPanel.vue';
@@ -30,6 +31,7 @@ import { useNotebooksStore } from '../stores/notebooks.js';
 import { useGraphStore } from '../stores/graph.js';
 import { useAIAssistStore } from '../stores/aiAssist.js';
 import { useToastsStore } from '../stores/toasts.js';
+import { useOpenTabsStore } from '../stores/openTabs.js';
 import { printNote } from '../lib/printNote.js';
 import { sanitizeNoteHtml, sanitizeNoteHtmlSplit } from '../lib/htmlSanitize.js';
 
@@ -38,6 +40,7 @@ const notebooksStore = useNotebooksStore();
 const graphStore = useGraphStore();
 const aiAssistStore = useAIAssistStore();
 const toastsStore = useToastsStore();
+const openTabsStore = useOpenTabsStore();
 
 const route = useRoute();
 const router = useRouter();
@@ -275,6 +278,31 @@ function navigateToNote(noteId) {
   }
 }
 
+function tabPath(tab) {
+  return tab.routeName === 'IdeaDetail' ? `/ideas/${tab.id}` : `/notes/${tab.id}`;
+}
+
+// Selecting a tab goes through the router — this triggers the route watcher,
+// which flushes the outgoing note's save before loading the incoming one.
+function selectTab(id) {
+  if (id === route.params.id) return;
+  const tab = openTabsStore.tabs.find(t => t.id === id);
+  if (tab) router.push(tabPath(tab));
+}
+
+function closeTab(id) {
+  const wasActive = id === route.params.id;
+  const neighbour = openTabsStore.close(id);
+  if (!wasActive) return;
+  // Closing the active tab: move to a neighbour, or fall back to the list
+  // (the route watcher saves the outgoing note and clears the editor pane).
+  if (neighbour) {
+    router.push(tabPath(neighbour));
+  } else {
+    router.push('/notes');
+  }
+}
+
 // Mobile detection
 const isMobile = ref(window.innerWidth < 768);
 const mobileSidebarOpen = ref(false);
@@ -389,6 +417,7 @@ async function loadNote(id) {
       editorContent.value = note.content || '';
       htmlEditMode.value = false;
       uiStore.setSaveStatus('saved');
+      openTabsStore.ensureOpen({ id, title: note.title || '', routeName: route.name });
       // Best-effort: don't await — these silently fail when offline.
       graphStore.fetchBacklinks(id).catch(() => {});
       graphStore.fetchUnlinkedMentions(id).catch(() => {});
@@ -402,8 +431,11 @@ async function loadNote(id) {
       editorContent.value = row.localContent || '';
       htmlEditMode.value = false;
       uiStore.setSaveStatus('saved');
+      openTabsStore.ensureOpen({ id, title: row.localTitle || '', routeName: route.name });
       return;
     }
+    // Unreachable offline (note may still exist server-side) — keep any
+    // existing tab, but don't force one open.
     noteTitle.value = '';
     editorContent.value = '_Not available offline. Reconnect to load this note._';
     htmlEditMode.value = false;
@@ -415,7 +447,11 @@ async function loadNote(id) {
       editorContent.value = row.localContent || '';
       htmlEditMode.value = false;
       uiStore.setSaveStatus('saved');
+      openTabsStore.ensureOpen({ id, title: row.localTitle || '', routeName: route.name });
     } else {
+      // Hard failure (e.g. the note was deleted / 404) — drop any stale tab
+      // so it doesn't linger in the strip.
+      openTabsStore.pruneMissing(id);
       noteTitle.value = '';
       editorContent.value = '_Failed to load note: ' + (err?.message || 'unknown error') + '_';
       htmlEditMode.value = false;
@@ -448,6 +484,7 @@ async function saveNote() {
       title: noteTitle.value,
       content: editorContent.value
     });
+    openTabsStore.updateTitle(notesStore.currentNote.id, noteTitle.value);
     uiStore.setSaveStatus('saved');
   } catch {
     uiStore.setSaveStatus('unsaved');
@@ -723,6 +760,12 @@ async function handleRefreshOffline() {
          Collapse only applies on detail routes, where it focuses the editor. -->
     <NoteListPanel v-if="!uiStore.noteListCollapsed || !isDetailRoute" :expanded="!isDetailRoute" />
     <main v-if="isDetailRoute" class="editor-pane">
+      <EditorTabs
+        :tabs="openTabsStore.tabs"
+        :activeId="route.params.id"
+        @select="selectTab"
+        @close="closeTab"
+      />
       <div v-if="!notesStore.currentNote" class="no-note">
         <FileText :size="48" />
         <p>Loading…</p>

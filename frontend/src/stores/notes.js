@@ -171,6 +171,9 @@ export const useNotesStore = defineStore('notes', () => {
     if (currentNote.value && currentNote.value.id === id) {
       currentNote.value = null;
     }
+    // Drop any open editor tab pointing at the trashed note. Lazy import to
+    // avoid a circular dependency at module load.
+    import('./openTabs.js').then(m => m.useOpenTabsStore().pruneMissing(id));
     await fetchNotes();
     useNotebooksStore().fetchNotebooks();
     // Refresh ideas store too — if the trashed note was an idea, the count must drop.
