@@ -52,6 +52,8 @@ authoritative description of each subsystem lives in
 | `frontend/src/components/ui/InsertTableModal.vue` | Rows/cols/alignment modal for inserting a new table |
 | `frontend/src/components/ui/TableEditorModal.vue` | Click-to-edit grid editor for existing tables |
 | `frontend/src/lib/printNote.js` | Print/PDF export — renders markdown to HTML via markdown-it |
+| `frontend/src/stores/openTabs.js` | Open editor tabs (CR037) — persisted `{id,title,routeName}` list; active tab derived from route |
+| `frontend/src/components/editor/EditorTabs.vue` | Desktop editor tab strip (CR037) — renders open tabs, emits select/close |
 | `backend/src/routes/export.js` | Note export endpoint (`GET /api/v1/notes/export/:title`) |
 | `backend/src/routes/system.js` | System stats endpoint (`GET /api/v1/system/stats`) |
 | `frontend/src/components/ui/SystemStatusCard.vue` | Settings-page System Status card |

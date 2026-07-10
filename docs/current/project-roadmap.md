@@ -58,6 +58,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR031](docs/cr/cr-031-inline-pdf-attachment-embeds.md) | Inline PDF attachment embeds (`![[file.pdf]]` → iframe) + "Insert into document" button on attachment rows — **Completed** |
 | [CR032](docs/cr/cr-032-drop-is-inbox-flag.md) | Drop `notes.is_inbox` flag; derive Inbox from default notebook (`notebook_id IS NULL OR is_default = TRUE`) and exclude `note_type='idea'` — **Completed** |
 | [CR036](docs/cr/cr-036-export-note-as-pdf.md) | Export Note as PDF (Markdown + HTML) — relabel the print flow as "Export as PDF"; reuse the existing print-window pipeline (no new deps) — **Completed** |
+| [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) | Multi-Note Editor Tabs (desktop) — tab strip over a persisted open-note list; active tab derived from route; no per-tab buffers — **Completed** |
 
 ### Offline & Sync
 
@@ -94,6 +95,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ## Recently Completed
 
 Tracked in `project-description.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](docs/archive/noted-development-plan_2026-04-25.md).
+
+### Released v0.16.0 (2026-07-10)
+
+- **[CR037](docs/cr/cr-037-multi-note-editor-tabs.md) — Multi-Note Editor Tabs (desktop).** A tab strip at the top of the desktop editor pane keeps multiple notes open at once. Tabs are a thin UI over a persisted list of open note ids ([openTabs.js](frontend/src/stores/openTabs.js), `localStorage` key `noted:open-tabs`); the **active** tab is always derived from the route (`route.params.id`), never stored separately — so clicking a tab does a `router.push` and the existing route watcher flushes the outgoing note's autosave before loading the incoming one (no per-tab live buffers, no refactor of `currentNote`/`saveTimer`/`checkoutState`). Opening a note from anywhere (list click, wikilink/backlink nav, direct URL) registers a tab; closing the active tab jumps to a neighbour or the list view; trashing or a hard 404 prunes the tab; renaming updates the label; tabs survive reloads (malformed persisted data is ignored). New files [frontend/src/stores/openTabs.js](frontend/src/stores/openTabs.js), [frontend/src/components/editor/EditorTabs.vue](frontend/src/components/editor/EditorTabs.vue); wired into [NotesView.vue](frontend/src/views/NotesView.vue) and [notes.js](frontend/src/stores/notes.js). **Desktop only** — mobile keeps the single-note `MobileEditor` flow. **No backend, API, or migration.** Rejected the heavier per-tab-live-buffer design (would preserve cursor/scroll/unsaved mid-switch but require reworking every global editor ref). Verified: production build green; tab state-machine logic unit-tested (dedup, neighbour-on-close, persistence round-trip, malformed-JSON safety). See [§5.1 Multi-note editor tabs in project-description.md](docs/current/project-description.md).
 
 ### Released v0.15.2 (2026-07-05)
 
