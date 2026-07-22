@@ -93,7 +93,11 @@ None.
 - [x] On app open (list route, before any note is opened) the persisted tab strip
       is visible above the note list; clicking a tab routes to that note.
       *(v0.16.1 follow-up — the strip previously only rendered inside the editor
-      pane, so restored tabs were invisible until a note was opened.)*
+      pane, so restored tabs were invisible until a note was opened. v0.16.2 —
+      fixed a flex-shrink bug where the list-route strip collapsed to zero
+      height once the note list populated: the strip has `overflow` set (implicit
+      `min-height:0`) and was absorbing all shrink from the `flex:1` list below;
+      pinned it to `flex:0 0 auto` and gave the panel `min-height:0`.)*
 - [x] Production build passes (`npm run build`); tab state-machine logic unit-
       verified (dedup, neighbour-on-close, persistence round-trip, malformed JSON).
 
