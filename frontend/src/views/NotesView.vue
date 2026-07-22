@@ -757,8 +757,19 @@ async function handleRefreshOffline() {
     <AppSidebar />
     <!-- On list-only routes the list IS the page — never let a collapsed flag
          hide it into a blank pane (there's no editor pane to fall back to).
-         Collapse only applies on detail routes, where it focuses the editor. -->
-    <NoteListPanel v-if="!uiStore.noteListCollapsed || !isDetailRoute" :expanded="!isDetailRoute" />
+         Collapse only applies on detail routes, where it focuses the editor.
+         The open-tabs strip sits above the list so saved tabs are reachable on
+         app open, before any note is opened (clicking a tab routes to it). -->
+    <div v-if="!isDetailRoute" class="list-pane">
+      <EditorTabs
+        :tabs="openTabsStore.tabs"
+        :activeId="route.params.id"
+        @select="selectTab"
+        @close="closeTab"
+      />
+      <NoteListPanel :expanded="true" />
+    </div>
+    <NoteListPanel v-else-if="!uiStore.noteListCollapsed" :expanded="false" />
     <main v-if="isDetailRoute" class="editor-pane">
       <EditorTabs
         :tabs="openTabsStore.tabs"
@@ -986,6 +997,15 @@ async function handleRefreshOffline() {
   display: flex;
   flex-direction: column;
   background-color: var(--bg-main);
+  overflow: hidden;
+}
+
+/* List route: open-tabs strip stacked above the full-width note list. */
+.list-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
