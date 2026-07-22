@@ -90,6 +90,10 @@ None.
 - [x] Trashing a note removes its tab; a hard-load-failure (404) prunes the tab.
 - [x] Renaming a note updates its tab label after autosave.
 - [x] Mobile (`< 768px`) still shows the single-note editor with no tab strip.
+- [x] On app open (list route, before any note is opened) the persisted tab strip
+      is visible above the note list; clicking a tab routes to that note.
+      *(v0.16.1 follow-up — the strip previously only rendered inside the editor
+      pane, so restored tabs were invisible until a note was opened.)*
 - [x] Production build passes (`npm run build`); tab state-machine logic unit-
       verified (dedup, neighbour-on-close, persistence round-trip, malformed JSON).
 

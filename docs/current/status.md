@@ -7,11 +7,12 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.16.0 · **Live:** `https://noted.tail413695.ts.net`
+**Current version:** v0.16.1 · **Live:** `https://noted.tail413695.ts.net`
 (containers `noted-db`, `noted-api`, `noted-web`).
 
 ## Recently shipped
 See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlines:
+- v0.16.1 — fix: [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) tab strip now renders on the list route, so restored tabs are visible on app open (were hidden until a note was opened)
 - v0.16.0 — [CR037](docs/cr/cr-037-multi-note-editor-tabs.md): multi-note editor tabs on desktop (keep several notes open, persisted across reloads)
 - v0.15.2 — fix: HTML notes now export to PDF with their own styling (CR036 fidelity fix)
 - v0.15.1 — fix: Google Drive `.html` imports now render as HTML notes (were placeholder-only)
