@@ -1009,6 +1009,19 @@ async function handleRefreshOffline() {
   overflow: hidden;
 }
 
+/* In this flex column the tab strip must never shrink — it has `overflow`
+   set (implicit min-height:0), so without this the list below (flex:1, no
+   min-height:0) overflows and squashes the strip to zero height once the
+   notes load. Pair it with min-height:0 on the panel so its inner list
+   scrolls instead of expanding the column. */
+.list-pane :deep(.editor-tabs) {
+  flex: 0 0 auto;
+}
+
+.list-pane :deep(.note-list-panel) {
+  min-height: 0;
+}
+
 .editor-body {
   flex: 1;
   padding: 0 24px;
