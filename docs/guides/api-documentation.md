@@ -4,7 +4,7 @@
 | Network | URL |
 |---------|-----|
 | LAN | `http://192.168.1.61:8080` |
-| Tailscale | `http://100.66.213.40:8080` |
+| Tailscale | `http://llm-gateway.example.com:8080` |
 
 **System Monitor:** `http://192.168.1.61:8081` (GPU/CPU/Memory dashboard, separate service)
 
@@ -37,7 +37,7 @@ A browser-based interface is available at the root URL:
 | Network | URL |
 |---------|-----|
 | LAN | `http://192.168.1.61:8080` |
-| Tailscale | `http://100.66.213.40:8080` |
+| Tailscale | `http://llm-gateway.example.com:8080` |
 
 **Features:**
 - **Extract Text** — Upload a document, get raw OCR text
@@ -1225,7 +1225,7 @@ async def transcribe_audio(file_path: str, language: str = None) -> dict:
 > **Not recommended for most apps.** Use the `/llm/generate` proxy instead — it handles GPU routing and logging automatically. Direct Ollama access is useful for debugging or when you need Ollama-specific features.
 
 ```bash
-curl -s http://100.66.213.40:11434/api/generate \
+curl -s http://llm-gateway.example.com:11434/api/generate \
   -H "Content-Type: application/json" \
   -d '{
     "model": "phi4:14b",
@@ -1260,7 +1260,7 @@ curl -s http://100.66.213.40:11434/api/generate \
 
 **Health check:**
 ```bash
-curl -s http://100.66.213.40:11434/api/tags | jq '.models[].name'
+curl -s http://llm-gateway.example.com:11434/api/tags | jq '.models[].name'
 ```
 
 ---
@@ -1279,7 +1279,7 @@ from llm_client import OllamaClient, OllamaConfig
 
 async def main():
     client = OllamaClient(OllamaConfig(
-        base_url="http://100.66.213.40:11434",
+        base_url="http://llm-gateway.example.com:11434",
     ))
 
     result = await client.generate(
@@ -1301,7 +1301,7 @@ Tries `phi4:14b` first, falls back to `qwen3.5:9b`, then `qwen3:32b`:
 from llm_client import OllamaClient, OllamaConfig
 
 client = OllamaClient(OllamaConfig(
-    base_url="http://100.66.213.40:11434",
+    base_url="http://llm-gateway.example.com:11434",
     models=["phi4:14b", "qwen3.5:9b", "qwen3:32b"],
 ))
 
@@ -1324,7 +1324,7 @@ from llm_client import (
 )
 
 router = AIRouter(
-    ollama=OllamaClient(OllamaConfig(base_url="http://100.66.213.40:11434")),
+    ollama=OllamaClient(OllamaConfig(base_url="http://llm-gateway.example.com:11434")),
     claude=ClaudeClient(ClaudeConfig()),        # needs ANTHROPIC_API_KEY env var
     perplexity=PerplexityClient(PerplexityConfig()),  # needs PERPLEXITY_API_KEY env var
 )

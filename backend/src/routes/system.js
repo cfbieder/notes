@@ -97,7 +97,7 @@ async function systemRoutes(fastify) {
     const userId = request.user.id;
     const uploadDir = path.resolve(process.env.UPLOAD_DIR || './uploads');
     const backupDir = path.resolve(process.env.BACKUP_DIR || './backups');
-    const gatewayUrl = (process.env.LLM_GATEWAY_URL || 'http://100.66.213.40:8080').replace(/\/$/, '');
+    const gatewayUrl = (process.env.LLM_GATEWAY_URL || 'http://localhost:8080').replace(/\/$/, '');
     const llmEnabled = process.env.LLM_ENABLED !== 'false';
 
     let appVersion = null;

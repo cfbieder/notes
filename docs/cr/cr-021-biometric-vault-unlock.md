@@ -64,7 +64,7 @@ Master password is **always** mandatory. Biometric is a shortcut, not a replacem
 ## Open Questions for Implementation
 
 - **WebAuthn user identity:** what to use as the `user.id`? The vault is currently keyed off `auth.user.id`. Using that ties the credential to the Noted user — fine.
-- **RP ID:** for production this is `noted.tail413695.ts.net`. For dev (`localhost:5173`) WebAuthn permits localhost. Worth verifying both work before committing.
+- **RP ID:** for production this is `noted.example.com`. For dev (`localhost:5173`) WebAuthn permits localhost. Worth verifying both work before committing.
 - **Multiple credentials per device:** keep it simple — one credential per `(user, browser-storage)`. Re-enrolling overwrites.
 - **iOS limitations:** Safari's PRF support landed in 18; iOS WebKit may have quirks worth testing.
 - **Should the lock screen detect "no PRF support" gracefully?** Yes — feature-detect via `navigator.credentials.get(...).then(r => r.getClientExtensionResults().prf)` on a probe call, or simply show the button only when localStorage has an entry (since enrollment already verified PRF works on this browser).
@@ -96,6 +96,6 @@ If a browser lacks PRF, enrollment fails with a specific error and the button st
 
 When this CR is picked up:
 - [ ] Verify Firefox PRF status; if still flagged, document as a known limitation.
-- [ ] Verify dev (`localhost:5173`) and prod (`noted.tail413695.ts.net`) RP IDs both work.
+- [ ] Verify dev (`localhost:5173`) and prod (`noted.example.com`) RP IDs both work.
 - [ ] Decide on copy for the enrollment warning (XSS / malicious-extension caveat).
 - [ ] Add a test plan that doesn't require a real authenticator (mock the credentials API in vitest).

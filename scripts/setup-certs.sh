@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Provision TLS certificates via Tailscale for noted.tail413695.ts.net
+# Provision TLS certificates via Tailscale for your Noted host.
 # Idempotent — safe to re-run (cert renewal) via cron.
+#
+# Set DOMAIN to your own Tailscale MagicDNS name, e.g.:
+#   DOMAIN=noted.your-tailnet.ts.net sudo ./setup-certs.sh
 
 CERT_DIR="/etc/noted/certs"
-DOMAIN="noted.tail413695.ts.net"
+DOMAIN="${DOMAIN:-}"
+[[ -n "$DOMAIN" ]] || { echo "Set DOMAIN to your Tailscale hostname, e.g. DOMAIN=noted.your-tailnet.ts.net" >&2; exit 1; }
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
 log()  { echo -e "${BLUE}[certs]${NC} $*"; }

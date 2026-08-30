@@ -26,4 +26,4 @@ Add a pgvector-backed embedding pipeline so notes can be retrieved by semantic s
 ## References
 
 - Embedding model decision: see `Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md` § 12 (2026-04-10).
-- Gateway: `http://100.66.213.40:8080`, model `nomic-embed-text` (768-dim).
+- Gateway: `http://llm-gateway.example.com:8080`, model `nomic-embed-text` (768-dim).

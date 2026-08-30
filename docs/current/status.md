@@ -7,7 +7,7 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.16.2 · **Live:** `https://noted.tail413695.ts.net`
+**Current version:** v0.16.2 · **Live:** `https://noted.example.com`
 (containers `noted-db`, `noted-api`, `noted-web`).
 
 ## Recently shipped

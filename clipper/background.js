@@ -1,7 +1,8 @@
 // Noted Web Clipper — background service worker.
 // Handles auth state, token refresh, API calls, and context-menu "Clip selection".
 
-const DEFAULT_API_BASE = 'https://noted.tail413695.ts.net/api/v1';
+// Set your Noted instance URL on the extension's options page.
+const DEFAULT_API_BASE = 'http://localhost:3001/api/v1';
 
 async function getSettings() {
   const { apiBase, accessToken, refreshToken, tokenExpiresAt } =

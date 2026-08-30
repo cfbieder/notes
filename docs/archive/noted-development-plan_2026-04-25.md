@@ -207,7 +207,7 @@ Browser / PWA
 | 5.2 | ✅ Backend Dockerfile | Multi-stage build; non-root `noted` user; wget healthcheck |
 | 5.3 | ✅ Frontend Dockerfile | Multi-stage build (Vite build → Nginx 1.27 Alpine); version build arg |
 | 5.4 | ✅ Nginx config | `nginx/noted.conf` — SSL termination, SPA `try_files`, API reverse proxy, asset caching (1y immutable), gzip, security headers |
-| 5.5 | ✅ TLS certificates | `scripts/setup-certs.sh` — `tailscale cert` for `noted.tail413695.ts.net`; auto-reloads Nginx if running |
+| 5.5 | ✅ TLS certificates | `scripts/setup-certs.sh` — `tailscale cert` for `noted.example.com`; auto-reloads Nginx if running |
 | 5.6 | ✅ deploy-to-production.sh | Pre-flight checks (Docker, Tailscale, env, certs), auto backup, Docker build, migrations, service start, health verification |
 | 5.7 | ✅ update_version.sh | Semantic versioning with date stamp; git tags — `scripts/update_version.sh <major\|minor\|patch\|X.Y.Z>` updates VERSION, package.json files, frontend/.env, creates git commit + annotated tag |
 | 5.8 | ✅ backup-db.sh | Local `pg_dump` with gzip, optional `--prune N` retention |
@@ -267,7 +267,7 @@ Browser / PWA
 **Acceptance criteria:**
 - Browser extension can clip pages to the app with notebook/tag selection
 - Uploaded PDFs and images have extracted text (via LLM gateway OCR) searchable via full-text search
-- OCR works without any local ML dependencies — calls existing gateway at `100.66.213.40:8080`
+- OCR works without any local ML dependencies — calls existing gateway at `llm-gateway.example.com:8080`
 
 ---
 
@@ -275,7 +275,7 @@ Browser / PWA
 
 **Goal:** Add AI-powered features using the existing local LLM gateway (dual-GPU Ollama + cloud fallback). All LLM features degrade gracefully when the gateway is unreachable — the app remains fully functional without AI.
 
-**LLM Gateway:** `http://100.66.213.40:8080` (Tailscale) — phi4:14b (fast), qwen3:32b (deep reasoning), nomic-embed-text (embeddings)
+**LLM Gateway:** `http://llm-gateway.example.com:8080` (Tailscale) — phi4:14b (fast), qwen3:32b (deep reasoning), nomic-embed-text (embeddings)
 
 | # | Task | Details |
 |---|------|---------|
@@ -503,10 +503,10 @@ These items are out of scope for Stages 1–2 but documented for future planning
 | 2026-04-10 | Alpine IPv6 healthcheck | Alpine's `wget` resolves `localhost` to `::1` (IPv6) but Node binds `0.0.0.0` (IPv4 only) — all Docker healthchecks must use `127.0.0.1` explicitly |
 | 2026-04-10 | Vite .env in Docker builds | Vite reads `.env` files at build time, overriding `ENV` directives — frontend Dockerfile must `rm -f .env` before `npm run build` and omit `VITE_ENV_LABEL` so production builds have no dev label |
 | 2026-04-10 | Dev/prod favicon | Dev: orange background + dark blue "N" (dynamically swapped via data URI in `main.js`). Prod: dark blue background + orange "N" (static `favicon.svg`). Controlled by `VITE_ENV_LABEL` being set/unset |
-| 2026-04-10 | LLM gateway integration | All LLM/OCR/transcription routed through existing gateway at `100.66.213.40:8080` (Tailscale: `100.66.213.40:8080`) via `/task` and `/llm/generate` endpoints. No embedded ML dependencies in Noted. Embeddings via Ollama `nomic-embed-text` (768-dim), stored in pgvector. Features degrade gracefully when gateway is unreachable. |
+| 2026-04-10 | LLM gateway integration | All LLM/OCR/transcription routed through existing gateway at `llm-gateway.example.com:8080` (Tailscale: `llm-gateway.example.com:8080`) via `/task` and `/llm/generate` endpoints. No embedded ML dependencies in Noted. Embeddings via Ollama `nomic-embed-text` (768-dim), stored in pgvector. Features degrade gracefully when gateway is unreachable. |
 | 2026-04-10 | OCR via cloud vision | Replaced planned Tesseract.js OCR with LLM gateway's Gemini 2.5 Flash → Claude Sonnet vision fallback chain. Higher accuracy, no local model dependency. |
 | 2026-04-10 | Embedding model | `nomic-embed-text` on GPU 0 via Ollama — 768-dimension vectors stored in pgvector. Chosen for speed and local-only operation. |
-| 2026-04-11 | Google Drive OAuth behind Tailscale | OAuth redirect URI uses Tailscale domain (`noted.tail413695.ts.net`). Works because the user's browser is on the Tailnet. Google consent screen in "testing" mode with user's Gmail as test user. |
+| 2026-04-11 | Google Drive OAuth behind Tailscale | OAuth redirect URI uses Tailscale domain (`noted.example.com`). Works because the user's browser is on the Tailnet. Google consent screen in "testing" mode with user's Gmail as test user. |
 | 2026-04-11 | Drive import polling vs webhooks | Chose polling over Google push notifications since the app has no public URL (Tailscale only). 60s tick interval with configurable per-integration poll frequency (1–30 min). |
 | 2026-04-11 | Drive file processing | Imported files moved to a "Processed" subfolder (not deleted) for safety — best-effort, import succeeds even if move fails. Google Docs/Sheets/Slides exported as PDF. Files exceeding MAX_FILE_SIZE are skipped and logged. |
 | 2026-04-11 | OAuth callback auth bypass | Fastify plugin-level `addHook('onRequest')` cannot be overridden per-route with `onRequest: []`. Fixed by using Fastify encapsulation: callback in its own `register()` block without auth, other routes in a separate `register()` block with auth. |
@@ -742,7 +742,7 @@ Features:
 - **Frontend Dockerfile** (5.3): Multi-stage build (node build → Nginx 1.27 Alpine). `VITE_APP_VERSION` and `VITE_ENV_LABEL` build args.
 - **Nginx config** (5.4): `nginx/noted.conf` — HTTP→HTTPS redirect, TLS termination (Tailscale certs), SPA `try_files` fallback, API reverse proxy to `noted-api:3001`, static asset caching (1y immutable for `/assets/`), no-cache for service worker and HTML, gzip, security headers (X-Frame-Options, X-Content-Type-Options, HSTS-ready), 25MB upload limit.
 - **docker-compose.prod.yml** (5.1): Three services (postgres, api, web) on `noted-network`. Environment sourced from `.env.prod`. Named volumes for data, uploads, logs. All services have healthchecks with `depends_on: condition: service_healthy`.
-- **TLS via Tailscale** (5.5): `scripts/setup-certs.sh` — runs `tailscale cert` to provision Let's Encrypt certs for `noted.tail413695.ts.net`. Writes to `/etc/noted/certs/`. Auto-reloads Nginx if container is running. Requires root.
+- **TLS via Tailscale** (5.5): `scripts/setup-certs.sh` — runs `tailscale cert` to provision Let's Encrypt certs for `noted.example.com`. Writes to `/etc/noted/certs/`. Auto-reloads Nginx if container is running. Requires root.
 - **Deploy script** (5.6): `scripts/deploy-to-production.sh` — pre-flight checks (Docker, Tailscale, env file, no CHANGE_ME placeholders, certs), auto-backup if DB running, Docker build, migration via `docker compose run`, service start, health verification (container status, API endpoint, HTTPS). Flags: `--skip-backup`, `--build-only`.
 - **Local backup** (5.8): `scripts/backup-db.sh` — `pg_dump` via `noted-db` container, gzipped to `backups/noted_YYYYMMDD_HHMMSS.sql.gz`. Optional `--prune N` to retain last N backups.
 - **Remote backup** (5.9): `scripts/backup-to-remote.sh` — runs local backup first (keeps 7), then SCP to `REMOTE_HOST:REMOTE_DIR` with remote retention pruning.
