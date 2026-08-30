@@ -34,19 +34,16 @@ INSERT INTO tags (id, user_id, name, color) VALUES
 ON CONFLICT DO NOTHING;
 
 -- Notes
-INSERT INTO notes (id, user_id, notebook_id, title, content, is_inbox) VALUES
+INSERT INTO notes (id, user_id, notebook_id, title, content) VALUES
   ('e0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002',
    'Welcome to Noted',
-   E'# Welcome to Noted\n\nThis is your first note. **Noted** is a Markdown-first knowledge management app.\n\n## Features\n\n- Markdown editing with inline rendering\n- Notebooks and stacks for organization\n- Tags as a knowledge graph layer\n- Bidirectional [[wikilinks]]\n- Quick capture inbox\n\n## Getting Started\n\n1. Create a notebook in the sidebar\n2. Start writing in Markdown\n3. Use `#tags` and `[[links]]` to connect ideas\n\nHappy note-taking!',
-   FALSE),
+   E'# Welcome to Noted\n\nThis is your first note. **Noted** is a Markdown-first knowledge management app.\n\n## Features\n\n- Markdown editing with inline rendering\n- Notebooks and stacks for organization\n- Tags as a knowledge graph layer\n- Bidirectional [[wikilinks]]\n- Quick capture inbox\n\n## Getting Started\n\n1. Create a notebook in the sidebar\n2. Start writing in Markdown\n3. Use `#tags` and `[[links]]` to connect ideas\n\nHappy note-taking!'),
   ('e0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000003',
    'App Architecture Ideas',
-   E'# Architecture Ideas\n\n## Frontend\n\n- Vue 3 Composition API\n- CodeMirror 6 for the editor\n- D3.js for the graph view\n\n## Backend\n\n- Fastify for low-overhead API\n- PostgreSQL with tsvector for search\n- JWT auth with refresh tokens\n\n## Key Decisions\n\n- [ ] Evaluate pgvector for semantic search\n- [ ] Decide on offline sync strategy\n- [x] Choose Markdown parser library',
-   FALSE),
+   E'# Architecture Ideas\n\n## Frontend\n\n- Vue 3 Composition API\n- CodeMirror 6 for the editor\n- D3.js for the graph view\n\n## Backend\n\n- Fastify for low-overhead API\n- PostgreSQL with tsvector for search\n- JWT auth with refresh tokens\n\n## Key Decisions\n\n- [ ] Evaluate pgvector for semantic search\n- [ ] Decide on offline sync strategy\n- [x] Choose Markdown parser library'),
   ('e0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001',
    'Quick thought from inbox',
-   E'Look into Readability.js for the web clipper feature.',
-   TRUE)
+   E'Look into Readability.js for the web clipper feature.')
 ON CONFLICT DO NOTHING;
 
 -- Note-tag associations

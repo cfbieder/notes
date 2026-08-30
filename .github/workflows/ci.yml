@@ -75,6 +75,7 @@ jobs:
           LOG_LEVEL=error
           CORS_ORIGIN=http://localhost:5173
           LLM_ENABLED=false
+          AI_KEYS_ENC_KEY=$(openssl rand -hex 32)
           EOF
 
       - name: Start API and wait for health

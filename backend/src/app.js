@@ -71,6 +71,7 @@ const registerRoutes = async () => {
   await fastify.register(require('./routes/import'), { prefix: '/api/v1/notes/import' });
   await fastify.register(require('./routes/export'), { prefix: '/api/v1/notes/export' });
   await fastify.register(require('./routes/aiAssist'), { prefix: '/api/v1/ai-assist' });
+  await fastify.register(require('./routes/aiProviders'), { prefix: '/api/v1/ai-providers' });
   await fastify.register(require('./routes/system'), { prefix: '/api/v1/system' });
   await fastify.register(require('./routes/vault'), { prefix: '/api/v1/vault' });
 };
