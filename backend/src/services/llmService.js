@@ -1,5 +1,6 @@
 const fs = require('fs/promises');
 const path = require('path');
+const providerConfig = require('./ai/providerConfig');
 
 // Thin client for the local LLM gateway. Currently only exposes OCR (Phase 7);
 // Phase 8 will expand this to embeddings, generation, transcription, etc.
@@ -219,7 +220,7 @@ function bridgingModelForTask(taskName) {
 // (the gateway picks the model + fallback chain). Otherwise calls
 // /llm/generate with the resolved model name (taskName is mapped to a
 // bridging model name when /task is disabled).
-async function generateText({ prompt, model, taskName, system, maxTokens, temperature, signal, timeoutMs }) {
+async function gatewayGenerateText({ prompt, model, taskName, system, maxTokens, temperature, signal, timeoutMs }) {
   if (!ENABLED) return null;
   if (!prompt || typeof prompt !== 'string') return null;
 
@@ -287,7 +288,7 @@ async function generateText({ prompt, model, taskName, system, maxTokens, temper
 
 // Streaming variant — calls the gateway with stream=true and invokes
 // onChunk(text) for each token as it arrives. Returns final metadata.
-async function generateTextStream({ prompt, model, taskName, system, maxTokens, temperature }, onChunk) {
+async function gatewayGenerateTextStream({ prompt, model, taskName, system, maxTokens, temperature }, onChunk) {
   if (!ENABLED) return null;
   if (!prompt || typeof prompt !== 'string') return null;
 
@@ -365,6 +366,52 @@ async function generateTextStream({ prompt, model, taskName, system, maxTokens, 
   }
 }
 
+// --- Provider dispatch (CR038) -------------------------------------------
+// The gateway* functions above are the built-in adapter (today's behavior).
+// generateText / generateTextStream resolve the caller's per-user text provider
+// and dispatch. With no userId/db (or no configured row) they fall back to the
+// gateway path, so behavior is unchanged until a user configures a provider.
+
+// Pure decision helper (exported for tests): which provider a resolved config
+// selects for the text capability. Env/gateway/anything-not-cloud => 'gateway'.
+function pickTextProvider(resolved) {
+  if (resolved && resolved.source === 'db'
+      && resolved.provider && resolved.provider !== 'gateway') {
+    return resolved.provider;
+  }
+  return 'gateway';
+}
+
+async function resolveTextProvider(userId, db) {
+  if (!userId || !db) return { provider: 'gateway', resolved: null };
+  const resolved = await providerConfig.resolveCapability(db, userId, 'text');
+  return { provider: pickTextProvider(resolved), resolved };
+}
+
+// Cloud adapters (anthropic / openai / openai_compatible) land in the next
+// CR038 increment. Until then a configured cloud provider fails loudly rather
+// than silently falling back to the gateway.
+function cloudAdapterNotReady(provider) {
+  throw new Error(
+    `AI text provider "${provider}" is not implemented yet ` +
+    `(CR038 — cloud adapters land in the next increment)`
+  );
+}
+
+async function generateText(opts = {}) {
+  const { userId, db, ...rest } = opts;
+  const { provider } = await resolveTextProvider(userId, db);
+  if (provider === 'gateway') return gatewayGenerateText(rest);
+  return cloudAdapterNotReady(provider);
+}
+
+async function generateTextStream(opts = {}, onChunk) {
+  const { userId, db, ...rest } = opts;
+  const { provider } = await resolveTextProvider(userId, db);
+  if (provider === 'gateway') return gatewayGenerateTextStream(rest, onChunk);
+  return cloudAdapterNotReady(provider);
+}
+
 async function listModels() {
   if (!ENABLED) return [];
   try {
@@ -402,7 +449,7 @@ module.exports = {
   ocrFile, isOcrCandidate, isEnabled,
   translateText,
   transcribeAudio, isAudioCandidate,
-  generateText, generateTextStream,
+  generateText, generateTextStream, pickTextProvider,
   getContextWindow, getGenerationModel, getQuickModel, getDeepModel,
   isTaskRoutingEnabled,
   GENERATE_DEEP_TIMEOUT_MS,

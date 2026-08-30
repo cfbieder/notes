@@ -1,6 +1,6 @@
 # CR038 — Pluggable AI Providers (Claude / OpenAI / Local)
 
-**Status:** In progress — Phase 1 foundation shipped (crypto, `020` schema, config repo + tests); adapters/endpoints/UI remain.
+**Status:** In progress — Phase 1: foundation (crypto, `020` schema, config repo) + gateway-default dispatch seam in `llmService` shipped & tested. Remaining: cloud adapters (anthropic/openai/openai_compatible), call-site wiring, settings endpoints (+SSRF), frontend UI.
 **Severity:** Feature (large — phased)
 **Origin:** User request, 2026-08-30 (open-source enablement)
 **Reviewed:** 2026-08-30 — architecture + security review; findings folded in below.
