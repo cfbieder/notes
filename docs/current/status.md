@@ -7,11 +7,12 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.16.2 · **Live:** `https://noted.example.com`
+**Current version:** v0.16.3 · **Live:** `https://noted.example.com`
 (containers `noted-db`, `noted-api`, `noted-web`).
 
 ## Recently shipped
 See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlines:
+- v0.16.3 — fix: editor clicks landed on the wrong line in notes containing `---` horizontal rules (unmeasured CSS margins on line decorations desynced CodeMirror's height map); plus CI + mechanical convention guards ([.github/workflows/ci.yml](.github/workflows/ci.yml), [scripts/ci-guards.sh](scripts/ci-guards.sh))
 - v0.16.2 — fix: [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) list-route tab strip no longer collapses to zero height when the note list loads (flex-shrink bug — strip flashed then vanished on open)
 - v0.16.1 — fix: [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) tab strip now renders on the list route, so restored tabs are visible on app open (were hidden until a note was opened)
 - v0.16.0 — [CR037](docs/cr/cr-037-multi-note-editor-tabs.md): multi-note editor tabs on desktop (keep several notes open, persisted across reloads)
