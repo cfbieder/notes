@@ -6,6 +6,7 @@ import { useUIStore } from '../stores/ui.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import SystemStatusCard from '../components/ui/SystemStatusCard.vue';
+import AIProvidersSettings from '../components/settings/AIProvidersSettings.vue';
 import { useMobile } from '../composables/useMobile.js';
 import { Settings, HardDrive, RefreshCw, CheckCircle, XCircle, Loader2, Unplug, ExternalLink, Lock, Palette, AlertTriangle, KeyRound, Fingerprint } from 'lucide-vue-next';
 import { hasPlatformAuthenticator } from '../lib/biometricUnlock.js';
@@ -380,6 +381,8 @@ function formatDate(dateStr) {
         </section>
 
         <!-- Google Drive Import -->
+        <AIProvidersSettings />
+
         <section class="settings-section">
           <h3>Google Drive Import</h3>
           <p class="section-desc">Import files from a Google Drive folder into your inbox.</p>
@@ -621,6 +624,8 @@ function formatDate(dateStr) {
         </section>
 
         <!-- Google Drive Integration -->
+        <AIProvidersSettings />
+
         <section class="settings-section">
           <h3>Google Drive Import</h3>
           <p class="section-desc">Import files from a Google Drive folder into your inbox.</p>

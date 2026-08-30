@@ -69,13 +69,20 @@ async function aiAssistRoutes(fastify) {
   fastify.decorate('aiAssistJobRunner', runner);
 
   // GET /api/v1/ai-assist/config — context window + model defaults + tier health.
-  fastify.get('/config', async () => {
-    // Best-effort tier health snapshot. If the gateway is unreachable we
-    // simply omit the field; modal will assume nothing about heavy state.
-    const health = await llmService.getGatewayHealth();
+  fastify.get('/config', async (request) => {
+    // CR038: which provider actually powers text for this user. Gateway-only
+    // fields (tier health, gateway model names) are meaningful only when the
+    // active provider is the gateway, so we gate them to avoid misleading the
+    // modal once a cloud provider is configured.
+    const { provider: textProvider } = await llmService.resolveTextProvider(request.user.id, fastify.db);
+    const isGateway = textProvider === 'gateway';
+
+    // Best-effort tier health snapshot (gateway only).
+    const health = isGateway ? await llmService.getGatewayHealth() : null;
     return {
       data: {
         enabled: llmService.isEnabled(),
+        textProvider,
         contextWindow: llmService.getContextWindow(),
         model: llmService.getGenerationModel(),
         quickModel: llmService.getQuickModel(),
@@ -83,7 +90,7 @@ async function aiAssistRoutes(fastify) {
         taskRouting: llmService.isTaskRoutingEnabled(),
         condenseModel: CONDENSE_MODEL,
         warnTokens: Math.floor(llmService.getContextWindow() * 0.85),
-        heavyAvailable: health ? health.ollama_heavy === 'connected' : null,
+        heavyAvailable: isGateway && health ? health.ollama_heavy === 'connected' : null,
         gatewayHealth: health || null
       }
     };

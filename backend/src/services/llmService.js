@@ -457,7 +457,7 @@ module.exports = {
   ocrFile, isOcrCandidate, isEnabled,
   translateText,
   transcribeAudio, isAudioCandidate,
-  generateText, generateTextStream, pickTextProvider,
+  generateText, generateTextStream, pickTextProvider, resolveTextProvider,
   getContextWindow, getGenerationModel, getQuickModel, getDeepModel,
   isTaskRoutingEnabled,
   GENERATE_DEEP_TIMEOUT_MS,
