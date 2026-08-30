@@ -43,11 +43,16 @@ services:
       UPLOAD_DIR: /app/uploads
       LOG_DIR: /app/logs
       LOG_LEVEL: info
-      CORS_ORIGIN: https://noted.tail413695.ts.net
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GOOGLE_REDIRECT_URI: https://noted.tail413695.ts.net/api/v1/integrations/google-drive/callback
-      LLM_GATEWAY_URL: ${LLM_GATEWAY_URL:-http://100.66.213.40:8080}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      LLM_GATEWAY_URL: ${LLM_GATEWAY_URL:-http://localhost:8080}
+      # CR-020 (ocr-llm): client identity. Mapped explicitly because this
+      # service has no `env_file:` — a value sitting in .env alone never
+      # reaches the container. Empty default = no headers sent, so the app
+      # behaves exactly as before until a key is configured.
+      OCR_LLM_CLIENT_KEY: ${OCR_LLM_CLIENT_KEY:-}
       LLM_ENABLED: ${LLM_ENABLED:-true}
       LLM_OCR_TIMEOUT_MS: ${LLM_OCR_TIMEOUT_MS:-120000}
       LLM_TRANSLATE_TIMEOUT_MS: ${LLM_TRANSLATE_TIMEOUT_MS:-150000}

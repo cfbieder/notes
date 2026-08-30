@@ -55,4 +55,9 @@ backups/
 backend/.env.prod
 !backend/.env.prod.example
 ocr-llm/
-noted.tail413695.ts.net.*
+
+# Tailscale cert files (named after your MagicDNS host)
+*.ts.net.*
+
+# Personal Claude Code workflow config
+.claude/

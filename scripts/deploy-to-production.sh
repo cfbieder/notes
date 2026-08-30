@@ -18,7 +18,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.prod.yml"
 ENV_FILE="$PROJECT_ROOT/backend/.env.prod"
 CERT_DIR="/etc/noted/certs"
-DOMAIN="noted.tail413695.ts.net"
+# Derived from CORS_ORIGIN after the env file is sourced (see below).
+DOMAIN=""
 
 RED='\033[0;31m'; GREEN='\033[0;32m'
 YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -58,6 +59,11 @@ ok "Tailscale connected"
 [[ -f "$ENV_FILE" ]] || die "Production env file not found: $ENV_FILE\n  Copy backend/.env.prod.example to backend/.env.prod and fill in secrets"
 ok "Environment file found"
 
+# Derive the public domain from CORS_ORIGIN in the env file (strip scheme).
+# Used for cert provisioning and the post-deploy HTTPS health check.
+DOMAIN="$(grep -E '^CORS_ORIGIN=' "$ENV_FILE" | head -1 | cut -d= -f2- | sed -E 's#^https?://##')"
+[[ -n "$DOMAIN" ]] || die "Could not derive DOMAIN — set CORS_ORIGIN in $ENV_FILE"
+
 # Check for CHANGE_ME values in env
 if grep -q "CHANGE_ME" "$ENV_FILE"; then
   die "Found CHANGE_ME in $ENV_FILE — update all secrets before deploying"
@@ -67,7 +73,7 @@ ok "No placeholder secrets"
 # Ensure TLS certs exist (provision if missing)
 if [[ ! -f "$CERT_DIR/noted.crt" ]] || [[ ! -f "$CERT_DIR/noted.key" ]]; then
   log "TLS certificates not found — provisioning via Tailscale ..."
-  sudo bash "$SCRIPT_DIR/setup-certs.sh"
+  sudo DOMAIN="$DOMAIN" bash "$SCRIPT_DIR/setup-certs.sh"
 fi
 [[ -f "$CERT_DIR/noted.crt" ]] || die "TLS certificate not found at $CERT_DIR/noted.crt"
 ok "TLS certificates present"

@@ -5,7 +5,7 @@ Operational runbook for Noted. Conventions and the dev quickstart live in
 
 ## Production environment
 
-- **URL:** `https://noted.tail413695.ts.net`
+- **URL:** `https://noted.example.com`
 - **Containers:** `noted-db`, `noted-api`, `noted-web`
 - **Env file:** `backend/.env.prod` (not committed — copy from `.env.prod.example`)
 

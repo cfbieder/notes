@@ -5,12 +5,27 @@ const path = require('path');
 // Phase 8 will expand this to embeddings, generation, transcription, etc.
 //
 // Env:
-//   LLM_GATEWAY_URL — base URL (default: http://100.66.213.40:8080)
+//   LLM_GATEWAY_URL — base URL (default: http://localhost:8080)
 //   LLM_ENABLED     — "false" disables all calls; features degrade gracefully
 //   LLM_OCR_TIMEOUT_MS — per-request timeout (default 120s)
 
-const GATEWAY_URL = (process.env.LLM_GATEWAY_URL || 'http://100.66.213.40:8080').replace(/\/$/, '');
+const GATEWAY_URL = (process.env.LLM_GATEWAY_URL || 'http://localhost:8080').replace(/\/$/, '');
 const ENABLED = process.env.LLM_ENABLED !== 'false';
+
+// CR-020 (ocr-llm): client identity. The gateway records `client_id` only when
+// BOTH headers are present and the key matches — an id sent on its own is
+// discarded — so this returns the pair or nothing. No key configured => no
+// headers => requests identical to today's, which is what makes it safe to
+// deploy before the gateway enforces anything.
+//
+// Applies to every audited surface: /ocr, /translate, /transcribe, /task and
+// /llm/generate. Deliberately NOT applied to /llm/models or /health, which the
+// gateway exempts from auditing anyway.
+const CLIENT_ID = 'noted';
+const authHeaders = () => {
+  const key = (process.env.OCR_LLM_CLIENT_KEY || '').trim();
+  return key ? { 'X-Client-Id': CLIENT_ID, 'X-Client-Key': key } : {};
+};
 const OCR_TIMEOUT_MS = parseInt(process.env.LLM_OCR_TIMEOUT_MS, 10) || 120_000;
 // Separate translate timeout so OCR (background, tolerant) and translate
 // (synchronous on the clip request path) can be tuned independently. Kept
@@ -44,6 +59,7 @@ async function ocrFile({ filePath, filename, mimeType }) {
   try {
     const res = await fetch(`${GATEWAY_URL}/ocr`, {
       method: 'POST',
+      headers: authHeaders(),
       body: form,
       signal: controller.signal
     });
@@ -83,7 +99,7 @@ async function translateText({ text, sourceLang, targetLang }) {
   try {
     const res = await fetch(`${GATEWAY_URL}/translate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ text: input, source_lang: sourceLang, target_lang: targetLang }),
       signal: controller.signal
     });
@@ -130,6 +146,7 @@ async function transcribeAudio({ filePath, filename, mimeType }) {
   try {
     const res = await fetch(`${GATEWAY_URL}/transcribe`, {
       method: 'POST',
+      headers: authHeaders(),
       body: form,
       signal: controller.signal
     });
@@ -243,7 +260,7 @@ async function generateText({ prompt, model, taskName, system, maxTokens, temper
 
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(payload),
       signal: compositeSignal
     });
@@ -299,7 +316,7 @@ async function generateTextStream({ prompt, model, taskName, system, maxTokens, 
 
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(payload),
       signal: controller.signal
     });

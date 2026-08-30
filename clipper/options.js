@@ -20,7 +20,7 @@ function setStatus(text, kind = '') {
 async function refreshView() {
   const res = await send({ type: 'getSettings' });
   const s = res?.data || {};
-  els.apiBase.value = s.apiBase || 'https://noted.tail413695.ts.net/api/v1';
+  els.apiBase.value = s.apiBase || 'http://localhost:3001/api/v1';
   if (s.accessToken) {
     els.loggedInAs.textContent = 'Signed in. Close this page and clip from the toolbar icon.';
   } else {

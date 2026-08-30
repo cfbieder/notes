@@ -1,6 +1,6 @@
 # Noted Export API — Quick Reference
 
-Base URL: `https://noted.tail413695.ts.net`
+Base URL: `https://noted.example.com`
 
 All endpoints require authentication via a long-lived API token passed as a Bearer token.
 
@@ -25,7 +25,7 @@ Alternatively, pass the token as a query parameter:
 Tokens are created via the Noted API. You need a short-lived JWT first (from login), then:
 
 ```bash
-curl -X POST https://noted.tail413695.ts.net/api/v1/auth/token \
+curl -X POST https://noted.example.com/api/v1/auth/token \
   -H "Authorization: Bearer <jwt>" \
   -H "Content-Type: application/json" \
   -d '{"name": "project-sync", "expires_in_days": 365}'
@@ -59,11 +59,11 @@ Returns the raw markdown content of a note. Title matching is case-insensitive. 
 ```bash
 # Fetch a single note
 curl -s -H "Authorization: Bearer noted_<token>" \
-  "https://noted.tail413695.ts.net/api/v1/notes/export/Project%20Spec" \
+  "https://noted.example.com/api/v1/notes/export/Project%20Spec" \
   -o project-spec.md
 
 # Using query param auth instead
-curl -s "https://noted.tail413695.ts.net/api/v1/notes/export/Project%20Spec?token=noted_<token>" \
+curl -s "https://noted.example.com/api/v1/notes/export/Project%20Spec?token=noted_<token>" \
   -o project-spec.md
 ```
 
@@ -84,7 +84,7 @@ A shell script to pull project documentation from Noted into a local directory:
 # getDocs.sh — Fetch project docs from Noted
 # Usage: ./getDocs.sh
 
-NOTED_URL="https://noted.tail413695.ts.net/api/v1/notes/export"
+NOTED_URL="https://noted.example.com/api/v1/notes/export"
 TOKEN="noted_<your-token>"
 DOCS_DIR="./docs"
 
@@ -126,18 +126,18 @@ Make executable: `chmod +x getDocs.sh`
 ```bash
 # List all tokens
 curl -s -H "Authorization: Bearer noted_<token>" \
-  https://noted.tail413695.ts.net/api/v1/auth/tokens | jq
+  https://noted.example.com/api/v1/auth/tokens | jq
 
 # Revoke a token by ID
 curl -X DELETE -H "Authorization: Bearer noted_<token>" \
-  https://noted.tail413695.ts.net/api/v1/auth/token/<token-id>
+  https://noted.example.com/api/v1/auth/token/<token-id>
 ```
 
 ---
 
 ## Notes
 
-- The Noted server is accessible only via Tailscale (`100.119.240.123` or `noted.tail413695.ts.net`)
+- The Noted server is accessible only via Tailscale (`your-tailscale-ip` or `noted.example.com`)
 - Tokens are prefixed with `noted_` and never expire unless `expires_in_days` was set at creation
 - Title matching is case-insensitive: `"project spec"` matches a note titled `"Project Spec"`
 - Trashed notes are excluded from export

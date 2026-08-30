@@ -115,7 +115,7 @@ node backend/tests/phase4-api.test.js
 | Component | URL |
 |-----------|-----|
 | Frontend (dev) | http://localhost:5173 |
-| Frontend (Tailscale) | http://100.119.240.123:5173 |
+| Frontend (Tailscale) | http://your-tailscale-ip:5173 |
 | Backend | http://localhost:3001 |
 | Health check | http://localhost:3001/health |
 
