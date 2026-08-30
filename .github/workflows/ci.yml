@@ -1,0 +1,119 @@
+# CI for Noted — mirrors the real dev path (scripts/setup-dev.sh) so a green run means
+# something: migrations replay from an empty database, the API boots, and the API test
+# suites run against it.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  guards:
+    name: convention guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # guards diff against origin/main
+      - run: bash scripts/ci-guards.sh
+
+  backend:
+    name: migrations + API tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Credentials match backend/src/utils/migrate.js's dev config and
+        # docker-compose.dev.yml, so `npm run migrate:dev` works unchanged.
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: noteduser
+          POSTGRES_PASSWORD: noted_dev_password
+          POSTGRES_DB: noted_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend deps
+        run: npm ci
+        working-directory: backend
+
+      - name: Migrations apply cleanly to an empty database
+        # This is the fresh-DB safety check: any schema that reached a live DB outside the
+        # migration chain shows up here as a failure, not months later.
+        run: npm run migrate:dev
+        working-directory: backend
+
+      - name: Seed dev data
+        run: psql "postgresql://noteduser:noted_dev_password@localhost:5432/noted_dev" -v ON_ERROR_STOP=1 -f db/seeds/001_dev_seed.sql
+
+      - name: Write CI env file
+        # The app loads backend/.env.dev when NODE_ENV != production.
+        run: |
+          cat > backend/.env.dev <<EOF
+          NODE_ENV=development
+          PORT=3001
+          HOST=127.0.0.1
+          DB_HOST=localhost
+          DB_PORT=5432
+          DB_NAME=noted_dev
+          DB_USER=noteduser
+          DB_PASSWORD=noted_dev_password
+          JWT_SECRET=$(openssl rand -hex 32)
+          JWT_REFRESH_SECRET=$(openssl rand -hex 32)
+          JWT_EXPIRATION=15m
+          JWT_REFRESH_EXPIRATION=30d
+          UPLOAD_DIR=$PWD/backend/uploads
+          LOG_LEVEL=error
+          CORS_ORIGIN=http://localhost:5173
+          LLM_ENABLED=false
+          EOF
+
+      - name: Start API and wait for health
+        run: |
+          mkdir -p backend/uploads
+          npm start &
+          echo $! > /tmp/api.pid
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3001/health >/dev/null && exit 0
+            sleep 1
+          done
+          echo "API did not become healthy" >&2
+          exit 1
+        working-directory: backend
+
+      - name: API test suites
+        # Excludes phase8-translate, phase8-voice, phase11-ai-assist and system-stats:
+        # they exercise the ocr-llm gateway, which is not reachable from a CI runner.
+        # Keep that list honest — see backend/package.json "test:ci".
+        run: npm run test:ci
+        working-directory: backend
+
+      - name: Stop API
+        if: always()
+        run: kill "$(cat /tmp/api.pid)" || true
+
+  frontend:
+    name: frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      # Build only — there is no frontend test suite yet. This is a stated gap, not an
+      # oversight: if one is added, it becomes a BLOCKING step here, or it will never run.
+      - run: npm run build
+        working-directory: frontend

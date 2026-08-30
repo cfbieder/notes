@@ -6,7 +6,7 @@ This table is the **single source of truth for what shipped when.** Other docs
 
 Each row links to a per-feature design record. Shipped CRs stay in `docs/cr/` as
 historical records (✓ Completed); they are not moved to `archive/`. New work gets
-the next sequential number (`cr-036-…`).
+the next sequential number and starts from [cr-000-template.md](docs/cr/cr-000-template.md).
 
 | CR | Title | Date / Version | Status |
 |----|-------|----------------|--------|

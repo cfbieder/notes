@@ -61,3 +61,8 @@ ocr-llm/
 
 # Personal Claude Code workflow config
 .claude/
+
+# Private starter pack — never publish (lives in ~/starter-pack)
+starter-pack/
+starter-pack*.zip
+**/starter-pack*

@@ -29,12 +29,14 @@ docs/
     cr-001-<topic>-<subdoc>.md # sub-docs share the parent number
   guides/                     # operational runbooks + stable how-tos
     <topic>.md
+  reviews/                    # OPTIONAL — dated review output, still active input
+    <topic>_YYYY-MM-DD.md     #   (security / UX / CR / docs reviews; review-agent output)
   archive/                    # superseded / historical / completed threads
     <topic>_YYYY-MM-DD.md
   rag/                        # OPTIONAL project-specific extension dir
 ```
 
-Root is `docs/` (lowercase, the near-universal convention). Add project-specific top-level dirs under `docs/` sparingly (e.g. `rag/`); the four core dirs above should exist in every project.
+Root is `docs/` (lowercase, the near-universal convention). Add project-specific top-level dirs under `docs/` sparingly (e.g. `reviews/`, `rag/`); the four core dirs above should exist in every project.
 
 **What goes where:**
 
@@ -43,9 +45,10 @@ Root is `docs/` (lowercase, the near-universal convention). Add project-specific
 | "What is true / built right now" | `current/` |
 | A design for a non-trivial feature/change | `cr/cr-NNN-topic.md` + a row in `cr/README.md` |
 | A repeatable operational procedure (deploy, setup, recovery) | `guides/` |
-| Something superseded, finished, or point-in-time (dated reviews, old correspondence) | `archive/` |
+| A dated review of the *current* code/docs (security, UX, CR, structural — incl. review-agent output) | `reviews/` |
+| Something superseded, finished, or point-in-time (old correspondence, closed threads) | `archive/` |
 
-There is **no `other/` / `misc/` directory.** If you can't classify it, it's almost always a guide (repeatable) or archive (point-in-time).
+There is **no `other/` / `misc/` directory.** If you can't classify it, it's almost always a guide (repeatable), a review (dated, point-in-time but active), or archive (superseded). A `reviews/` doc graduates to `archive/` once it's fully actioned and no longer a live reference.
 
 ## File & directory naming
 
@@ -62,7 +65,7 @@ Use **workspace-root-relative** paths in links: `[CR-016](docs/cr/cr-016-admin-o
 
 ## Repository boundaries — nested & sibling repos
 
-**Never modify a nested or sibling repository while working in this one.** Only edit a repo when you are actually operating *inside* that system. A directory with its own `.git`, its own `CLAUDE.md`/docs, or its own deploy lifecycle is a separate project: renames, link rewrites, and reorg passes (like migrating to this standard) must skip it entirely. Cross-repo *references* — links that point into the other repo's paths — stay spelled the way that repo names them; do **not** "fix" them to match this standard.
+**Never modify a nested or sibling repository while working in this one.** (For how two sibling repos *coordinate* — the handoff ledger + pinned contract — see the "Integration with ocr-llm" section of [CLAUDE.md](CLAUDE.md).) Only edit a repo when you are actually operating *inside* that system. A directory with its own `.git`, its own `CLAUDE.md`/docs, or its own deploy lifecycle is a separate project: renames, link rewrites, and reorg passes (like migrating to this standard) must skip it entirely. Cross-repo *references* — links that point into the other repo's paths — stay spelled the way that repo names them; do **not** "fix" them to match this standard.
 
 - **This project's instance:** `ocr-llm/` is a separate integrated repo (its own git + `Documentation/`). Do **not** touch anything under `ocr-llm/` unless the task is explicitly inside the ocr-llm system. Our links to `ocr-llm/Documentation/...` are correct as-is and must be left alone. (When adapting this memo to another project, replace this bullet with that project's nested/sibling repos, or delete it if there are none.)
 
