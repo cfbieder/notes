@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
-    "test:ci": "node tests/phase4-api.test.js && node tests/phase4-reminders.test.js && node tests/phase7-clips.test.js && node tests/phase10-ideas.test.js && node tests/phase12-vault.test.js && node tests/phase13-html-notes.test.js && node tests/cr027-checkout.test.js",
+    "test:ci": "node tests/phase4-api.test.js && node tests/phase4-reminders.test.js && node tests/phase7-clips.test.js && node tests/phase10-ideas.test.js && node tests/phase12-vault.test.js && node tests/phase13-html-notes.test.js && node tests/cr027-checkout.test.js && node tests/cr038-ai-provider-crypto.test.js && node tests/cr038-provider-config.test.js",
     "migrate:dev": "node src/utils/migrate.js dev",
     "migrate:prod": "node src/utils/migrate.js prod",
     "migrate:create": "node src/utils/migrate.js create"

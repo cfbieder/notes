@@ -47,7 +47,7 @@ the next sequential number and starts from [cr-000-template.md](docs/cr/cr-000-t
 | [035](docs/cr/cr-035-vault-emergency-export.md) | Vault Emergency Export (self-decrypting HTML) | 2026-06-19 | ✓ Completed |
 | [036](docs/cr/cr-036-export-note-as-pdf.md) | Export Note as PDF (Markdown + HTML) | v0.15.0 | ✓ Completed |
 | [037](docs/cr/cr-037-multi-note-editor-tabs.md) | Multi-Note Editor Tabs (Desktop) | v0.16.0 | ✓ Completed |
-| [038](docs/cr/cr-038-pluggable-ai-providers.md) | Pluggable AI Providers (Claude / OpenAI / Local) | — | Open |
+| [038](docs/cr/cr-038-pluggable-ai-providers.md) | Pluggable AI Providers (Claude / OpenAI / Local) | — | In progress |
 
 > **Note:** CR035 was originally authored as a second "CR030" (duplicate number) and
 > renumbered during the 2026-06-28 migration to the documentation standard.

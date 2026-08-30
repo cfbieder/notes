@@ -1,6 +1,6 @@
 # CR038 — Pluggable AI Providers (Claude / OpenAI / Local)
 
-**Status:** Open (proposal)
+**Status:** In progress — Phase 1 foundation shipped (crypto, `020` schema, config repo + tests); adapters/endpoints/UI remain.
 **Severity:** Feature (large — phased)
 **Origin:** User request, 2026-08-30 (open-source enablement)
 **Reviewed:** 2026-08-30 — architecture + security review; findings folded in below.
