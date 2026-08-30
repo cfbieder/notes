@@ -1,6 +1,7 @@
 const fs = require('fs/promises');
 const path = require('path');
 const providerConfig = require('./ai/providerConfig');
+const adapters = require('./ai/adapters');
 
 // Thin client for the local LLM gateway. Currently only exposes OCR (Phase 7);
 // Phase 8 will expand this to embeddings, generation, transcription, etc.
@@ -388,28 +389,35 @@ async function resolveTextProvider(userId, db) {
   return { provider: pickTextProvider(resolved), resolved };
 }
 
-// Cloud adapters (anthropic / openai / openai_compatible) land in the next
-// CR038 increment. Until then a configured cloud provider fails loudly rather
-// than silently falling back to the gateway.
-function cloudAdapterNotReady(provider) {
-  throw new Error(
-    `AI text provider "${provider}" is not implemented yet ` +
-    `(CR038 — cloud adapters land in the next increment)`
-  );
+// Build everything a cloud adapter call needs: the adapter, the request
+// context (base URL + decrypted key), and the resolved concrete model. The key
+// is decrypted here on the outbound path only — never stored elsewhere.
+function buildCloudCall(provider, resolved, rest) {
+  const adapter = adapters.getAdapter(provider);
+  const apiKey = providerConfig.getDecryptedKey(resolved.row);
+  if (adapter.requiresKey && !apiKey) {
+    throw new Error(`No API key configured for AI provider "${provider}"`);
+  }
+  const model = adapters.resolveModel(provider, resolved.modelConfig, rest);
+  return { adapter, ctx: { baseUrl: resolved.baseUrl, apiKey }, model };
 }
 
 async function generateText(opts = {}) {
+  if (!ENABLED) return null;
   const { userId, db, ...rest } = opts;
-  const { provider } = await resolveTextProvider(userId, db);
+  const { provider, resolved } = await resolveTextProvider(userId, db);
   if (provider === 'gateway') return gatewayGenerateText(rest);
-  return cloudAdapterNotReady(provider);
+  const { adapter, ctx, model } = buildCloudCall(provider, resolved, rest);
+  return adapter.generateText({ ...rest, model }, ctx);
 }
 
 async function generateTextStream(opts = {}, onChunk) {
+  if (!ENABLED) return null;
   const { userId, db, ...rest } = opts;
-  const { provider } = await resolveTextProvider(userId, db);
+  const { provider, resolved } = await resolveTextProvider(userId, db);
   if (provider === 'gateway') return gatewayGenerateTextStream(rest, onChunk);
-  return cloudAdapterNotReady(provider);
+  const { adapter, ctx, model } = buildCloudCall(provider, resolved, rest);
+  return adapter.generateTextStream({ ...rest, model }, onChunk, ctx);
 }
 
 async function listModels() {

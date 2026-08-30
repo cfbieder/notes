@@ -25,7 +25,7 @@ function buildPrompt(userPrompt, notes) {
 // prompt. Trade speed for fitting more notes in the context window.
 const CONDENSE_MODEL = process.env.LLM_CONDENSE_MODEL || 'phi4:14b';
 
-async function condenseNote(note) {
+async function condenseNote(note, ctx = {}) {
   const prompt = `Condense the following note into 3-5 short bullet points capturing only the key ideas. Preserve any specific names, numbers, or dates. Reply with only the bullets — no preamble.
 
 Title: ${note.title || 'Untitled'}
@@ -34,7 +34,9 @@ Content:
 ${(note.content || '').trim()}`;
 
   try {
-    const res = await llmService.generateText({ prompt, model: CONDENSE_MODEL });
+    const res = await llmService.generateText({
+      prompt, model: CONDENSE_MODEL, tier: 'condense', userId: ctx.userId, db: ctx.db
+    });
     if (res && res.text) return { ...note, content: res.text.trim() };
   } catch {
     // fall through to original content on failure
@@ -143,7 +145,7 @@ async function aiAssistRoutes(fastify) {
     // large source sets fit in context. Best-effort: failures fall back to
     // the original note content.
     if (condense && notes.length > 0) {
-      notes = await Promise.all(notes.map(condenseNote));
+      notes = await Promise.all(notes.map(n => condenseNote(n, { userId, db: fastify.db })));
     }
 
     const fullPrompt = buildPrompt(prompt, notes);
@@ -153,7 +155,7 @@ async function aiAssistRoutes(fastify) {
     if (!stream) {
       let generated;
       try {
-        generated = await llmService.generateText({ prompt: fullPrompt, taskName });
+        generated = await llmService.generateText({ prompt: fullPrompt, taskName, tier: 'quick', userId, db: fastify.db });
       } catch (err) {
         fastify.log.warn({ err }, 'ai-assist generate failed');
         return reply.code(502).send({
@@ -201,7 +203,7 @@ async function aiAssistRoutes(fastify) {
 
     try {
       const result = await llmService.generateTextStream(
-        { prompt: fullPrompt, taskName },
+        { prompt: fullPrompt, taskName, tier: 'quick', userId, db: fastify.db },
         (chunk) => writeLine({ chunk })
       );
       writeLine({

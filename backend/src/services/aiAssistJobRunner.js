@@ -45,7 +45,7 @@ function suggestTitle(prompt) {
   return `AI: ${short}`;
 }
 
-async function condenseNote(note) {
+async function condenseNote(note, ctx = {}) {
   const condensePrompt = `Condense the following note into 3-5 short bullet points capturing only the key ideas. Preserve any specific names, numbers, or dates. Reply with only the bullets — no preamble.
 
 Title: ${note.title || 'Untitled'}
@@ -54,7 +54,9 @@ Content:
 ${(note.content || '').trim()}`;
 
   try {
-    const res = await llmService.generateText({ prompt: condensePrompt, model: CONDENSE_MODEL });
+    const res = await llmService.generateText({
+      prompt: condensePrompt, model: CONDENSE_MODEL, tier: 'condense', userId: ctx.userId, db: ctx.db
+    });
     if (res && res.text) return { ...note, content: res.text.trim() };
   } catch {
     // fall through to original on failure
@@ -109,7 +111,7 @@ function init({ db, log }) {
 
       let notes = await loadNotesInOrder(db, jobRow.user_id, jobRow.note_ids || []);
       if (jobRow.condense && notes.length > 0) {
-        notes = await Promise.all(notes.map(condenseNote));
+        notes = await Promise.all(notes.map(n => condenseNote(n, { userId: jobRow.user_id, db })));
       }
       if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
 
@@ -119,6 +121,9 @@ function init({ db, log }) {
       const generated = await llmService.generateText({
         prompt: fullPrompt,
         taskName: 'noted_ai_assist_deep',
+        tier: 'deep',
+        userId: jobRow.user_id,
+        db,
         signal: controller.signal,
         timeoutMs: llmService.GENERATE_DEEP_TIMEOUT_MS
       });

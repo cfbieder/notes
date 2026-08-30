@@ -13,6 +13,7 @@ const providerConfig = require('../services/ai/providerConfig');
 const aiCrypto = require('../utils/aiProviderCrypto');
 const { assertSafeProviderUrl } = require('../utils/ssrfGuard');
 const llmService = require('../services/llmService');
+const adapters = require('../services/ai/adapters');
 
 // base_url only means something for these providers; anthropic/openai use the
 // SDK's fixed endpoints, so we ignore (null) any base_url sent for them.
@@ -116,8 +117,24 @@ async function routes(fastify) {
       return { data: { ok: health != null, provider, message: health != null ? 'Gateway reachable' : 'Gateway not reachable' } };
     }
 
-    // Cloud providers: config is valid; a live check needs the adapter (next increment).
-    return { data: { ok: null, provider, message: 'Configuration valid. Live connection test will be available once the provider adapter ships.' } };
+    // Cloud providers: real reachability probe. Uses the submitted key if
+    // present, else the stored one. Returns generic pass/fail only — never the
+    // upstream response body.
+    const adapter = adapters.getAdapter(provider);
+    let apiKey = ('apiKey' in body && body.apiKey) ? String(body.apiKey) : null;
+    if (!apiKey) {
+      const existing = await providerConfig.getRow(fastify.db, request.user.id, capability);
+      apiKey = providerConfig.getDecryptedKey(existing);
+    }
+    if (adapter.requiresKey && !apiKey) {
+      return badRequest(reply, 'An API key is required to test this provider');
+    }
+    try {
+      const result = await adapter.testConnection({ baseUrl: body.baseUrl || null, apiKey });
+      return { data: { ok: result.ok, provider, message: result.message } };
+    } catch (err) {
+      return { data: { ok: false, provider, message: err.message } };
+    }
   });
 }
 

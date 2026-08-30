@@ -1,6 +1,6 @@
 # CR038 — Pluggable AI Providers (Claude / OpenAI / Local)
 
-**Status:** In progress — Phase 1: foundation (crypto, `020` schema, config repo), gateway-default dispatch seam, and settings endpoints (`/api/v1/ai-providers` GET/PUT/DELETE + test) with SSRF-validated base URLs shipped & tested. Remaining: cloud adapters (anthropic/openai/openai_compatible), call-site wiring, frontend UI, provider-aware `/stats`.
+**Status:** In progress — Phase 1 backend complete: foundation (crypto, `020` schema, config repo), gateway-default dispatch seam, settings endpoints (SSRF-validated), cloud adapters (anthropic/openai/openai_compatible), call-site wiring (quick/deep/condense tiers), and a live Test-connection — all shipped & tested (mock-tested for network paths; live end-to-end verification with a real key pending). Remaining: frontend "AI Providers" UI + provider-aware `/stats`/modal.
 **Severity:** Feature (large — phased)
 **Origin:** User request, 2026-08-30 (open-source enablement)
 **Reviewed:** 2026-08-30 — architecture + security review; findings folded in below.
