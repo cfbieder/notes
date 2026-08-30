@@ -47,10 +47,14 @@ export const sapphireTheme = EditorView.theme({
     outline: 'none'
   },
   /* Normal mode rendering styles */
+  /* Never use vertical margins on line decorations or block widgets: CodeMirror
+     measures line heights with getBoundingClientRect(), which excludes margins,
+     so each margin desyncs its height map from the real DOM and clicks below it
+     land on the wrong line. Use padding, which is inside the measured box. */
   '.cm-hr-line': {
     borderBottom: '1px solid var(--border-subtle)',
-    paddingBottom: '8px',
-    marginBottom: '8px'
+    paddingTop: '8px',
+    paddingBottom: '8px'
   },
   '.cm-blockquote-line': {
     borderLeft: '3px solid var(--accent-primary)',
@@ -79,17 +83,15 @@ export const sapphireTheme = EditorView.theme({
   /* PDF embed (![[file.pdf]]) */
   '.cm-pdf-embed': {
     display: 'block',
-    margin: '8px 0',
-    border: '1px solid var(--border-subtle)',
-    borderRadius: '6px',
-    overflow: 'hidden',
+    padding: '8px 0',
     background: 'var(--bg-card)'
   },
   '.cm-pdf-embed iframe': {
     display: 'block',
     width: '100%',
     height: '640px',
-    border: 'none',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: '6px',
     background: '#ffffff'
   },
   '.cm-embed-broken': {

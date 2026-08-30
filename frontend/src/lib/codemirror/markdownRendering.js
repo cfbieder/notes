@@ -203,7 +203,9 @@ class TableWidget extends WidgetType {
   toDOM() {
     const wrapper = document.createElement('div');
     wrapper.classList.add('cm-table-wrapper');
-    wrapper.style.cssText = 'margin: 10px 0; overflow-x: auto; cursor: pointer;';
+    // Padding, not margin: block-widget heights are measured with
+    // getBoundingClientRect(), which ignores margins and drifts the height map.
+    wrapper.style.cssText = 'padding: 10px 0; overflow-x: auto; cursor: pointer;';
     wrapper.title = 'Click to edit table';
 
     const from = this.from;
@@ -256,7 +258,7 @@ class TableWidget extends WidgetType {
   }
 
   get estimatedHeight() {
-    // Header row + body rows at ~28px each + 20px wrapper margin
+    // Header row + body rows at ~28px each + 20px wrapper padding
     return (this.rows.length + 1) * 28 + 20;
   }
 
