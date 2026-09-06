@@ -178,9 +178,10 @@ const GENERATE_DEEP_TIMEOUT_MS = parseInt(process.env.LLM_GENERATE_DEEP_TIMEOUT_
 // Default to qwen3:32b — best quality model on the gateway. Override with
 // LLM_GENERATION_MODEL if a faster/smaller model is preferred.
 const GENERATE_MODEL = process.env.LLM_GENERATION_MODEL || 'qwen3:32b';
-// Bridging defaults until ocr-llm ships noted_ai_assist_quick / _deep tasks.
-// When LLM_TASK_ENABLED=true (set after server-side handoff is acknowledged),
-// generateText/generateTextStream route via /task and ignore these names.
+// Bridging defaults for LLM_TASK_ENABLED=false only. ocr-llm has registered
+// noted_ai_assist_quick / noted_ai_assist_deep, so /task is the supported path
+// (LLM_PROTOCOLS.md §2) and these hardcoded names are the fallback for a
+// gateway that predates them.
 const QUICK_MODEL = process.env.LLM_QUICK_MODEL || 'phi4:14b';
 const DEEP_MODEL = process.env.LLM_DEEP_MODEL || 'qwen3.6:35b-a3b-q4_K_M';
 const TASK_ENABLED = process.env.LLM_TASK_ENABLED === 'true';
@@ -213,6 +214,24 @@ function bridgingModelForTask(taskName) {
   if (taskName === 'noted_ai_assist_deep') return DEEP_MODEL;
   if (taskName === 'noted_ai_assist_quick') return QUICK_MODEL;
   return null;
+}
+
+// LLM_PROTOCOLS.md §3 — a /task response reports what it gave up to answer.
+// An empty `degradations` is the normal case; `schema_violation` is the one to
+// alert on. Logged in the one place every /task response is parsed, so no
+// caller has to remember to check.
+function logRoutingDegradations(json) {
+  const routing = json && json.routing;
+  const degradations = (routing && routing.degradations) || [];
+  if (degradations.length === 0) return;
+  const detail = `provider=${json.provider} model=${json.model} `
+    + `fallback_depth=${routing.fallback_depth} schema_level=${routing.schema_level} `
+    + `degradations=${degradations.join(',')}`;
+  if (degradations.includes('schema_violation')) {
+    console.error(`[llm] gateway schema_violation — ${detail}`);
+  } else {
+    console.warn(`[llm] gateway degraded response — ${detail}`);
+  }
 }
 
 // generateText
@@ -271,6 +290,7 @@ async function gatewayGenerateText({ prompt, model, taskName, system, maxTokens,
       throw new Error(`Generate gateway ${res.status}: ${body.slice(0, 200)}`);
     }
     const json = await res.json();
+    logRoutingDegradations(json);
     // Gateway /task returns { response, model, provider, ... };
     // /llm/generate returns Ollama-style { response }. Cover both.
     const out = json.response || json.text || json.output || json.generated_text || json.completion || null;
@@ -349,7 +369,10 @@ async function gatewayGenerateTextStream({ prompt, model, taskName, system, maxT
             fullText += piece;
             try { onChunk(piece); } catch {}
           }
-          if (obj.done) lastMeta = obj;
+          if (obj.done) {
+            lastMeta = obj;
+            logRoutingDegradations(obj);
+          }
         } catch {
           // ignore non-JSON lines
         }

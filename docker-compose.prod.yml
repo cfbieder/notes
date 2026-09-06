@@ -57,7 +57,11 @@ services:
       LLM_OCR_TIMEOUT_MS: ${LLM_OCR_TIMEOUT_MS:-120000}
       LLM_TRANSLATE_TIMEOUT_MS: ${LLM_TRANSLATE_TIMEOUT_MS:-150000}
       LLM_TRANSLATE_MAX_CHARS: ${LLM_TRANSLATE_MAX_CHARS:-8000}
-      LLM_TASK_ENABLED: ${LLM_TASK_ENABLED:-false}
+      # ocr-llm has registered noted_ai_assist_quick / noted_ai_assist_deep, so
+      # /task (fallback chain, deadline, cost attribution) is the supported path
+      # — LLM_PROTOCOLS.md §2. Set false only to fall back to /llm/generate with
+      # the hardcoded bridging model names.
+      LLM_TASK_ENABLED: ${LLM_TASK_ENABLED:-true}
     volumes:
       - noted_uploads:/app/uploads
       - noted_logs:/app/logs
