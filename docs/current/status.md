@@ -7,11 +7,12 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.16.3 · **Live:** `https://noted.example.com`
+**Current version:** v0.17.0 · **Live:** `https://noted.example.com`
 (containers `noted-db`, `noted-api`, `noted-web`).
 
 ## Recently shipped
 See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlines:
+- v0.17.0 — [CR038](docs/cr/cr-038-pluggable-ai-providers.md) **Phase 1**: pluggable AI providers for text generation (Claude / OpenAI / local endpoint), with encrypted key storage and SSRF-guarded settings — AI is usable without the self-hosted gateway. Plus a fix for a live gateway-identity defect: `OCR_LLM_CLIENT_KEY` was undocumented in both env templates, so any deploy configured from them got `401` on every AI call
 - v0.16.3 — fix: editor clicks landed on the wrong line in notes containing `---` horizontal rules (unmeasured CSS margins on line decorations desynced CodeMirror's height map); plus CI + mechanical convention guards ([.github/workflows/ci.yml](.github/workflows/ci.yml), [scripts/ci-guards.sh](scripts/ci-guards.sh))
 - v0.16.2 — fix: [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) list-route tab strip no longer collapses to zero height when the note list loads (flex-shrink bug — strip flashed then vanished on open)
 - v0.16.1 — fix: [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) tab strip now renders on the list route, so restored tabs are visible on app open (were hidden until a note was opened)
@@ -21,6 +22,7 @@ See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlin
 - [CR036](docs/cr/cr-036-export-note-as-pdf.md) — Export note as PDF (relabelled print flow, markdown + HTML) (v0.15.0)
 
 ## In progress / next
+- [CR038](docs/cr/cr-038-pluggable-ai-providers.md) — Pluggable AI providers (**in progress**): Phase 1 shipped but `translateText` and `/system/stats` are still gateway-only, `generateTextStream` is not cancellable, and no path has been verified against a real cloud key. Phases 2 (OCR) and 3 (transcription) not started
 - [CR026](docs/cr/cr-026-activity-rail-navigation.md) — Activity rail + contextual panel navigation (**in progress**)
 - [CR025](docs/cr/cr-025-pdf-document-management.md) — PDF document management (open)
 - **Phase 8 — LLM intelligence:** foundation [CR001](docs/cr/cr-001-pgvector-embeddings.md)

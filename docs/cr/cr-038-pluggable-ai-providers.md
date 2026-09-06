@@ -1,6 +1,27 @@
 # CR038 — Pluggable AI Providers (Claude / OpenAI / Local)
 
-**Status:** Phase 1 complete pending live-key verification — backend (crypto, `020` schema, config repo, gateway-default dispatch, SSRF-validated endpoints, anthropic/openai/openai_compatible adapters, quick/deep/condense wiring, live Test-connection) + frontend ("AI Provider (Text)" settings UI, provider-aware `/ai-assist/config`). Network paths are mock-tested; end-to-end verification against a real Anthropic/OpenAI/local endpoint is the remaining check (needs a real key). Phases 2 (OCR) and 3 (transcription) not started.
+**Status:** In progress — Phase 1 text generation shipped in v0.17.0; four Phase 1
+items remain (below). Phases 2 (OCR) and 3 (transcription) not started.
+
+**Shipped (v0.17.0):** AES-256-GCM key crypto, migration `020_ai_provider_config.sql`,
+config repository with per-capability + per-tier resolution, SSRF-guarded
+`/api/v1/ai-providers` endpoints (`GET /`, `PUT /:capability`, `POST /:capability/test`),
+`anthropic` / `openai` / `openai_compatible` adapters, gateway-default dispatch in
+`generateText` / `generateTextStream`, provider-aware `/ai-assist/config`, and the
+"AI Provider (Text)" settings UI. Network paths are mock-tested (84 unit tests).
+
+**Remaining in Phase 1:**
+- `translateText` is still gateway-only — the prompt-based cloud path is not built,
+  so translation silently keeps using the gateway under a cloud text provider.
+- `generateTextStream` still lacks `signal` / `timeoutMs`, so cloud streams are
+  not cancellable.
+- `/api/v1/system/stats` still reports gateway-only LLM fields from `LLM_*` env
+  rather than the active provider.
+- [AIAssistModal.vue](frontend/src/components/ai/AIAssistModal.vue) deep-tier
+  tooltip still names the gateway model unconditionally (the heavy-tier *warning*
+  is correctly gated).
+- End-to-end verification against a real Anthropic / OpenAI / local endpoint
+  (needs a real key).
 **Severity:** Feature (large — phased)
 **Origin:** User request, 2026-08-30 (open-source enablement)
 **Reviewed:** 2026-08-30 — architecture + security review; findings folded in below.
@@ -186,9 +207,12 @@ the design, not the later review:
 
 ## Acceptance
 
-- [ ] With no provider configured (or `LLM_ENABLED=false`), behavior is **exactly
+- [x] With no provider configured (or `LLM_ENABLED=false`), behavior is **exactly
       as today**: the `gateway` adapter drives `/task` with quick/deep routing,
       fallback chains, and heavy-tier health intact (no regression).
+      *Verified v0.17.0 — `cr038-dispatch` (7/7, including "env source never
+      selects a cloud provider") plus a live `noted_ai_assist_quick` call through
+      `/task` (`ollama_fast:phi4:14b`, `degradations []`).*
 - [ ] With a valid Anthropic key for Text, AI Assist **quick + deep** and
       translation work end-to-end; streaming still streams; deep runs async
       without a user session.
@@ -198,11 +222,18 @@ the design, not the later review:
       plaintext key.
 - [ ] No API key or auth-header value appears in application logs across success,
       401/auth-failure, and timeout paths.
-- [ ] A base URL pointing at loopback / link-local / private ranges is rejected by
+- [x] A base URL pointing at loopback / link-local / private ranges is rejected by
       both save and Test connection; Test-connection failure does not persist the
       key and its response omits the raw upstream body.
+      *Verified v0.17.0 at unit level — `cr038-ssrf-guard` (23/23: loopback,
+      link-local/cloud-metadata, RFC1918, CGNAT, ULA, IPv4-mapped, DNS-rebind,
+      scheme, opt-in allowlist with metadata still blocked) and `cr038-adapters`
+      ("error message has status, not key/body").*
 - [ ] `/ai-assist/config`, `/system/stats`, and the modal render correctly (no
       stale gateway-only fields) under a cloud provider.
+      *Partial — `/ai-assist/config` is provider-aware and the modal's heavy-tier
+      warning is correctly gated; `/system/stats` and the modal's deep-tier
+      tooltip are still gateway-only.*
 - [ ] Transcription settings show Claude as unsupported; OCR/transcription phases
       ship without reworking Phase 1; gateway `/ocr` remains the upload/clip
       default until an OCR provider is configured.
