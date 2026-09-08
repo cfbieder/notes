@@ -64,8 +64,33 @@ rename anything under it; cross-repo links stay spelled the way that repo names 
 
 Before non-trivial API work:
 1. `(cd ocr-llm && git pull --ff-only)`
-2. Read the tail of `ocr-llm/HANDOFFS.md` for `[ocr-llm → noted]` or `[ocr-llm → *]`.
+2. Read what the handoff hook printed (below) — not the tail of `HANDOFFS.md` by hand.
 3. Fetch the live spec: `curl -s http://llm-gateway.example.com:8080/contracts/v1/gateway`.
 
+### Handoffs
+
+A `SessionStart` hook asks the gateway what this repo owes at the top of every session
+(`.claude/hooks/handoff-inbox.sh`, a shim into `ocr-llm/tools/client-kit/` so `git pull`
+updates it). Creds come from the **repo-root** `.env` (gitignored) — the CLI does not read
+`backend/.env.dev`, so the pair is mirrored to the root.
+
+**Read what the hook printed before starting work.** Printing nothing is the only output that
+means clear — it fires only when the inbox is empty *and* the server's view was current.
+Check any time: `ocr-llm/tools/client-kit/handoff inbox`.
+
+| It says | It means |
+|---|---|
+| `Nothing owed by noted, as of <time>` | Clear at that moment — not "now". |
+| `YOU OWE THE NEXT MOVE` | Pull `ocr-llm/` and read the thread at the `HANDOFFS.md:` anchor shown. |
+| `waiting on ocr-llm` | We replied; they owe the next move. Nothing to do. |
+| `COULD NOT CHECK` (exit 2) | **Unknown, not clear.** Never treat as "nothing outstanding". |
+| `STOP AND WAIT` | The server has unpushed commits — a thread may be unclosable until it pushes. |
+
+**`closed` means RESOLVED, not SENT.** Shipping the work and appending a reply leaves the
+thread `open` with `waiting_on` pointing at whoever owes the next move. If a closing entry
+hands back new work, that work gets its own thread.
+
 When this client needs the server to change something, append an entry to
-`ocr-llm/HANDOFFS.md` with `## YYYY-MM-DD [noted → ocr-llm] subject`.
+`ocr-llm/HANDOFFS.md` with `## YYYY-MM-DD [noted → ocr-llm] subject` **and** update
+`ocr-llm/handoffs/handoffs.json` in the same commit (a pre-commit hook and CI enforce the pair).
+The inbox is read-only: filing, replying and closing are all git.
