@@ -22,6 +22,13 @@ config repository with per-capability + per-tier resolution, SSRF-guarded
   is correctly gated).
 - End-to-end verification against a real Anthropic / OpenAI / local endpoint
   (needs a real key).
+- ⛔ **`AI_KEYS_ENC_KEY` is not mapped in `docker-compose.prod.yml`'s `environment:`
+  block**, so it cannot reach the `noted-api` container: on production, saving a
+  provider key fails with "AI_KEYS_ENC_KEY is not configured on the server". The var is
+  in `backend/.env.prod.example` only — the same defect class as the `OCR_LLM_CLIENT_KEY`
+  omission fixed in v0.17.0 (this service has no `env_file:`, so an example line alone
+  wires nothing). Found 2026-09-26. `LLM_GENERATION_MODEL`, `LLM_CONTEXT_WINDOW` and
+  `LLM_GENERATE_TIMEOUT_MS` are unmapped too, but those fall back to code defaults.
 **Severity:** Feature (large — phased)
 **Origin:** User request, 2026-08-30 (open-source enablement)
 **Reviewed:** 2026-08-30 — architecture + security review; findings folded in below.

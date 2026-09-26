@@ -994,7 +994,8 @@ noted/
 │   ├── current/
 │   │   ├── status.md               # Mandatory session-start read
 │   │   ├── project-description.md  # This file (full current state)
-│   │   └── project-roadmap.md      # Planned / in-progress work
+│   │   ├── project-roadmap.md      # Planned / in-progress work
+│   │   └── secrets-inventory.md    # Secret names + locations (never values)
 │   ├── cr/                         # Change Requests + README.md index (canonical status)
 │   ├── guides/                     # Runbooks + stable how-tos (key-files, deployment, API)
 │   └── archive/                    # Stale / historical material
