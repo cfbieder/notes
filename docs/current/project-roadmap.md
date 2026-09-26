@@ -32,6 +32,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR007](docs/cr/cr-007-task-extraction.md) | Task Extraction from Notes | |
 | [CR008](docs/cr/cr-008-natural-language-query.md) | Natural Language Note Query ("Ask My Notes") | Depends on CR001, CR002 |
 | [CR038](docs/cr/cr-038-pluggable-ai-providers.md) | Pluggable AI Providers (Claude / OpenAI / Local) | **In progress** — Phase 1 (text) shipped v0.17.0. Remaining in Phase 1: `translateText` and `/system/stats` still gateway-only, `generateTextStream` has no `signal`/`timeoutMs`, live-key verification outstanding. Phase 2 (OCR) and Phase 3 (transcription) not started. Reserves the `embeddings` capability so CR001 can slot in |
+| — | Typed gateway error handling in `llmService.js` | **Known gap, no CR yet.** The gateway client does no status-code branching on any of its five surfaces (`:70` /ocr, `:110` /translate, `:157` /transcribe, `:290` + `:347` /task + /llm/generate): every non-OK response becomes ``throw new Error(`Generate gateway ${res.status}: ${body.slice(0, 200)}`)``, so a `413 prompt_too_long` reaches the user as 200 raw bytes and the gateway's documented `max_supported` / `estimated_tokens` fields are never read. Surfaced by ocr-llm's 2026-09-20 broadcast and acknowledged as ours in `ocr-llm/HANDOFFS.md` (2026-09-26); four of the gateway's six clients had the same gap. Fixing it means branching on the typed `error` code and surfacing headroom instead of a truncated body. |
 
 ### Security
 
