@@ -31,7 +31,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR006](docs/cr/cr-006-note-summarization.md) | Note Summarization | |
 | [CR007](docs/cr/cr-007-task-extraction.md) | Task Extraction from Notes | |
 | [CR008](docs/cr/cr-008-natural-language-query.md) | Natural Language Note Query ("Ask My Notes") | Depends on CR001, CR002 |
-| [CR038](docs/cr/cr-038-pluggable-ai-providers.md) | Pluggable AI Providers (Claude / OpenAI / Local) | **In progress** — Phase 1 (text) shipped v0.17.0. Remaining in Phase 1: `AI_KEYS_ENC_KEY` prod mapping fixed in the tree (ships with the next release; CI guard 7 now enforces secret mapping); `translateText` and `/system/stats` still gateway-only; `generateTextStream` has no `signal`/`timeoutMs`; live-key verification outstanding. Phase 2 (OCR) and Phase 3 (transcription) not started. Reserves the `embeddings` capability so CR001 can slot in |
+| [CR038](docs/cr/cr-038-pluggable-ai-providers.md) | Pluggable AI Providers (Claude / OpenAI / Local) | **In progress** — Phase 1 (text) shipped v0.17.0. Remaining in Phase 1: `AI_KEYS_ENC_KEY` prod mapping fixed in v0.17.1 (CI guard 7 now enforces secret mapping); `translateText` and `/system/stats` still gateway-only; `generateTextStream` has no `signal`/`timeoutMs`; live-key verification outstanding. Phase 2 (OCR) and Phase 3 (transcription) not started. Reserves the `embeddings` capability so CR001 can slot in |
 | — | Typed gateway error handling in `llmService.js` | **Known gap, no CR yet.** The gateway client does no status-code branching on any of its five surfaces (`:70` /ocr, `:110` /translate, `:157` /transcribe, `:290` + `:347` /task + /llm/generate): every non-OK response becomes ``throw new Error(`Generate gateway ${res.status}: ${body.slice(0, 200)}`)``, so a `413 prompt_too_long` reaches the user as 200 raw bytes and the gateway's documented `max_supported` / `estimated_tokens` fields are never read. Surfaced by ocr-llm's 2026-09-20 broadcast and acknowledged as ours in `ocr-llm/HANDOFFS.md` (2026-09-26); four of the gateway's six clients had the same gap. Fixing it means branching on the typed `error` code and surfacing headroom instead of a truncated body. |
 
 ### Security
@@ -104,6 +104,11 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ---
 
 ## Recently Completed
+
+### Released v0.17.1 (2026-10-02)
+
+- **Fix — [CR038](docs/cr/cr-038-pluggable-ai-providers.md) `AI_KEYS_ENC_KEY` never reached production.** The `noted-api` service has no `env_file:`, and the variable was neither mapped in `docker-compose.prod.yml`'s `environment:` block nor set in the prod env file, so saving any Claude / OpenAI / local provider key failed with "AI_KEYS_ENC_KEY is not configured on the server". Now mapped as `${AI_KEYS_ENC_KEY:-}` (gateway-only until set) and a key provisioned on the prod host. Second occurrence of this defect class (after `OCR_LLM_CLIENT_KEY` in v0.17.0), so [scripts/ci-guards.sh](scripts/ci-guards.sh) gains **guard 7**: every secret-named variable in `backend/.env.prod.example` must be substituted in the prod compose file (verified to fail against the pre-fix tree).
+- **[CR039](docs/cr/cr-039-research-sources-highlights.md) — Research sources, highlights & chapter references** drafted, through technical review and PM sign-off; approved for Phase A1 (design only, no code).
 
 Tracked in `project-description.md` under the relevant feature section. The full pre-reorg history of completed phases is preserved in [Archive/NOTED_DEVELOPMENT_PLAN_2026-04-25.md](docs/archive/noted-development-plan_2026-04-25.md).
 

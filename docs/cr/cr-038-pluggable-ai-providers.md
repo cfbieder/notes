@@ -22,7 +22,7 @@ config repository with per-capability + per-tier resolution, SSRF-guarded
   is correctly gated).
 - End-to-end verification against a real Anthropic / OpenAI / local endpoint
   (needs a real key).
-- ✅ *(fixed in the tree 2026-10-02, ships with the next release)* **`AI_KEYS_ENC_KEY`
+- ✅ *(fixed in v0.17.1, 2026-10-02)* **`AI_KEYS_ENC_KEY`
   was not mapped in `docker-compose.prod.yml`'s `environment:` block**, so it could not
   reach the `noted-api` container: on production, saving a provider key failed with
   "AI_KEYS_ENC_KEY is not configured on the server". It was also unset in the prod env
