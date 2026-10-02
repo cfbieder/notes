@@ -7,11 +7,12 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.17.1 · **Live:** `https://noted.example.com`
+**Current version:** v0.18.0 · **Live:** `https://noted.example.com`
 (containers `noted-db`, `noted-api`, `noted-web`).
 
 ## Recently shipped
 See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlines:
+- v0.18.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **Phase A1**: research sources, books and chapters — a Research rail item (once a book exists), a source library and chapter views, a read-only Reader view for sources, and Settings → Research. Plus a dependency fix: `npm audit` clean in both apps (`bcrypt` 6 removes the critical `tar` advisory)
 - v0.17.1 — fix: [CR038](docs/cr/cr-038-pluggable-ai-providers.md) `AI_KEYS_ENC_KEY` now reaches the prod container, so saving a Claude / OpenAI / local provider key works on production; new CI guard 7 fails the build when any prod secret is left unmapped in `docker-compose.prod.yml`. Plus [CR039](docs/cr/cr-039-research-sources-highlights.md) (research sources, highlights & chapter references) drafted, reviewed and approved for Phase A1
 - v0.17.0 — [CR038](docs/cr/cr-038-pluggable-ai-providers.md) **Phase 1**: pluggable AI providers for text generation (Claude / OpenAI / local endpoint), with encrypted key storage and SSRF-guarded settings — AI is usable without the self-hosted gateway. Plus a fix for a live gateway-identity defect: `OCR_LLM_CLIENT_KEY` was undocumented in both env templates, so any deploy configured from them got `401` on every AI call
 - v0.16.3 — fix: editor clicks landed on the wrong line in notes containing `---` horizontal rules (unmeasured CSS margins on line decorations desynced CodeMirror's height map); plus CI + mechanical convention guards ([.github/workflows/ci.yml](.github/workflows/ci.yml), [scripts/ci-guards.sh](scripts/ci-guards.sh))
@@ -24,6 +25,7 @@ See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlin
 
 ## In progress / next
 - [CR038](docs/cr/cr-038-pluggable-ai-providers.md) — Pluggable AI providers (**in progress**): still open: `translateText` and `/system/stats` are gateway-only, `generateTextStream` is not cancellable, and no path has been verified against a real cloud key. Phases 2 (OCR) and 3 (transcription) not started
+- [CR039](docs/cr/cr-039-research-sources-highlights.md) — Research sources (**in progress**): A1 shipped; next is **Phase B**, the per-chapter reference export (Copy for Word + .md) and the first usable release; then A2 (clipper) and A3 (PDF + AI metadata)
 - [CR026](docs/cr/cr-026-activity-rail-navigation.md) — Activity rail + contextual panel navigation (**in progress**)
 - [CR025](docs/cr/cr-025-pdf-document-management.md) — PDF document management (open)
 - **Phase 8 — LLM intelligence:** foundation [CR001](docs/cr/cr-001-pgvector-embeddings.md)

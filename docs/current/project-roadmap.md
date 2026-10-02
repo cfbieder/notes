@@ -62,7 +62,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR032](docs/cr/cr-032-drop-is-inbox-flag.md) | Drop `notes.is_inbox` flag; derive Inbox from default notebook (`notebook_id IS NULL OR is_default = TRUE`) and exclude `note_type='idea'` — **Completed** |
 | [CR036](docs/cr/cr-036-export-note-as-pdf.md) | Export Note as PDF (Markdown + HTML) — relabel the print flow as "Export as PDF"; reuse the existing print-window pipeline (no new deps) — **Completed** |
 | [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) | Multi-Note Editor Tabs (desktop) — tab strip over a persisted open-note list; active tab derived from route; no per-tab buffers — **Completed** |
-| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — `source` note type with citation metadata, books/chapters, per-chapter Chicago reference export, later web + PDF highlights. **In progress — Phase A1 built** (server core, read-only guards + trigger, manual sources, Research rail/panel/views, Reader view). Next: B (reference export, the first usable release) → A2 (clipper) → A3 (PDF + AI metadata); C/D/E re-prioritized when reached (D with CR025, E after CR001) |
+| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — `source` note type with citation metadata, books/chapters, per-chapter Chicago reference export, later web + PDF highlights. **In progress — Phase A1 shipped v0.18.0** (server core, read-only guards + trigger, manual sources, Research rail/panel/views, Reader view). Next: B (reference export, the first usable release) → A2 (clipper) → A3 (PDF + AI metadata); C/D/E re-prioritized when reached (D with CR025, E after CR001) |
 
 **Deferred from CR039** (out of scope for v1; each a later CR if wanted):
 - `.docx` reference export — add if a publisher asks for a file (Copy for Word covers drafting)
@@ -71,7 +71,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 - Promote a CR025 document to a CR039 source
 - User-defined highlight color legend (v1 ships a fixed legend)
 - Convert an existing plain clip into a source (v1: re-clip as a source)
-- Mobile entry point for Research (the mobile shell has no rail; sources open fine in the Reader view)
+- Mobile entry point for Research — not needed yet (owner, 2026-10-02); sources still open in the Reader view on mobile
 
 ### Offline & Sync
 
@@ -106,6 +106,11 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ---
 
 ## Recently Completed
+
+### Released v0.18.0 (2026-10-02)
+
+- **[CR039](docs/cr/cr-039-research-sources-highlights.md) Phase A1 — Research sources & chapters.** A source is a note (`note_type='source'`) with a 1:1 `sources` citation row. Books and chapters are first-class, with one active book per user. Migrations `021_research_sources.sql` + `022_source_attachment_same_note.sql`; routes in `backend/src/routes/research.js`. Source bodies are read-only: the note routes return `422 source_body_readonly`, and the `guard_source_body` trigger backstops them, with `replace-body` as the only bypass. Sources are excluded from the Notes list and Inbox. URLs are normalized and unique per user (409 `source_exists`). UI: Research rail item (⌘9, shown only once a book exists), contextual panel, `/research/sources` + `/research/chapters/:id`, a Reader view for source notes, and Settings → Research. Verified by 70 backend assertions (incl. real cross-user isolation) and a 24-step headless-Chromium walkthrough; the security, migration and UI reviews were applied. Next: Phase B (reference export).
+- **Fix — dependencies:** `npm audit` clean in both apps (was 86 GitHub alerts, 1 critical). `bcrypt` 5 → 6 drops `node-pre-gyp` and the critical `tar` advisory (existing hashes still verify); `sharp` 0.34 → 0.35 (unused dev dependency).
 
 ### Released v0.17.1 (2026-10-02)
 

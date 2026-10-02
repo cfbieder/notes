@@ -1,6 +1,6 @@
 # CR039 — Research Sources, Highlights & Chapter References
 
-**Status:** In progress — **Phase A1 built** (2026-10-02, see Outcome); B next, then A2 and A3.
+**Status:** In progress — **Phase A1 shipped** (see Outcome; version in the CR index); B next, then A2 and A3.
 Phases C, D and E are a design of record; each gets a priority re-check before it is built (§15c).
 **Severity:** Feature (large; phased, first usable release = A1 + B)
 **Origin:** User proposal, 2026-10-02 — reviewed against the code the same day (see §15)
@@ -737,7 +737,7 @@ each took the recommended option.
 
 ## Outcome
 
-### Phase A1 (built 2026-10-02; version in the [CR index](docs/cr/README.md))
+### Phase A1 (shipped 2026-10-02; version in the [CR index](docs/cr/README.md))
 
 Landed as designed in §5.1–§5.2, §6.1 and §12-A1: migrations `021_research_sources.sql` and
 `022_source_attachment_same_note.sql`; `backend/src/routes/research.js`; the §6.1 guards in
@@ -767,7 +767,8 @@ walkthrough covering desktop and a 390 px mobile viewport.
   otherwise `incomplete`. Any `PUT /sources/:id`, including `{}` (the Verify button), sets
   `verified`.
 - **Mobile:** sources open in the Reader view, but the mobile shell has no rail, so
-  `/research` is reachable only by link on a phone. A mobile entry point is deferred.
+  `/research` is reachable only by link on a phone. The owner decided on 2026-10-02 that
+  mobile doesn't need Research yet, so there is no mobile entry point.
 
 **Reviews:** the security review and the migration review (scratch DB built from 001–022)
 found nothing blocking. The UI review found two High issues, both fixed: the
