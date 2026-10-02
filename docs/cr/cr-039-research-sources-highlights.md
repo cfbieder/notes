@@ -1,8 +1,7 @@
 # CR039 — Research Sources, Highlights & Chapter References
 
-**Status:** Approved: Phases A1, B, A2 and A3 are cleared to build, A1 first, after the CR038
-`AI_KEYS_ENC_KEY` production fix ships. Phases C, D and E are a design of record; each gets a
-priority re-check before it is built (§15c).
+**Status:** In progress — **Phase A1 built** (2026-10-02, see Outcome); B next, then A2 and A3.
+Phases C, D and E are a design of record; each gets a priority re-check before it is built (§15c).
 **Severity:** Feature (large; phased, first usable release = A1 + B)
 **Origin:** User proposal, 2026-10-02 — reviewed against the code the same day (see §15)
 **Depends on:** web clipper (project-description §5.10), attachments + OCR (§5.7),
@@ -88,8 +87,8 @@ Deferred items are tracked in [project-roadmap.md](docs/current/project-roadmap.
 
 ## 5. Data Model
 
-Migration numbers are **not pinned here** — take the next free number at implementation
-time (currently `021`) and re-check for a collision at commit (CR038 is also active).
+Phase A1 took migrations `021` and `022`. Later phases take the next free number at
+implementation time and re-check for a collision at commit.
 All tables below are additive and **safe to apply before the feature cuts over**.
 
 ### 5.1 Books & chapters
@@ -210,12 +209,13 @@ CREATE INDEX source_chapters_chapter_idx ON source_chapters(chapter_id);
   comes from the parents, so every insert **must verify that both the source and the chapter
   belong to the caller**, or a user could attach their source to someone else's chapter id.
   Each join table gets an explicit cross-user isolation test.
-- **Read-only trigger (§16 #9).** The same migration adds a `BEFORE UPDATE OF content, format
-  ON notes` trigger that raises for `note_type='source'` unless the transaction has set
-  `SET LOCAL noted.allow_source_body = 'on'`, which only `replace-body` does. It is the
-  codebase's **first trigger**: record that in the migration's header comment and in the
-  migration rules when it lands. The route guards (§6.1) stay, so users get a clean 422
-  rather than a database error.
+- **Read-only trigger (§16 #9).** The same migration adds a `BEFORE UPDATE ON notes` trigger
+  that raises when a source's `content`, `format` or `note_type` *value* changes, unless the
+  transaction has set `SET LOCAL noted.allow_source_body = 'on'`, which only `replace-body`
+  does. It compares values rather than using `UPDATE OF content, format`, because
+  `PUT /notes/:id` always assigns `content = COALESCE($2, content)`. It is the codebase's
+  first **rule-enforcing** trigger (001 already has `updated_at` triggers). The route guards
+  (§6.1) stay, so users get a clean 422 rather than a database error.
 
 ### 5.3 Highlights (Phase C)
 
@@ -723,7 +723,7 @@ each took the recommended option.
 
 | 7 | Phase A shape | **Split into A1 / A2 / A3**; first usable release is A1 + B; search filters move to C (§12). |
 | 8 | `.docx` export | **Deferred.** B ships html (Copy for Word) and md; add `.docx` if a publisher asks for a file. |
-| 9 | Database backstop for read-only bodies | **Route guards plus a `BEFORE UPDATE` trigger**, with a `SET LOCAL` bypass used only by `replace-body` (§5.2). This is the codebase's first trigger. |
+| 9 | Database backstop for read-only bodies | **Route guards plus a `BEFORE UPDATE` trigger**, with a `SET LOCAL` bypass used only by `replace-body` (§5.2). The codebase's first rule-enforcing trigger. |
 | 10 | Join-table isolation | **Route checks plus an isolation test per join table**, following `note_tags`; no composite FKs. |
 | 11 | Converting an existing plain clip | **Unsupported in v1.** Re-clip as a source; tracked as deferred on the roadmap. |
 | 12 | Research rail visibility | **Shown only once a book exists.** Creating a book is the opt-in. |
@@ -737,4 +737,46 @@ each took the recommended option.
 
 ## Outcome
 
-<Filled at shipping.>
+### Phase A1 (built 2026-10-02; version in the [CR index](docs/cr/README.md))
+
+Landed as designed in §5.1–§5.2, §6.1 and §12-A1: migrations `021_research_sources.sql` and
+`022_source_attachment_same_note.sql`; `backend/src/routes/research.js`; the §6.1 guards in
+`notes.js` and `driveImporter.js`; the Research rail item, panel, views, Reader view and
+Settings → Research. Verified by `backend/tests/cr039-research.test.js` (70 assertions,
+including a real second user for isolation; in `test:ci`) and a 24-step headless-Chromium
+walkthrough covering desktop and a 390 px mobile viewport.
+
+**Deviations and additions:**
+- **Migration 022**, found by the migration review: the attachment FKs are composite
+  `(id, note_id) → attachments`, so a source can only point at its own note's attachment.
+  A cross-note pointer would have made emptying the trash fail with 23503.
+- **`replace-body` is in A1**, not just a later phase. It is the trigger's only sanctioned
+  bypass, so the read-only rule was untestable without it. It returns zero counts until
+  highlights exist.
+- **Added** `DELETE /books/:id` (otherwise a test book could never be removed, and the rail
+  item never hidden). Deleting the active book promotes the oldest remaining one.
+- **Added** `GET /sources?unassigned=true`, which backs the panel's Unassigned list.
+- **No attachment area on source notes** (desktop and mobile), found by the UI review. An
+  image upload auto-inserts a link into the body, which a source must refuse, and that
+  would break every later autosave. PDF attachments for sources come with A3.
+- **Chapter reorder uses up/down buttons**, not drag and drop. It's the same endpoint, and
+  keyboard-accessible.
+- **`published_date`** is returned as `YYYY-MM-DD` text. node-pg's `Date` would shift it by
+  the server's time zone.
+- **Manual entry status:** a complete manual entry (author + date) is created `verified`;
+  otherwise `incomplete`. Any `PUT /sources/:id`, including `{}` (the Verify button), sets
+  `verified`.
+- **Mobile:** sources open in the Reader view, but the mobile shell has no rail, so
+  `/research` is reachable only by link on a phone. A mobile entry point is deferred.
+
+**Reviews:** the security review and the migration review (scratch DB built from 001–022)
+found nothing blocking. The UI review found two High issues, both fixed: the
+attachment-area bug above, and library rows that only opened on a mouse click (titles are
+now links). Its Medium and Low items were also applied: Escape, focus and dialog semantics
+in the source form; request ordering plus error and empty states in the library; switching
+books; the double scroll on mobile; labels; date validation. Still open from it: no paging
+past 200 sources (the count says "Showing N of M"), and opening a source switches the rail
+to Notes. The Reader view's back link covers that for now. Their low-severity hardening was applied (user-scoped joins,
+pool-safe rollback, 409 on concurrent book activation, input limits). Composite ownership
+FKs were again declined per §16 #10. One pre-existing issue surfaced outside this CR:
+`tag_ids` on `POST`/`PUT /notes` are not checked against the caller's own tags.

@@ -219,7 +219,7 @@ A GTD-inspired frictionless capture system:
 
 - **Global capture shortcut:** Keyboard shortcut (e.g., `Ctrl+Shift+N`) opens a floating capture modal from anywhere in the app.
 - **Capture types:** Plain note, task/to-do, idea, or voice. Ideas are a distinct `note_type` and live in a dedicated **Ideas** section rather than the Inbox. Voice captures are recorded via MediaRecorder, transcribed via Whisper, and saved as ideas.
-- **Inbox view:** A dedicated "Inbox" view shows all unallocated *note* captures in reverse chronological order. As of CR032, Inbox membership is *derived*: `note_type <> 'idea' AND (notebook_id IS NULL OR notebook.is_default = TRUE)`. Capture paths route into the Inbox by either leaving `notebook_id` NULL (Drive importer, "Send to Inbox" clipper toggle) or by assigning the user's default notebook (Quick Capture, AI Assist deep-think, file importer). Voice captures use `note_type='idea'` so they land in `/ideas` rather than Inbox. The list API exposes `?in_inbox=true|false` for the derived filter. No `is_inbox` column — the dual signal it created was the root cause of recurring drift bugs (migrations 015 and 019 are the two attempts to address this; 019 removed the column entirely).
+- **Inbox view:** A dedicated "Inbox" view shows all unallocated *note* captures in reverse chronological order. As of CR032, Inbox membership is *derived*: `note_type <> 'idea' AND (notebook_id IS NULL OR notebook.is_default = TRUE)`; research sources (CR039) are excluded from the list API entirely unless requested. Capture paths route into the Inbox by either leaving `notebook_id` NULL (Drive importer, "Send to Inbox" clipper toggle) or by assigning the user's default notebook (Quick Capture, AI Assist deep-think, file importer). Voice captures use `note_type='idea'` so they land in `/ideas` rather than Inbox. The list API exposes `?in_inbox=true|false` for the derived filter. No `is_inbox` column — the dual signal it created was the root cause of recurring drift bugs (migrations 015 and 019 are the two attempts to address this; 019 removed the column entirely).
 - **Ideas view:** A dedicated **💡 Ideas** view (sidebar entry + `Alt+I` shortcut, mobile home card) for notebook-less, pre-allocation captures. Each idea can be **promoted** to a regular note in a chosen notebook, **moved to a note** (appended as a bullet to an existing note's body, source soft-deleted), **moved to a task** (creates a standalone inbox task with the idea's content, source soft-deleted), opened, or trashed — all actions available both from the Ideas list (the `→` button opens a Move popover with both options) and from the editor toolbar when viewing an idea. Ideas are first-class across the app — they appear in All Notes, Search, Graph, and Tag views, distinguished by a 💡 chip rendered from `note_type`.
 - **Processing:** Each inbox item can be: converted to a full note, added as a task to an existing note, moved to a notebook, or discarded.
 - **No friction:** The capture modal requires zero allocation decisions upfront.
@@ -453,6 +453,17 @@ Per-note format flag (`markdown` | `html`) so users can keep richly-formatted do
 - **v1 limitations (deferred):** No wikilinks/backlinks/graph/AI Assist for HTML notes (the wikilink parser is markdown-only; AI Assist prompts assume markdown). HTML tags pollute `content_tsv` slightly — acceptable tradeoff for v1. No format conversion (markdown ↔ html) on existing notes. No WYSIWYG editor.
 - **Code:** `backend/migrations/018_note_format.sql`, `backend/src/routes/import.js`, `backend/src/routes/notes.js` (format field), `backend/tests/phase13-html-notes.test.js` (23 assertions), `frontend/src/lib/htmlSanitize.js`, `frontend/src/components/ui/ImportNoteModal.vue`, `frontend/src/views/NotesView.vue` (read-mode branch), `frontend/src/components/editor/CodeMirrorEditor.vue` (format prop). Dependency: `dompurify`.
 
+### 5.19 Research Sources & Chapters (CR039, Phase A1 implemented)
+
+A research layer for a book manuscript: citable **sources** organized by **book chapters**. Phase A1 is the server core plus manual entry; reference export (B), clipper capture (A2), PDF sources + AI metadata (A3) and highlights (C–E) follow — see [CR039](docs/cr/cr-039-research-sources-highlights.md).
+
+- **Model:** a source is a note with `note_type='source'` plus a 1:1 `sources` citation row (kind, authors JSON, title, container, publisher, volume/issue/pages, `published_date` + precision, normalized URL, DOI/ISBN, `metadata_status`). Books and chapters are their own tables; at most one active book per user. Chapter assignment is manual (`source_chapters`).
+- **Read-only bodies:** a source's body changes only through `POST /sources/:id/replace-body`. Note routes refuse body/format/notebook/auto-update/type changes with `422 source_body_readonly` (title, pin and tags still edit), and the `guard_source_body` trigger (migration 021) refuses any such UPDATE that reaches the database by another path. Backfill migrations that rewrite `notes.content` must skip sources or opt in with `SET LOCAL noted.allow_source_body = 'on'`.
+- **Visibility:** sources are notebook-less and excluded from the Notes list and Inbox (`GET /notes` adds `note_type <> 'source'` unless `note_type=source` is requested). Global search still finds them.
+- **Duplicates:** URLs are normalized (`src/utils/sourceUrl.js`: lowercase host, no fragment, no `utm_*`/click-id params, no trailing slash) and unique per user; a duplicate returns `409 source_exists` with `{ note_id, in_trash }`.
+- **UI:** the **Research** rail item (⌘9) appears only once a book exists — create one in Settings → Research, which also manages chapters (add, rename, reorder with up/down, delete). The Research panel lists All sources / Needs attention / Unassigned and the active book's chapters with counts. `/research/sources` and `/research/chapters/:id` show a filterable source table with a **New source** form. A source opens at `/notes/:id` in a Reader view (`SourceReader`): citation card with Verify / Edit and chapter chips above the rendered, read-only body — on desktop and mobile.
+- **Code:** `backend/migrations/021_research_sources.sql`, `022_source_attachment_same_note.sql`, `backend/src/routes/research.js`, `backend/src/utils/sourceUrl.js`, `backend/src/utils/sourceGuard.js`, guards in `backend/src/routes/notes.js` and `backend/src/services/driveImporter.js`, `backend/tests/cr039-research.test.js` (70 assertions incl. a real second user for isolation); `frontend/src/stores/research.js`, `frontend/src/lib/citation.js`, `frontend/src/views/ResearchView.vue`, `frontend/src/components/research/SourceReader.vue`, `SourceFormModal.vue`, `frontend/src/components/sidebar/panels/ResearchPanel.vue`, `frontend/src/components/settings/ResearchSettings.vue`.
+
 ---
 
 ## 6. Data Model
@@ -635,6 +646,37 @@ CREATE TABLE vault_entries (
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX vault_entries_user_idx ON vault_entries (user_id, updated_at DESC);
+
+-- Research sources (CR039, migrations 021 + 022). notes.note_type also allows 'source'.
+CREATE TABLE books (
+  id UUID PRIMARY KEY, user_id UUID NOT NULL REFERENCES users ON DELETE CASCADE,
+  title TEXT NOT NULL, is_active BOOLEAN NOT NULL DEFAULT FALSE, created_at, updated_at
+);                                                   -- partial unique index: one active book per user
+CREATE TABLE chapters (
+  id UUID PRIMARY KEY, user_id UUID NOT NULL, book_id UUID NOT NULL REFERENCES books ON DELETE CASCADE,
+  label TEXT NOT NULL, title TEXT NOT NULL, part TEXT, sort_order INTEGER NOT NULL, created_at, updated_at,
+  UNIQUE (book_id, sort_order) DEFERRABLE INITIALLY DEFERRED,   -- reorder renumbers in one transaction
+  UNIQUE (book_id, label)
+);
+CREATE TABLE sources (
+  note_id UUID PRIMARY KEY REFERENCES notes ON DELETE CASCADE, user_id UUID NOT NULL,
+  source_kind TEXT NOT NULL,                          -- web|journal|pdf_report|book|book_chapter|video|podcast|other
+  authors JSONB NOT NULL DEFAULT '[]',                -- [{family, given} | {literal}]
+  title TEXT NOT NULL, container, publisher, volume, issue, pages TEXT,
+  published_date DATE, published_precision TEXT,      -- year|month|day
+  accessed_at TIMESTAMPTZ NOT NULL, url TEXT, doi TEXT, isbn TEXT,
+  pdf_attachment_id UUID, snapshot_attachment_id UUID, -- composite FK (id, note_id) → attachments: same note only
+  metadata_raw JSONB, metadata_llm_fields TEXT[],
+  metadata_status TEXT NOT NULL DEFAULT 'auto',       -- auto|llm|verified|incomplete
+  created_at, updated_at
+);                                                   -- UNIQUE (user_id, url) WHERE url IS NOT NULL
+CREATE TABLE source_chapters (                       -- no user_id (note_tags pattern): routes check both parents
+  source_note_id UUID REFERENCES sources ON DELETE CASCADE,
+  chapter_id UUID REFERENCES chapters ON DELETE CASCADE,
+  PRIMARY KEY (source_note_id, chapter_id)
+);
+-- Trigger notes_source_body_guard → guard_source_body(): refuses content/format/note_type
+-- changes to a source unless SET LOCAL noted.allow_source_body = 'on' (replace-body only).
 ```
 
 ---
@@ -757,6 +799,31 @@ PUT    /api/v1/vault/rotate            Body: { kdf_salt, kdf_params, verifier_ci
 
 > **Security note:** `GET /attachments/:id` currently accepts the JWT access token as a query-string parameter so `<img>` / `<iframe>` tags can render attachments inline without custom headers. This leaks the token into browser history, proxy logs, referrer headers, and any screenshot of the URL bar. This should either be replaced with short-lived signed attachment URLs (opaque token distinct from the JWT) or with cookie-based auth for this endpoint. *(Open issue — see §9 Backlog.)*
 
+### Research (CR039)
+
+All `user_id`-scoped; errors use the standard shape. Sources are notes, so `GET/PUT/DELETE /notes/:id` also apply (with the read-only rules in §5.19).
+
+```
+GET    /api/v1/books                         Books with chapter_count (active first)
+POST   /api/v1/books                         { title } — the user's first book becomes active
+PUT    /api/v1/books/:id                     { title?, is_active? } — activating deactivates the others
+DELETE /api/v1/books/:id                     Cascades its chapters and their assignments
+GET    /api/v1/books/:id/chapters            Ordered; includes source_count (trashed sources excluded)
+POST   /api/v1/books/:id/chapters            { label, title, part?, sort_order? } — 409 chapter_label_exists
+PUT    /api/v1/chapters/:id                  { label?, title?, part? }
+PUT    /api/v1/books/:id/chapters/reorder    { chapter_ids } — must be the full set; one transaction
+DELETE /api/v1/chapters/:id[?force=true]     409 chapter_has_assignments unless forced
+
+GET    /api/v1/sources                       ?chapter_id ?kind ?status ?q ?needs_attention=true ?unassigned=true
+POST   /api/v1/sources                       Manual entry: metadata + optional content + chapter_ids (one
+                                             transaction; 409 source_exists { note_id, in_trash })
+GET    /api/v1/sources/:id                   Citation + chapters
+PUT    /api/v1/sources/:id                   Metadata edit; any PUT (even {}) marks it verified
+POST   /api/v1/sources/:id/chapters          { chapter_id } — both parents must be the caller's
+DELETE /api/v1/sources/:id/chapters/:chId
+POST   /api/v1/sources/:id/replace-body      { content } — the only way to change a source body
+```
+
 ### Search
 
 ```
@@ -827,7 +894,9 @@ DELETE /api/v1/integrations/drive           Disconnect integration
 - `/graph` → Full graph view
 - `/search` → Search results
 - `/trash` → Soft-deleted notes (restore / permanent delete)
-- `/settings` → Password change, Google Drive integration, account preferences
+- `/settings` → Password change, Google Drive integration, account preferences, Research books & chapters
+- `/research/sources` → Research source library (`?view=attention|unassigned`); `/research` redirects here (CR039)
+- `/research/chapters/:id` → Sources assigned to one chapter (CR039)
 
 ### Component Hierarchy
 
@@ -865,6 +934,7 @@ useUIStore          — sidebar state, active view, editor mode (normal/source),
                       noteListCollapsed / contextPanelsCollapsed (persisted to
                       localStorage), focus-mode toggle, help-modal visibility
 useAIAssistStore    — AI Assist modal isOpen + last prompt (persisted to localStorage)
+useResearchStore    — books, active book's chapters, source CRUD (CR039)
 ```
 
 ---
