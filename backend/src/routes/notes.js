@@ -1,5 +1,6 @@
 const { extractWikilinks, resolveWikilinks } = require('../services/wikilinkParser');
 const llmService = require('../services/llmService');
+const { sendSourceReadonly, sourceUpdateViolation } = require('../utils/sourceGuard');
 
 async function syncWikilinks(fastify, noteId, userId, content) {
   const extracted = extractWikilinks(content);
@@ -49,7 +50,7 @@ async function noteRoutes(fastify) {
           notebook_id: { type: 'string', format: 'uuid' },
           tag_id: { type: 'string', format: 'uuid' },
           in_inbox: { type: 'string', enum: ['true', 'false'] },
-          note_type: { type: 'string', enum: ['note', 'idea'] },
+          note_type: { type: 'string', enum: ['note', 'idea', 'source'] },
           search: { type: 'string' },
           pinned: { type: 'string', enum: ['true', 'false'] },
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
@@ -89,6 +90,10 @@ async function noteRoutes(fastify) {
     if (note_type !== undefined) {
       conditions.push(`n.note_type = $${paramIndex++}`);
       params.push(note_type);
+    } else {
+      // CR039 D9: research sources live under Research, never in the Notes
+      // list or the Inbox, unless asked for explicitly.
+      conditions.push(`n.note_type <> 'source'`);
     }
 
     if (pinned !== undefined) {
@@ -273,6 +278,17 @@ async function noteRoutes(fastify) {
     const { id } = request.params;
     const { title, content, pinned, note_type, tag_ids, format } = request.body;
 
+    // CR039 §6.1 — source notes: body, format, notebook, auto-update and type
+    // are fixed; title, pin and tags still edit normally.
+    const existingRes = await fastify.db.query(
+      'SELECT note_type, content, format FROM notes WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+      [id, request.user.id]
+    );
+    if (existingRes.rows[0]?.note_type === 'source') {
+      const violation = sourceUpdateViolation(existingRes.rows[0], request.body);
+      if (violation) return sendSourceReadonly(reply, violation);
+    }
+
     // Build SET clause — notebook_id and reminder_at need explicit null handling.
     const setClauses = [
       'title = COALESCE($1, title)',
@@ -387,6 +403,9 @@ async function noteRoutes(fastify) {
     }
 
     const current = currentRes.rows[0];
+    if (current.note_type === 'source') {
+      return sendSourceReadonly(reply, 'Sources cannot be checked out for offline editing.');
+    }
     // Compare as ISO strings. Postgres returns timestamps as Date objects via
     // node-postgres; coerce both sides to ISO for a stable equality test.
     const currentVersion = new Date(current.updated_at).toISOString();
@@ -578,7 +597,7 @@ async function noteRoutes(fastify) {
     }
 
     const source = await fastify.db.query(
-      `SELECT id, content FROM notes WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      `SELECT id, content, note_type FROM notes WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
       [id, userId]
     );
     if (source.rows.length === 0) {
@@ -586,11 +605,14 @@ async function noteRoutes(fastify) {
     }
 
     const target = await fastify.db.query(
-      `SELECT id, content FROM notes WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      `SELECT id, content, note_type FROM notes WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
       [target_note_id, userId]
     );
     if (target.rows.length === 0) {
       return reply.code(404).send({ error: 'Not Found', message: 'Target note not found', statusCode: 404 });
+    }
+    if (source.rows[0].note_type === 'source' || target.rows[0].note_type === 'source') {
+      return sendSourceReadonly(reply, 'Research sources cannot be merged.');
     }
 
     const sourceContent = (source.rows[0].content || '').trim();
@@ -694,13 +716,16 @@ async function noteRoutes(fastify) {
     }
 
     const noteRes = await fastify.db.query(
-      'SELECT id, user_id, content FROM notes WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+      'SELECT id, user_id, content, note_type FROM notes WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
       [id, userId]
     );
     if (noteRes.rows.length === 0) {
       return reply.code(404).send({ error: 'Not Found', message: 'Note not found', statusCode: 404 });
     }
     const note = noteRes.rows[0];
+    if (note.note_type === 'source') {
+      return sendSourceReadonly(reply, 'A source body is read-only, so it cannot be translated in place.');
+    }
 
     if (!note.content || note.content.trim().length === 0) {
       return reply.code(400).send({

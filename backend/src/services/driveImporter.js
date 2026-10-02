@@ -52,6 +52,7 @@ async function importDriveFile(fastify, drive, file, userId, integrationId) {
         `SELECT id FROM notes
          WHERE user_id = $1 AND LOWER(title) = LOWER($2)
            AND auto_update = TRUE AND deleted_at IS NULL
+           AND note_type <> 'source'
          LIMIT 1`,
         [userId, title]
       );
