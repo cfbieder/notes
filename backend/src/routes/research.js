@@ -57,6 +57,18 @@ function badRequest(reply, message) {
   return reply.code(400).send({ error: 'Bad Request', message, statusCode: 400 });
 }
 
+// Roll back; if that itself fails, return the error so the caller can pass it
+// to client.release(err) and the pool destroys the client instead of reusing
+// one whose transaction state (and any SET LOCAL) is unknown.
+async function rollbackQuietly(client) {
+  try {
+    await client.query('ROLLBACK');
+    return undefined;
+  } catch (err) {
+    return err;
+  }
+}
+
 function hasAuthorAndDate(authors, publishedDate) {
   const named = (authors || []).some(a => (a.family || a.literal || '').trim());
   return named && !!publishedDate;
@@ -64,15 +76,18 @@ function hasAuthorAndDate(authors, publishedDate) {
 
 // Source row + its chapters, excluding trashed notes. Shared by list and get.
 const SOURCE_SELECT = `
-  SELECT s.*, n.title AS note_title, n.deleted_at,
+  SELECT s.*, to_char(s.published_date, 'YYYY-MM-DD') AS published_date,
+         n.title AS note_title, n.deleted_at,
          COALESCE((
            SELECT json_agg(json_build_object('id', c.id, 'book_id', c.book_id, 'label', c.label, 'title', c.title)
                            ORDER BY c.sort_order)
-           FROM source_chapters sc JOIN chapters c ON c.id = sc.chapter_id
+           FROM source_chapters sc JOIN chapters c ON c.id = sc.chapter_id AND c.user_id = s.user_id
            WHERE sc.source_note_id = s.note_id
          ), '[]') AS chapters
   FROM sources s
   JOIN notes n ON n.id = s.note_id`;
+// published_date is re-selected as text (the later column wins in node-pg) so
+// a DATE never round-trips through a timezone-shifted JS Date.
 
 async function researchRoutes(fastify) {
   fastify.addHook('onRequest', fastify.authenticate);
@@ -82,7 +97,7 @@ async function researchRoutes(fastify) {
   fastify.get('/books', async (request) => {
     const result = await fastify.db.query(
       `SELECT b.*, COUNT(c.id)::int AS chapter_count
-       FROM books b LEFT JOIN chapters c ON c.book_id = b.id
+       FROM books b LEFT JOIN chapters c ON c.book_id = b.id AND c.user_id = b.user_id
        WHERE b.user_id = $1
        GROUP BY b.id
        ORDER BY b.is_active DESC, b.created_at`,
@@ -102,13 +117,18 @@ async function researchRoutes(fastify) {
   }, async (request, reply) => {
     const userId = request.user.id;
     // The first book becomes the active one; later books start inactive.
-    const result = await fastify.db.query(
-      `INSERT INTO books (user_id, title, is_active)
-       VALUES ($1, $2, NOT EXISTS (SELECT 1 FROM books WHERE user_id = $1 AND is_active))
-       RETURNING *`,
-      [userId, request.body.title]
-    );
-    return reply.code(201).send({ data: result.rows[0] });
+    try {
+      const result = await fastify.db.query(
+        `INSERT INTO books (user_id, title, is_active)
+         VALUES ($1, $2, NOT EXISTS (SELECT 1 FROM books WHERE user_id = $1 AND is_active))
+         RETURNING *`,
+        [userId, request.body.title]
+      );
+      return reply.code(201).send({ data: result.rows[0] });
+    } catch (err) {
+      if (err.code === '23505') return conflict(reply, 'book_conflict', 'Another book change is in progress; retry');
+      throw err;
+    }
   });
 
   fastify.put('/books/:id', {
@@ -128,6 +148,7 @@ async function researchRoutes(fastify) {
     const { title, is_active } = request.body;
 
     const client = await fastify.db.connect();
+    let releaseErr;
     try {
       await client.query('BEGIN');
       const existing = await client.query('SELECT id FROM books WHERE id = $1 AND user_id = $2', [id, userId]);
@@ -148,10 +169,11 @@ async function researchRoutes(fastify) {
       await client.query('COMMIT');
       return { data: result.rows[0] };
     } catch (err) {
-      await client.query('ROLLBACK');
+      releaseErr = await rollbackQuietly(client);
+      if (err.code === '23505') return conflict(reply, 'book_conflict', 'Another book change is in progress; retry');
       throw err;
     } finally {
-      client.release();
+      client.release(releaseErr);
     }
   });
 
@@ -174,7 +196,7 @@ async function researchRoutes(fastify) {
     const result = await fastify.db.query(
       `SELECT c.*,
               (SELECT COUNT(*)::int FROM source_chapters sc
-                 JOIN notes n ON n.id = sc.source_note_id AND n.deleted_at IS NULL
+                 JOIN notes n ON n.id = sc.source_note_id AND n.deleted_at IS NULL AND n.user_id = c.user_id
                WHERE sc.chapter_id = c.id) AS source_count
        FROM chapters c
        WHERE c.book_id = $1 AND c.user_id = $2
@@ -261,7 +283,7 @@ async function researchRoutes(fastify) {
         type: 'object',
         required: ['chapter_ids'],
         properties: {
-          chapter_ids: { type: 'array', items: { type: 'string', format: 'uuid' }, uniqueItems: true }
+          chapter_ids: { type: 'array', items: { type: 'string', format: 'uuid' }, uniqueItems: true, maxItems: 500 }
         }
       }
     }
@@ -271,6 +293,7 @@ async function researchRoutes(fastify) {
     const { chapter_ids } = request.body;
 
     const client = await fastify.db.connect();
+    let releaseErr;
     try {
       await client.query('BEGIN');
       const book = await client.query('SELECT id FROM books WHERE id = $1 AND user_id = $2', [bookId, userId]);
@@ -298,10 +321,10 @@ async function researchRoutes(fastify) {
       );
       await client.query('COMMIT');
     } catch (err) {
-      await client.query('ROLLBACK').catch(() => {});
+      releaseErr = await rollbackQuietly(client);
       throw err;
     } finally {
-      client.release();
+      client.release(releaseErr);
     }
 
     const result = await fastify.db.query(
@@ -408,8 +431,8 @@ async function researchRoutes(fastify) {
         required: ['source_kind', 'title'],
         properties: {
           ...metadataProperties,
-          content: { type: 'string', maxLength: 2000000 },
-          chapter_ids: { type: 'array', items: { type: 'string', format: 'uuid' }, uniqueItems: true }
+          content: { type: 'string', maxLength: 900000 },
+          chapter_ids: { type: 'array', items: { type: 'string', format: 'uuid' }, uniqueItems: true, maxItems: 500 }
         }
       }
     }
@@ -428,6 +451,7 @@ async function researchRoutes(fastify) {
     const status = hasAuthorAndDate(authors, body.published_date) ? 'verified' : 'incomplete';
 
     const client = await fastify.db.connect();
+    let releaseErr;
     try {
       await client.query('BEGIN');
 
@@ -470,16 +494,16 @@ async function researchRoutes(fastify) {
       }
       await client.query('COMMIT');
 
-      const created = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1`, [noteId]);
+      const created = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1 AND s.user_id = $2`, [noteId, userId]);
       return reply.code(201).send({ data: created.rows[0] });
     } catch (err) {
-      await client.query('ROLLBACK').catch(() => {});
+      releaseErr = await rollbackQuietly(client);
       if (err.code === '23505' && err.constraint === 'sources_user_url_idx') {
         return sourceExists(reply, userId, url);
       }
       throw err;
     } finally {
-      client.release();
+      client.release(releaseErr);
     }
   });
 
@@ -541,7 +565,7 @@ async function researchRoutes(fastify) {
       if (err.code === '23505' && err.constraint === 'sources_user_url_idx') return sourceExists(reply, userId, url);
       throw err;
     }
-    const updated = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1`, [request.params.id]);
+    const updated = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1 AND s.user_id = $2`, [request.params.id, userId]);
     return { data: updated.rows[0] };
   });
 
@@ -580,7 +604,7 @@ async function researchRoutes(fastify) {
       );
       if (already.rows.length === 0) return notFound(reply, 'Source or chapter');
     }
-    const updated = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1`, [request.params.id]);
+    const updated = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1 AND s.user_id = $2`, [request.params.id, userId]);
     return reply.code(result.rows.length ? 201 : 200).send({ data: updated.rows[0] });
   });
 
@@ -606,12 +630,13 @@ async function researchRoutes(fastify) {
       body: {
         type: 'object',
         required: ['content'],
-        properties: { content: { type: 'string', maxLength: 2000000 } }
+        properties: { content: { type: 'string', maxLength: 900000 } }
       }
     }
   }, async (request, reply) => {
     const userId = request.user.id;
     const client = await fastify.db.connect();
+    let releaseErr;
     try {
       await client.query('BEGIN');
       const locked = await client.query(
@@ -639,10 +664,10 @@ async function researchRoutes(fastify) {
       await client.query('COMMIT');
       return { data: { note: note.rows[0], anchored: 0, fuzzy: 0, orphaned: 0 } };
     } catch (err) {
-      await client.query('ROLLBACK').catch(() => {});
+      releaseErr = await rollbackQuietly(client);
       throw err;
     } finally {
-      client.release();
+      client.release(releaseErr);
     }
   });
 }

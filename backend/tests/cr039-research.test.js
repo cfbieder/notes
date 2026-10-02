@@ -126,6 +126,7 @@ async function run() {
   assert(s1.status === 201, 'POST /sources → 201');
   assert(s1.data.data.url === `https://example.com/cr039/${RUN}`, 'stored URL is normalized');
   assert(s1.data.data.metadata_status === 'verified', 'complete manual entry is verified');
+  assert(s1.data.data.published_date === '2019-03-13', 'published_date returns as a plain YYYY-MM-DD string');
   assert(s1.data.data.chapters.length === 1, 'chapter assigned at create');
 
   const s2 = await api(token, '/sources', { method: 'POST', body: { source_kind: 'book', title: `Undated ${RUN}` } });
@@ -230,6 +231,17 @@ async function run() {
     'cannot edit another user\'s chapter');
   assert((await api(otherToken, `/sources/${srcId}/replace-body`, { method: 'POST', body: { content: 'pwned' } })).status === 404,
     'cannot replace another user\'s source body');
+
+  assert((await api(otherToken, `/books/${bookId}`, { method: 'PUT', body: { title: 'pwned' } })).status === 404,
+    'cannot rename another user\'s book');
+  assert((await api(otherToken, `/books/${bookId}`, { method: 'DELETE' })).status === 404,
+    'cannot delete another user\'s book');
+  assert((await api(otherToken, `/books/${bookId}/chapters`, { method: 'POST', body: { label: 'x', title: 'x' } })).status === 404,
+    'cannot add a chapter to another user\'s book');
+  assert((await api(otherToken, `/books/${bookId}/chapters/reorder`, { method: 'PUT', body: { chapter_ids: ids } })).status === 404,
+    'cannot reorder another user\'s chapters');
+  assert((await api(otherToken, `/chapters/${ids[1]}?force=true`, { method: 'DELETE' })).status === 404,
+    'cannot delete another user\'s chapter');
 
   const otherBook = await api(otherToken, '/books', { method: 'POST', body: { title: 'Other book' } });
   const otherCh = await api(otherToken, `/books/${otherBook.data.data.id}/chapters`,
