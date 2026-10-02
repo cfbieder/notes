@@ -176,6 +176,20 @@ async function run() {
   const delCh = await api(token, `/chapters/${ids[0]}`, { method: 'DELETE' });
   assert(delCh.status === 409 && delCh.data.error === 'chapter_has_assignments', 'deleting an assigned chapter → 409');
 
+  // ------------------------------------------------- export (Phase B)
+  console.log('\nReference export:');
+  const ref = await api(token, `/chapters/${ids[0]}/references`);
+  assert(ref.status === 200 && ref.data.data.count === 1, 'GET /chapters/:id/references → 1 entry');
+  assert(ref.data.data.text.includes('Sutton, Rich. “The Bitter Lesson (essay).”') &&
+         ref.data.data.html.includes('<em>Incomplete Ideas</em>') && ref.data.data.markdown.includes('*Incomplete Ideas*'),
+    'entry rendered in text, HTML and Markdown');
+  const bookRef = await api(token, `/books/${bookId}/references`);
+  const order = bookRef.data.data.text.split('\n').filter(l => l.startsWith('Chapter '));
+  assert(bookRef.status === 200 && order.length === 3 && order[0].startsWith('Chapter 3'),
+    'book export has one section per chapter, in outline order');
+  assert((await api(otherToken, `/chapters/${ids[0]}/references`)).status === 404, 'cannot export another user\'s chapter');
+  assert((await api(otherToken, `/books/${bookId}/references`)).status === 404, 'cannot export another user\'s book');
+
   // ------------------------------------------- Notes list exclusion (D9)
   console.log('\nNotes list / Inbox exclusion:');
   const notes = await api(token, '/notes?limit=100');

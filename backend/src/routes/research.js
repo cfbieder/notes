@@ -4,6 +4,7 @@
 // request.user.id, and join-table writes verify both parents first.
 
 const { normalizeSourceUrl } = require('../utils/sourceUrl');
+const { renderReferences } = require('../services/citationFormatter');
 
 const SOURCE_KINDS = ['web', 'journal', 'pdf_report', 'book', 'book_chapter', 'video', 'podcast', 'other'];
 const METADATA_STATUSES = ['auto', 'llm', 'verified', 'incomplete'];
@@ -627,6 +628,49 @@ async function researchRoutes(fastify) {
     );
     if (result.rows.length === 0) return notFound(reply, 'Assignment');
     return reply.code(204).send();
+  });
+
+  // ------------------------------------------------------------ export
+  // Phase B — Chicago "Sources and Further Reading" per chapter, or per book
+  // (one section per chapter, in outline order). Returns HTML (Copy for Word),
+  // Markdown and plain text together; the client copies or downloads them.
+  async function chapterSources(chapterIds, userId) {
+    const result = await fastify.db.query(
+      `SELECT sc.chapter_id, s.source_kind, s.authors, s.title, s.container, s.publisher, s.volume,
+              s.issue, s.pages, to_char(s.published_date, 'YYYY-MM-DD') AS published_date,
+              s.published_precision, s.accessed_at, s.url, s.doi
+       FROM source_chapters sc
+       JOIN sources s ON s.note_id = sc.source_note_id AND s.user_id = $2
+       JOIN notes n ON n.id = s.note_id AND n.deleted_at IS NULL
+       WHERE sc.chapter_id = ANY($1::uuid[])`,
+      [chapterIds, userId]
+    );
+    const byChapter = new Map(chapterIds.map(id => [id, []]));
+    for (const row of result.rows) byChapter.get(row.chapter_id).push(row);
+    return byChapter;
+  }
+
+  fastify.get('/chapters/:id/references', { schema: { params: uuidParam('id') } }, async (request, reply) => {
+    const userId = request.user.id;
+    const chapter = await fastify.db.query(
+      'SELECT id, label, title FROM chapters WHERE id = $1 AND user_id = $2',
+      [request.params.id, userId]
+    );
+    if (chapter.rows.length === 0) return notFound(reply, 'Chapter');
+    const sources = await chapterSources([chapter.rows[0].id], userId);
+    return { data: renderReferences([{ chapter: chapter.rows[0], sources: sources.get(chapter.rows[0].id) }]) };
+  });
+
+  fastify.get('/books/:id/references', { schema: { params: uuidParam('id') } }, async (request, reply) => {
+    const userId = request.user.id;
+    const book = await fastify.db.query('SELECT id FROM books WHERE id = $1 AND user_id = $2', [request.params.id, userId]);
+    if (book.rows.length === 0) return notFound(reply, 'Book');
+    const chapters = await fastify.db.query(
+      'SELECT id, label, title FROM chapters WHERE book_id = $1 AND user_id = $2 ORDER BY sort_order',
+      [request.params.id, userId]
+    );
+    const sources = await chapterSources(chapters.rows.map(c => c.id), userId);
+    return { data: renderReferences(chapters.rows.map(c => ({ chapter: c, sources: sources.get(c.id) }))) };
   });
 
   // The only sanctioned way to change a source body (§6.1). Opts past the

@@ -101,6 +101,11 @@ export const useResearchStore = defineStore('research', () => {
     return res.data;
   }
 
+  // Phase B — { html, markdown, text, count, incomplete } for a chapter or a book.
+  async function fetchReferences(scope, id) {
+    return (await api.get(`/${scope === 'book' ? 'books' : 'chapters'}/${id}/references`)).data;
+  }
+
   async function unassignChapter(sourceId, chapterId) {
     await api.delete(`/sources/${sourceId}/chapters/${chapterId}`);
     await fetchChapters();
@@ -110,6 +115,6 @@ export const useResearchStore = defineStore('research', () => {
     books, chapters, loaded, activeBook, hasBook,
     ensureLoaded, fetchBooks, fetchChapters, createBook, updateBook, deleteBook,
     createChapter, updateChapter, deleteChapter, reorderChapters,
-    fetchSources, getSource, createSource, updateSource, assignChapter, unassignChapter
+    fetchSources, getSource, createSource, updateSource, assignChapter, unassignChapter, fetchReferences
   };
 });

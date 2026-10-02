@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Plus, BookOpen } from 'lucide-vue-next';
 import { useResearchStore } from '../stores/research.js';
 import SourceFormModal from '../components/research/SourceFormModal.vue';
+import ReferenceExport from '../components/research/ReferenceExport.vue';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import { useMobile } from '../composables/useMobile.js';
@@ -43,6 +44,18 @@ const emptyText = computed(() => {
   if (view.value === 'attention') return 'Every citation is verified.';
   if (view.value === 'unassigned') return 'Every source is assigned to a chapter.';
   return 'No sources yet. Add one with New source.';
+});
+
+// Export: a chapter route exports that chapter; the library exports the active book.
+const slug = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'references';
+const exportTarget = computed(() => {
+  if (chapterId.value) {
+    return { scope: 'chapter', id: chapterId.value, filename: `references-chapter-${slug(chapter.value?.label)}` };
+  }
+  if (!view.value && research.activeBook) {
+    return { scope: 'book', id: research.activeBook.id, filename: `references-${slug(research.activeBook.title)}` };
+  }
+  return null;
 });
 
 const kindLabel = (k) => SOURCE_KINDS.find(x => x.value === k)?.label || k;
@@ -107,10 +120,16 @@ watch(() => research.activeBook?.id, (id, prev) => {
           <template v-else>{{ total }} source<span v-if="total !== 1">s</span></template>
         </p>
       </div>
-      <button class="rv-new" @click="creating = true">
-        <Plus :size="14" /> New source
-      </button>
+      <div class="rv-actions">
+        <ReferenceExport v-if="exportTarget" :key="exportTarget.id" v-bind="exportTarget" />
+        <button class="rv-new" @click="creating = true">
+          <Plus :size="14" /> New source
+        </button>
+      </div>
     </header>
+    <p v-if="exportTarget?.scope === 'book'" class="rv-sub rv-export-hint">
+      Export covers every chapter of {{ research.activeBook.title }}, in outline order.
+    </p>
 
     <div class="rv-filters">
       <input v-model="q" type="search" class="rv-search" aria-label="Search sources"
@@ -180,6 +199,8 @@ watch(() => research.activeBook?.id, (id, prev) => {
 .rv-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .rv-header h2 { margin: 0; font-size: 20px; }
 .rv-sub { margin: 2px 0 0; font-size: 12px; color: var(--text-muted); }
+.rv-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.rv-export-hint { margin-top: 8px; }
 .rv-new {
   display: inline-flex; align-items: center; gap: 6px;
   background: var(--accent-primary); color: #fff; border: none; border-radius: 6px;
