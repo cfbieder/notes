@@ -8,6 +8,7 @@ import { api } from '../api/client.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import NoteListPanel from '../components/ui/NoteListPanel.vue';
 import EditorToolbar from '../components/editor/EditorToolbar.vue';
+import SourceReader from '../components/research/SourceReader.vue';
 import EditorTabs from '../components/editor/EditorTabs.vue';
 const CodeMirrorEditor = defineAsyncComponent(() => import('../components/editor/CodeMirrorEditor.vue'));
 import AttachmentZone from '../components/editor/AttachmentZone.vue';
@@ -210,6 +211,8 @@ const isDetailRoute = computed(() =>
 const htmlEditMode = ref(false);
 const noteFormat = computed(() => notesStore.currentNote?.format || 'markdown');
 const isHtmlNote = computed(() => noteFormat.value === 'html');
+// CR039 — research sources open in a read-only Reader view, never an editor.
+const isSourceNote = computed(() => notesStore.currentNote?.note_type === 'source');
 // Belt-and-braces approach: the sanitized output keeps the <style> tag
 // inside the article (works in most browsers), AND we mount the same CSS in
 // a real <style> element appended to <head>. The duplication is harmless
@@ -486,8 +489,11 @@ async function saveNote() {
     });
     openTabsStore.updateTitle(notesStore.currentNote.id, noteTitle.value);
     uiStore.setSaveStatus('saved');
-  } catch {
+  } catch (err) {
     uiStore.setSaveStatus('unsaved');
+    if (err?.body?.error === 'source_body_readonly') {
+      toastsStore.addToast({ message: err.message, type: 'error' });
+    }
   }
 }
 
@@ -815,7 +821,13 @@ async function handleRefreshOffline() {
           @discard-offline="handleDiscardOffline"
         />
         <div class="editor-body">
-          <template v-if="isHtmlNote && !htmlEditMode">
+          <SourceReader
+            v-if="isSourceNote"
+            :key="notesStore.currentNote.id"
+            :noteId="notesStore.currentNote.id"
+            :content="editorContent"
+          />
+          <template v-else-if="isHtmlNote && !htmlEditMode">
             <div class="html-note-toolbar">
               <button class="btn-edit-source" @click="htmlEditMode = true">Edit source</button>
             </div>
@@ -843,7 +855,9 @@ async function handleRefreshOffline() {
         <template v-if="!uiStore.contextPanelsCollapsed">
           <BacklinksPanel v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />
           <LocalGraph v-if="notesStore.currentNote" :noteId="notesStore.currentNote.id" />
+          <!-- Not for sources: an upload would write a link into the read-only body. -->
           <AttachmentZone
+            v-if="!isSourceNote"
             @insert-image="onInsertImage"
             @insert-attachment="onInsertAttachment"
             @remove-reference="onRemoveReference"

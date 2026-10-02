@@ -7,6 +7,7 @@ import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import SystemStatusCard from '../components/ui/SystemStatusCard.vue';
 import AIProvidersSettings from '../components/settings/AIProvidersSettings.vue';
+import ResearchSettings from '../components/settings/ResearchSettings.vue';
 import { useMobile } from '../composables/useMobile.js';
 import { Settings, HardDrive, RefreshCw, CheckCircle, XCircle, Loader2, Unplug, ExternalLink, Lock, Palette, AlertTriangle, KeyRound, Fingerprint } from 'lucide-vue-next';
 import { hasPlatformAuthenticator } from '../lib/biometricUnlock.js';
@@ -382,6 +383,7 @@ function formatDate(dateStr) {
 
         <!-- Google Drive Import -->
         <AIProvidersSettings />
+        <ResearchSettings />
 
         <section class="settings-section">
           <h3>Google Drive Import</h3>
@@ -625,6 +627,7 @@ function formatDate(dateStr) {
 
         <!-- Google Drive Integration -->
         <AIProvidersSettings />
+        <ResearchSettings />
 
         <section class="settings-section">
           <h3>Google Drive Import</h3>

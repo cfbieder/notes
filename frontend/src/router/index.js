@@ -100,6 +100,22 @@ const routes = [
     meta: { rail: 'vault' }
   },
   {
+    path: '/research',
+    redirect: '/research/sources'
+  },
+  {
+    path: '/research/sources',
+    name: 'ResearchSources',
+    component: () => import('../views/ResearchView.vue'),
+    meta: { rail: 'research' }
+  },
+  {
+    path: '/research/chapters/:id',
+    name: 'ResearchChapter',
+    component: () => import('../views/ResearchView.vue'),
+    meta: { rail: 'research' }
+  },
+  {
     path: '/offline',
     name: 'Offline',
     component: () => import('../views/OfflineView.vue'),

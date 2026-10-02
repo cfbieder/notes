@@ -22,6 +22,8 @@ const props = defineProps({
 const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'convert-to-task', 'translate', 'insert-table', 'set-reminder', 'print', 'toggle-auto-update', 'download', 'checkout', 'check-in', 'discard-offline', 'refresh-offline']);
 
 const isIdea = computed(() => props.noteType === 'idea');
+// CR039 — a source's body is read-only, so body-editing and filing actions are hidden.
+const isSource = computed(() => props.noteType === 'source');
 
 const hasCheckedBoxes = computed(() => /- \[x\]/i.test(props.noteContent));
 
@@ -39,7 +41,7 @@ function onTitleInput(e) {
       placeholder="Untitled"
     />
 
-    <NoteNotebooks />
+    <NoteNotebooks v-if="!isSource" />
 
     <NoteTags />
 
@@ -68,6 +70,7 @@ function onTitleInput(e) {
       </button>
 
       <button
+        v-if="!isSource"
         class="mode-toggle"
         :class="{ active: uiStore.editorMode === 'source' }"
         @click="uiStore.toggleEditorMode()"
@@ -108,7 +111,7 @@ function onTitleInput(e) {
       </button>
 
       <button
-        v-if="hasCheckedBoxes"
+        v-if="hasCheckedBoxes && !isSource"
         class="reset-btn"
         @click="$emit('reset-checkboxes')"
         title="Reset all checkboxes to unchecked"
@@ -118,6 +121,7 @@ function onTitleInput(e) {
       </button>
 
       <button
+        v-if="!isSource"
         class="table-btn"
         @click="$emit('insert-table')"
         title="Insert table"
@@ -132,6 +136,7 @@ function onTitleInput(e) {
       />
 
       <button
+        v-if="!isSource"
         class="translate-btn"
         @click="$emit('translate')"
         title="Translate this note"
@@ -151,7 +156,7 @@ function onTitleInput(e) {
 
       <!-- CR027 — offline checkout controls -->
       <button
-        v-if="!checkedOut"
+        v-if="!checkedOut && !isSource"
         class="offline-btn"
         @click="$emit('checkout')"
         title="Make this note available offline (CR027)"
@@ -159,7 +164,7 @@ function onTitleInput(e) {
         <CloudDownload :size="14" />
         <span>Offline</span>
       </button>
-      <template v-else>
+      <template v-else-if="checkedOut">
         <button
           v-if="dirtyOffline"
           class="offline-btn dirty"
@@ -198,7 +203,7 @@ function onTitleInput(e) {
       </button>
 
       <button
-        v-if="driveImported"
+        v-if="driveImported && !isSource"
         class="auto-update-btn"
         :class="{ active: autoUpdate }"
         @click="$emit('toggle-auto-update')"

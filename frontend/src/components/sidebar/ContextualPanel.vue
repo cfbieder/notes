@@ -10,6 +10,7 @@ import VaultPanel from './panels/VaultPanel.vue';
 import TrashPanel from './panels/TrashPanel.vue';
 import SettingsPanel from './panels/SettingsPanel.vue';
 import OfflinePanel from './panels/OfflinePanel.vue';
+import ResearchPanel from './panels/ResearchPanel.vue';
 
 const route = useRoute();
 const appVersion = import.meta.env.VITE_APP_VERSION || 'dev';
@@ -23,7 +24,8 @@ const panelMap = {
   vault: VaultPanel,
   trash: TrashPanel,
   settings: SettingsPanel,
-  offline: OfflinePanel
+  offline: OfflinePanel,
+  research: ResearchPanel
 };
 
 const activePanel = computed(() => panelMap[route.meta?.rail] || NotesPanel);

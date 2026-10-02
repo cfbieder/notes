@@ -10,6 +10,7 @@ import { useToastsStore } from '../../stores/toasts.js';
 // lazily so /home and the notes list don't pull it into their first paint.
 const CodeMirrorEditor = defineAsyncComponent(() => import('../editor/CodeMirrorEditor.vue'));
 import AttachmentZone from '../editor/AttachmentZone.vue';
+import SourceReader from '../research/SourceReader.vue';
 import ConfirmModal from '../ui/ConfirmModal.vue';
 import CheckoutBanner from '../ui/CheckoutBanner.vue';
 import { ArrowLeft, Code, Eye, Trash2, FileDown, CloudDownload, CloudOff, RefreshCw } from 'lucide-vue-next';
@@ -23,6 +24,8 @@ const props = defineProps({
 
 const router = useRouter();
 const notesStore = useNotesStore();
+// CR039 — sources render read-only (body changes only via replace-body).
+const isSourceNote = computed(() => notesStore.currentNote?.note_type === 'source');
 const notebooksStore = useNotebooksStore();
 const attachmentsStore = useAttachmentsStore();
 const uiStore = useUIStore();
@@ -266,6 +269,7 @@ function onRemoveReference(attachmentId) {
         placeholder="Untitled"
       />
       <button
+        v-if="!isSourceNote"
         class="mode-toggle"
         :class="{ active: uiStore.editorMode === 'source' }"
         @click="uiStore.toggleEditorMode()"
@@ -274,14 +278,14 @@ function onRemoveReference(attachmentId) {
         <Eye v-else :size="18" />
       </button>
       <button
-        v-if="!checkoutState.checkedOut"
+        v-if="!checkoutState.checkedOut && !isSourceNote"
         class="offline-btn"
         @click="handleCheckout"
         title="Make available offline"
       >
         <CloudDownload :size="18" />
       </button>
-      <template v-else>
+      <template v-else-if="checkoutState.checkedOut">
         <button
           v-if="!checkoutState.dirty"
           class="offline-btn"
@@ -334,7 +338,14 @@ function onRemoveReference(attachmentId) {
     />
 
     <div class="mobile-editor-body">
+      <SourceReader
+        v-if="isSourceNote"
+        :key="notesStore.currentNote.id"
+        :noteId="notesStore.currentNote.id"
+        :content="editorContent"
+      />
       <CodeMirrorEditor
+        v-else
         :modelValue="editorContent"
         :sourceMode="uiStore.editorMode === 'source'"
         :noteTitles="noteTitles"
@@ -344,7 +355,9 @@ function onRemoveReference(attachmentId) {
       />
     </div>
 
+    <!-- Not for sources: an upload would write a link into the read-only body. -->
     <AttachmentZone
+      v-if="!isSourceNote"
       @insert-image="onInsertImage"
       @insert-attachment="onInsertAttachment"
       @remove-reference="onRemoveReference"

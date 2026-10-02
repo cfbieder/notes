@@ -183,6 +183,14 @@ async function researchRoutes(fastify) {
       [request.params.id, request.user.id]
     );
     if (result.rows.length === 0) return notFound(reply, 'Book');
+    // Deleting the active book promotes the oldest remaining one, so the
+    // Research panel and pickers never end up with no active book.
+    await fastify.db.query(
+      `UPDATE books SET is_active = TRUE
+       WHERE id = (SELECT id FROM books WHERE user_id = $1 ORDER BY created_at LIMIT 1)
+         AND NOT EXISTS (SELECT 1 FROM books WHERE user_id = $1 AND is_active)`,
+      [request.user.id]
+    ).catch(err => { if (err.code !== '23505') throw err; });
     return reply.code(204).send();
   });
 

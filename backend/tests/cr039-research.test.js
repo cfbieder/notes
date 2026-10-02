@@ -86,6 +86,11 @@ async function run() {
   const activeNow = afterAct.data.data.filter(b => b.is_active);
   assert(act.status === 200 && activeNow.length === 1 && activeNow[0].id === b2.data.data.id,
     'activating a book leaves exactly one active');
+  const b3 = await api(token, '/books', { method: 'POST', body: { title: `Test book C ${RUN}` } });
+  await api(token, `/books/${b3.data.data.id}`, { method: 'PUT', body: { is_active: true } });
+  await api(token, `/books/${b3.data.data.id}`, { method: 'DELETE' });
+  const afterDel = await api(token, '/books');
+  assert(afterDel.data.data.filter(b => b.is_active).length === 1, 'deleting the active book promotes another');
   const bookId = b1.data.data.id;
 
   // --------------------------------------------------------- chapters

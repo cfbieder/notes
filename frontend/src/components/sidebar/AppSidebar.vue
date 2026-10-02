@@ -8,6 +8,7 @@ import { useAIAssistStore } from '../../stores/aiAssist.js';
 import { useIdeasStore } from '../../stores/ideas.js';
 import { useNotebooksStore } from '../../stores/notebooks.js';
 import { useTagsStore } from '../../stores/tags.js';
+import { useResearchStore } from '../../stores/research.js';
 import { useUIStore } from '../../stores/ui.js';
 import { useRailShortcuts } from '../../composables/useRailShortcuts.js';
 
@@ -22,6 +23,7 @@ const aiAssistStore = useAIAssistStore();
 const ideasStore = useIdeasStore();
 const notebooksStore = useNotebooksStore();
 const tagsStore = useTagsStore();
+const researchStore = useResearchStore();
 
 const showReminders = ref(false);
 function toggleReminders() {
@@ -32,6 +34,8 @@ function toggleReminders() {
 // kicked off. Keep them here so the behaviour stays identical when the
 // shell mounts on each route.
 onMounted(async () => {
+  // Outside Promise.all: a server without CR039 must not block the others.
+  researchStore.ensureLoaded().catch(() => {});
   await Promise.all([
     notebooksStore.fetchNotebooks(),
     notebooksStore.fetchStacks(),

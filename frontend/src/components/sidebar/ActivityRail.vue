@@ -3,12 +3,13 @@ import { computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import {
   FileText, CheckSquare, Lightbulb, Bell, Search, Network,
-  Sparkles, KeyRound, Trash2, Settings, CloudOff
+  Sparkles, KeyRound, Trash2, Settings, CloudOff, BookOpen
 } from 'lucide-vue-next';
 import { useIdeasStore } from '../../stores/ideas.js';
 import { useRemindersStore } from '../../stores/reminders.js';
 import { useAIAssistStore } from '../../stores/aiAssist.js';
 import { useIntegrationsStore } from '../../stores/integrations.js';
+import { useResearchStore } from '../../stores/research.js';
 import { checkoutCount, dirtyCount } from '../../lib/checkouts.js';
 import AIAssistPendingPill from '../ai/AIAssistPendingPill.vue';
 
@@ -23,6 +24,7 @@ const ideasStore = useIdeasStore();
 const remindersStore = useRemindersStore();
 const aiAssistStore = useAIAssistStore();
 const integrationsStore = useIntegrationsStore();
+const researchStore = useResearchStore();
 
 // Active rail item is derived from route.meta.rail (set in router/index.js).
 // Falls back to 'notes' if a route doesn't declare one — keeps the rail
@@ -45,6 +47,13 @@ const primaryItems = [
   { key: 'aiassist', icon: Sparkles,    label: 'AI Assist', shortcut: '7', type: 'overlay', overlay: 'aiassist' },
   { key: 'vault',    icon: KeyRound,    label: 'Vault',     shortcut: '8', type: 'route',   to: '/vault' }
 ];
+
+// CR039 — Research appears only once the user has a book (creating one in
+// Settings → Research is the opt-in), so most installs never see it.
+const researchItem = { key: 'research', icon: BookOpen, label: 'Research', shortcut: '9', type: 'route', to: '/research/sources' };
+const visiblePrimaryItems = computed(() =>
+  researchStore.hasBook ? [...primaryItems, researchItem] : primaryItems
+);
 
 // Offline rail item only appears when there is at least one checked-out note
 // (CR027). It sits with the bottom group so it doesn't disturb the
@@ -87,7 +96,7 @@ defineExpose({ activate, primaryItems });
   <nav class="activity-rail" aria-label="Primary navigation">
     <div class="rail-group rail-group-top">
       <button
-        v-for="item in primaryItems"
+        v-for="item in visiblePrimaryItems"
         :key="item.key"
         class="rail-btn"
         :class="{ active: isActive(item) }"
