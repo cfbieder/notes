@@ -61,6 +61,15 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR032](docs/cr/cr-032-drop-is-inbox-flag.md) | Drop `notes.is_inbox` flag; derive Inbox from default notebook (`notebook_id IS NULL OR is_default = TRUE`) and exclude `note_type='idea'` — **Completed** |
 | [CR036](docs/cr/cr-036-export-note-as-pdf.md) | Export Note as PDF (Markdown + HTML) — relabel the print flow as "Export as PDF"; reuse the existing print-window pipeline (no new deps) — **Completed** |
 | [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) | Multi-Note Editor Tabs (desktop) — tab strip over a persisted open-note list; active tab derived from route; no per-tab buffers — **Completed** |
+| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — `source` note type with citation metadata, books/chapters, per-chapter Chicago reference export, later web + PDF highlights. **Approved for A1** after the CR038 `AI_KEYS_ENC_KEY` fix; build order A1 → B (first usable release) → A2 → A3; C/D/E re-prioritized when reached (D with CR025, E after CR001) |
+
+**Deferred from CR039** (out of scope for v1; each a later CR if wanted):
+- `.docx` reference export — add if a publisher asks for a file (Copy for Word covers drafting)
+- BibTeX export
+- Chapter import from an external outline document (chapters are entered by hand)
+- Promote a CR025 document to a CR039 source
+- User-defined highlight color legend (v1 ships a fixed legend)
+- Convert an existing plain clip into a source (v1: re-clip as a source)
 
 ### Offline & Sync
 
