@@ -81,6 +81,18 @@ if [ "$count" -lt "$NATIVE_DIALOG_BASELINE" ]; then
 fi
 ok "native-dialog ratchet ($count/$NATIVE_DIALOG_BASELINE)"
 
+# --- 7. Every prod secret is mapped into the prod compose file ---------------------------
+# The api service has no `env_file:`, so a secret listed in .env.prod.example but never
+# substituted in docker-compose.prod.yml never reaches the container. Missed twice
+# (OCR_LLM_CLIENT_KEY in v0.17.0, then AI_KEYS_ENC_KEY). Scoped to secret-named vars;
+# non-secret tunables may deliberately rely on code defaults.
+for v in $(grep -oE '^[A-Z_][A-Z0-9_]*=' backend/.env.prod.example | tr -d = \
+             | grep -E 'PASSWORD|SECRET|TOKEN|KEY'); do
+  grep -qE "\\\$\{$v[:}]" docker-compose.prod.yml \
+    || fail "$v is in backend/.env.prod.example but never substituted in docker-compose.prod.yml"
+done
+ok "every prod secret is mapped in prod compose"
+
 # --- What these guards CANNOT see (the blind spot is where the next bug lands) -----------
 # * Missing `user_id` scoping in a query — the isolation model is enforced in application
 #   SQL with no RLS backstop, and no grep can tell a correctly-scoped query from a wrong

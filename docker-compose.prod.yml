@@ -53,6 +53,10 @@ services:
       # reaches the container. Empty default = no headers sent, so the app
       # behaves exactly as before until a key is configured.
       OCR_LLM_CLIENT_KEY: ${OCR_LLM_CLIENT_KEY:-}
+      # CR-038: master key for stored AI provider keys. Same reason as above —
+      # mapped explicitly or it never reaches the container. Empty default =
+      # gateway-only; saving a Claude/OpenAI/local key is refused until set.
+      AI_KEYS_ENC_KEY: ${AI_KEYS_ENC_KEY:-}
       LLM_ENABLED: ${LLM_ENABLED:-true}
       LLM_OCR_TIMEOUT_MS: ${LLM_OCR_TIMEOUT_MS:-120000}
       LLM_TRANSLATE_TIMEOUT_MS: ${LLM_TRANSLATE_TIMEOUT_MS:-150000}

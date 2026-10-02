@@ -22,12 +22,15 @@ config repository with per-capability + per-tier resolution, SSRF-guarded
   is correctly gated).
 - End-to-end verification against a real Anthropic / OpenAI / local endpoint
   (needs a real key).
-- ⛔ **`AI_KEYS_ENC_KEY` is not mapped in `docker-compose.prod.yml`'s `environment:`
-  block**, so it cannot reach the `noted-api` container: on production, saving a
-  provider key fails with "AI_KEYS_ENC_KEY is not configured on the server". The var is
-  in `backend/.env.prod.example` only — the same defect class as the `OCR_LLM_CLIENT_KEY`
-  omission fixed in v0.17.0 (this service has no `env_file:`, so an example line alone
-  wires nothing). Found 2026-09-26. `LLM_GENERATION_MODEL`, `LLM_CONTEXT_WINDOW` and
+- ✅ *(fixed in the tree 2026-10-02, ships with the next release)* **`AI_KEYS_ENC_KEY`
+  was not mapped in `docker-compose.prod.yml`'s `environment:` block**, so it could not
+  reach the `noted-api` container: on production, saving a provider key failed with
+  "AI_KEYS_ENC_KEY is not configured on the server". It was also unset in the prod env
+  file. Same defect class as the `OCR_LLM_CLIENT_KEY` omission fixed in v0.17.0 (this
+  service has no `env_file:`, so an example line alone wires nothing). Found 2026-09-26.
+  Fix: the compose mapping (`${AI_KEYS_ENC_KEY:-}`), a key generated into the prod env
+  file, and `scripts/ci-guards.sh` guard 7, which fails CI when any secret in
+  `.env.prod.example` is not substituted in the prod compose file. `LLM_GENERATION_MODEL`, `LLM_CONTEXT_WINDOW` and
   `LLM_GENERATE_TIMEOUT_MS` are unmapped too, but those fall back to code defaults.
 **Severity:** Feature (large — phased)
 **Origin:** User request, 2026-08-30 (open-source enablement)

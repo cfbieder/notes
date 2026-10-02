@@ -22,7 +22,7 @@ See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlin
 - [CR036](docs/cr/cr-036-export-note-as-pdf.md) — Export note as PDF (relabelled print flow, markdown + HTML) (v0.15.0)
 
 ## In progress / next
-- [CR038](docs/cr/cr-038-pluggable-ai-providers.md) — Pluggable AI providers (**in progress**): ⛔ **`AI_KEYS_ENC_KEY` never reaches the prod container** — it is absent from `docker-compose.prod.yml`'s `environment:` block, so saving a provider key on production fails (found 2026-09-26, same defect class as the `OCR_LLM_CLIENT_KEY` fix in v0.17.0). Also still open: `translateText` and `/system/stats` are gateway-only, `generateTextStream` is not cancellable, and no path has been verified against a real cloud key. Phases 2 (OCR) and 3 (transcription) not started
+- [CR038](docs/cr/cr-038-pluggable-ai-providers.md) — Pluggable AI providers (**in progress**): the `AI_KEYS_ENC_KEY` prod defect (saving a provider key failed on production) is **fixed in the tree and ships with the next release**, now guarded in CI. Still open: `translateText` and `/system/stats` are gateway-only, `generateTextStream` is not cancellable, and no path has been verified against a real cloud key. Phases 2 (OCR) and 3 (transcription) not started
 - [CR026](docs/cr/cr-026-activity-rail-navigation.md) — Activity rail + contextual panel navigation (**in progress**)
 - [CR025](docs/cr/cr-025-pdf-document-management.md) — PDF document management (open)
 - **Phase 8 — LLM intelligence:** foundation [CR001](docs/cr/cr-001-pgvector-embeddings.md)
