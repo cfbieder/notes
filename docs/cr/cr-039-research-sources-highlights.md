@@ -1,6 +1,6 @@
 # CR039 — Research Sources, Highlights & Chapter References
 
-**Status:** In progress — **Phase A1 shipped** (see Outcome; version in the CR index); B next, then A2 and A3.
+**Status:** In progress — **Phases A1 and B built** (see Outcome; versions in the CR index); A2 next, then A3.
 Phases C, D and E are a design of record; each gets a priority re-check before it is built (§15c).
 **Severity:** Feature (large; phased, first usable release = A1 + B)
 **Origin:** User proposal, 2026-10-02 — reviewed against the code the same day (see §15)
@@ -381,9 +381,12 @@ GET    /chapters/:id/highlights       grouped by source
 
 ### 7.4 Export (Phase B)
 ```
-GET /chapters/:id/references   ?format=html|md  &include=sources|passages|both  &scope=all|highlighted
-GET /books/:id/references      same params; one section per chapter, in sort_order
+GET /chapters/:id/references   → { data: { html, markdown, text, count, incomplete } }
+GET /books/:id/references      same shape; one section per chapter, in sort_order
 ```
+As built in Phase B, one JSON response carries all three renderings, so the client can copy
+(HTML + plain text) or download (Markdown) without a second request or a `?token=` link.
+`include=passages` and `scope=highlighted` arrive with highlights in Phase C.
 
 ### 7.5 Clips (extended)
 `POST /clips` gains `as_source: true`, `metadata: {...}`, `chapter_ids: []`. With
@@ -585,8 +588,7 @@ Key Passages
   server use the Download options.)
 - **docx**: deferred (§16 #8). If added later: server-side with the `docx` npm package,
   Times New Roman 12, 0.5" hanging indent, one section per chapter, delivered as a
-  header-authenticated blob fetch, not a `?token=` link. Times New
-  Roman 12, 0.5" hanging indent, one section per chapter for a book export.
+  header-authenticated blob fetch, not a `?token=` link.
 - **md**: `*italics*`, one entry per paragraph, downloaded as a header-authenticated blob.
 
 ---
@@ -770,7 +772,7 @@ walkthrough covering desktop and a 390 px mobile viewport.
   `/research` is reachable only by link on a phone. The owner decided on 2026-10-02 that
   mobile doesn't need Research yet, so there is no mobile entry point.
 
-**Reviews:** the security review and the migration review (scratch DB built from 001–022)
+**Reviews (A1):** the security review and the migration review (scratch DB built from 001–022)
 found nothing blocking. The UI review found two High issues, both fixed: the
 attachment-area bug above, and library rows that only opened on a mouse click (titles are
 now links). Its Medium and Low items were also applied: Escape, focus and dialog semantics
@@ -781,3 +783,38 @@ to Notes. The Reader view's back link covers that for now. Their low-severity ha
 pool-safe rollback, 409 on concurrent book activation, input limits). Composite ownership
 FKs were again declined per §16 #10. One pre-existing issue surfaced outside this CR:
 `tag_ids` on `POST`/`PUT /notes` are not checked against the caller's own tags.
+
+### Phase B (built 2026-10-02; version in the [CR index](docs/cr/README.md))
+
+The Chicago bibliography formatter is one pure module,
+[citationFormatter.js](backend/src/services/citationFormatter.js). It builds each entry as
+typed segments (plain, italic, placeholder) and renders them to HTML, Markdown and plain
+text, so the three can never disagree. Export routes: `GET /chapters/:id/references` and
+`GET /books/:id/references`. The Research view header has a **Copy for Word | .md** control:
+a chapter route exports that chapter, and All sources exports the active book. It is hidden
+on the Needs attention and Unassigned lists.
+
+**Formatting decisions made while building:**
+- Curly quotes around article titles, with the period inside: “Title.” A title or author
+  that already ends in `.`, `?` or `!` gets no second period.
+- `book_chapter` renders as "In *Book*, pages. Publisher, Year." Print `book` entries omit
+  the URL; other kinds append the DOI link (preferred) or the URL.
+- Undated web, video, podcast and other entries cite "Accessed Month Day, Year." Kinds where
+  Chicago requires a date (journal, book, book_chapter, pdf_report) get a **[date?]**
+  placeholder instead. Missing author, journal, book or publisher also get placeholders.
+- Two authors: "Family, Given, and Given Family." Three or more are all listed.
+- Sorted by first author's family name (or organization name, or title when there is no
+  author), then by title.
+- HTML entries carry an inline 0.5" hanging indent, so a Word paste looks like a
+  bibliography. Every page-derived field is HTML-escaped, and Markdown escapes `* _ [ ] \` <>`.
+- The response reports `count` and `incomplete`; the toast says how many entries carry
+  placeholders.
+
+**Verified:** `tests/cr039-citation-formatter.test.js` (23 assertions: every kind, the
+placeholders, escaping, sorting, sections; in `test:ci`); 5 more API assertions in
+`cr039-research.test.js` (75 total, including cross-user 404s on both export routes); and
+11 headless-Chromium checks that read the clipboard back (italics in `text/html`, plain-text
+heading, bold placeholders) and the downloaded `.md` for a chapter and a whole book.
+**Not automated:** pasting into Microsoft Word itself. That needs a manual check against the
+Phase B acceptance criterion.
+

@@ -453,7 +453,7 @@ Per-note format flag (`markdown` | `html`) so users can keep richly-formatted do
 - **v1 limitations (deferred):** No wikilinks/backlinks/graph/AI Assist for HTML notes (the wikilink parser is markdown-only; AI Assist prompts assume markdown). HTML tags pollute `content_tsv` slightly — acceptable tradeoff for v1. No format conversion (markdown ↔ html) on existing notes. No WYSIWYG editor.
 - **Code:** `backend/migrations/018_note_format.sql`, `backend/src/routes/import.js`, `backend/src/routes/notes.js` (format field), `backend/tests/phase13-html-notes.test.js` (23 assertions), `frontend/src/lib/htmlSanitize.js`, `frontend/src/components/ui/ImportNoteModal.vue`, `frontend/src/views/NotesView.vue` (read-mode branch), `frontend/src/components/editor/CodeMirrorEditor.vue` (format prop). Dependency: `dompurify`.
 
-### 5.19 Research Sources & Chapters (CR039, Phase A1 implemented)
+### 5.19 Research Sources & Chapters (CR039, Phases A1 + B implemented)
 
 A research layer for a book manuscript: citable **sources** organized by **book chapters**. Phase A1 is the server core plus manual entry; reference export (B), clipper capture (A2), PDF sources + AI metadata (A3) and highlights (C–E) follow — see [CR039](docs/cr/cr-039-research-sources-highlights.md).
 
@@ -461,8 +461,9 @@ A research layer for a book manuscript: citable **sources** organized by **book 
 - **Read-only bodies:** a source's body changes only through `POST /sources/:id/replace-body`. Note routes refuse body/format/notebook/auto-update/type changes with `422 source_body_readonly` (title, pin and tags still edit), and the `guard_source_body` trigger (migration 021) refuses any such UPDATE that reaches the database by another path. Backfill migrations that rewrite `notes.content` must skip sources or opt in with `SET LOCAL noted.allow_source_body = 'on'`.
 - **Visibility:** sources are notebook-less and excluded from the Notes list and Inbox (`GET /notes` adds `note_type <> 'source'` unless `note_type=source` is requested). Global search still finds them.
 - **Duplicates:** URLs are normalized (`src/utils/sourceUrl.js`: lowercase host, no fragment, no `utm_*`/click-id params, no trailing slash) and unique per user; a duplicate returns `409 source_exists` with `{ note_id, in_trash }`.
+- **Reference export (Phase B):** `backend/src/services/citationFormatter.js` renders Chicago (18th ed.) bibliography entries per chapter ("Sources and Further Reading") or for a whole book (one section per chapter, outline order), as HTML + Markdown + plain text in one response. Missing required fields appear as bold placeholders such as **[author?]**. The Research view's **Copy for Word** puts italic-preserving HTML on the clipboard; **.md** downloads Markdown.
 - **UI:** the **Research** rail item (⌘9) appears only once a book exists — create one in Settings → Research, which also manages chapters (add, rename, reorder with up/down, delete). The Research panel lists All sources / Needs attention / Unassigned and the active book's chapters with counts. `/research/sources` and `/research/chapters/:id` show a filterable source table with a **New source** form. A source opens at `/notes/:id` in a Reader view (`SourceReader`): citation card with Verify / Edit and chapter chips above the rendered, read-only body — on desktop and mobile.
-- **Code:** `backend/migrations/021_research_sources.sql`, `022_source_attachment_same_note.sql`, `backend/src/routes/research.js`, `backend/src/utils/sourceUrl.js`, `backend/src/utils/sourceGuard.js`, guards in `backend/src/routes/notes.js` and `backend/src/services/driveImporter.js`, `backend/tests/cr039-research.test.js` (70 assertions incl. a real second user for isolation); `frontend/src/stores/research.js`, `frontend/src/lib/citation.js`, `frontend/src/views/ResearchView.vue`, `frontend/src/components/research/SourceReader.vue`, `SourceFormModal.vue`, `frontend/src/components/sidebar/panels/ResearchPanel.vue`, `frontend/src/components/settings/ResearchSettings.vue`.
+- **Code:** `backend/migrations/021_research_sources.sql`, `022_source_attachment_same_note.sql`, `backend/src/routes/research.js`, `backend/src/utils/sourceUrl.js`, `backend/src/utils/sourceGuard.js`, guards in `backend/src/routes/notes.js` and `backend/src/services/driveImporter.js`, `backend/src/services/citationFormatter.js`, `backend/tests/cr039-research.test.js` (75 assertions incl. a real second user for isolation), `backend/tests/cr039-citation-formatter.test.js` (23); `frontend/src/stores/research.js`, `frontend/src/lib/citation.js`, `frontend/src/views/ResearchView.vue`, `frontend/src/components/research/SourceReader.vue`, `SourceFormModal.vue`, `ReferenceExport.vue`, `frontend/src/components/sidebar/panels/ResearchPanel.vue`, `frontend/src/components/settings/ResearchSettings.vue`.
 
 ---
 
@@ -822,6 +823,8 @@ PUT    /api/v1/sources/:id                   Metadata edit; any PUT (even {}) ma
 POST   /api/v1/sources/:id/chapters          { chapter_id } — both parents must be the caller's
 DELETE /api/v1/sources/:id/chapters/:chId
 POST   /api/v1/sources/:id/replace-body      { content } — the only way to change a source body
+GET    /api/v1/chapters/:id/references       Phase B: { html, markdown, text, count, incomplete } (Chicago)
+GET    /api/v1/books/:id/references          Same, one section per chapter in outline order
 ```
 
 ### Search
