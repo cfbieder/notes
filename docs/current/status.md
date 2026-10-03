@@ -7,11 +7,12 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.23.0 · **Live:** `https://noted.example.com`
+**Current version:** v0.24.0 · **Live:** `https://noted.example.com`
 (containers `noted-db`, `noted-api`, `noted-web`).
 
 ## Recently shipped
 See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlines:
+- v0.24.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **Phase C complete**: a chapter's **Passages** tab and a Key Passages section in the export; search finds highlights and filters by `is:source` / `ch:3`; clipper **v0.6.0** highlights text on a live page (reload the extension). Plus a search-snippet escaping fix and a Refresh button on the Research page
 - v0.23.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **highlights**: select text in a source to highlight it with a meaning, chapter and comment; highlights re-anchor after text changes (fuzzy, or kept as unanchored). Plus **Fetch text**, which captures a source's article from its URL
 - v0.22.2 — upload limit set to 25 MB everywhere (`MAX_FILE_SIZE` mapped in prod; Drive imports 10 → 25 MB)
 - v0.22.1 — security patch: AI citation metadata refuses values planted beside an injected instruction (from ocr-llm's probe); notes attach only your own tags. Plus prod `LLM_*` settings mapped
@@ -32,7 +33,7 @@ See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlin
 
 ## In progress / next
 - [CR038](docs/cr/cr-038-pluggable-ai-providers.md) — Pluggable AI providers (**in progress**): still open: `translateText` and `/system/stats` are gateway-only, `generateTextStream` is not cancellable, and no path has been verified against a real cloud key. Phases 2 (OCR) and 3 (transcription) not started
-- [CR039](docs/cr/cr-039-research-sources-highlights.md) — Research sources (**in progress**): A1, B, A2 and A3 shipped. **Phase C (web highlights) in progress**: slices 1–2 shipped; next is slice 3 (Passages tab, passages in the export), then slice 4 (highlight search, clipper live-page highlighting). The ocr-llm handoff `noted-source-metadata-task` is closed (task live, routed via `/task`)
+- [CR039](docs/cr/cr-039-research-sources-highlights.md) — Research sources (**in progress**): A1, B, A2 and A3 shipped. **Phase C (web highlights) shipped.** Next is D (PDF highlights, paired with [CR025](docs/cr/cr-025-pdf-document-management.md) — PDF document management), then E (after [CR001](docs/cr/cr-001-pgvector-embeddings.md) — pgvector embeddings). The ocr-llm handoff `noted-source-metadata-task` is closed (task live, routed via `/task`)
 - [CR026](docs/cr/cr-026-activity-rail-navigation.md) — Activity rail + contextual panel navigation (**in progress**)
 - [CR025](docs/cr/cr-025-pdf-document-management.md) — PDF document management (open)
 - **Phase 8 — LLM intelligence:** foundation [CR001](docs/cr/cr-001-pgvector-embeddings.md)

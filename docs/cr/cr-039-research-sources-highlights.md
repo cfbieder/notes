@@ -1,6 +1,6 @@
 # CR039 — Research Sources, Highlights & Chapter References
 
-**Status:** In progress — **Phases A1, B, A2 and A3 shipped; Phase C slices 1–2 (highlights) and Fetch text shipped** (see Outcome; versions in the CR index). Slices 3 (Passages tab and export) and 4 (highlight search, clipper v0.6.0 live-page highlighting) are built, awaiting release; that completes Phase C. Next: D (PDF highlights, with CR025).
+**Status:** In progress — **Phases A1, B, A2 and A3 shipped; Phase C (web highlights, Passages, highlight search, clipper live-page highlighting) and Fetch text shipped** (see Outcome; versions in the CR index). Next: D (PDF highlights, with CR025).
 Phases C, D and E are a design of record; each gets a priority re-check before it is built (§15c).
 **Severity:** Feature (large; phased, first usable release = A1 + B)
 **Origin:** User proposal, 2026-10-02 — reviewed against the code the same day (see §15)
@@ -998,7 +998,7 @@ moved from the end-of-life Node 20 first.
   extension in headless Chromium: a PDF tab saved into a chapter and its title filled by AI,
   then an article saved with a genuine MHTML snapshot. The A2 suite reran, 25/25.
 
-### Phase C (started 2026-10-03 by owner decision §16 #15; slices 1–2 shipped, 3–4 built)
+### Phase C (completed 2026-10-03; started by owner decision §16 #15)
 
 **Slice 1: data model and API** (commits `82b3174`, `f86b402`).
 - **Migration `023_highlights.sql`:** `highlights` (text-quote selector, or page + rects for

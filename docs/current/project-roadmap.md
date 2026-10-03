@@ -63,7 +63,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR032](docs/cr/cr-032-drop-is-inbox-flag.md) | Drop `notes.is_inbox` flag; derive Inbox from default notebook (`notebook_id IS NULL OR is_default = TRUE`) and exclude `note_type='idea'` — **Completed** |
 | [CR036](docs/cr/cr-036-export-note-as-pdf.md) | Export Note as PDF (Markdown + HTML) — relabel the print flow as "Export as PDF"; reuse the existing print-window pipeline (no new deps) — **Completed** |
 | [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) | Multi-Note Editor Tabs (desktop) — tab strip over a persisted open-note list; active tab derived from route; no per-tab buffers — **Completed** |
-| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — **In progress.** Shipped: A1 (v0.18.0), B (v0.19.0), A2 (v0.20.0), A3 (v0.21.0–v0.22.0), C slices 1–2 + Fetch text (v0.23.0). Built, awaiting release: C slices 3 (Passages tab, `include=passages` export) and 4 (highlight search, clipper v0.6.0 live-page highlighting). Then D (PDF highlights, with CR025) and E (after CR001) |
+| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — **In progress.** Shipped: A1 (v0.18.0), B (v0.19.0), A2 (v0.20.0), A3 (v0.21.0–v0.22.0), C (v0.23.0–v0.24.0). Next: D (PDF highlights, with CR025) and E (after CR001) |
 
 **Deferred from CR039** (out of scope for v1; each a later CR if wanted):
 - `.docx` reference export — add if a publisher asks for a file (Copy for Word covers drafting)
@@ -107,6 +107,13 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ---
 
 ## Recently Completed
+
+### Released v0.24.0 (2026-10-03)
+
+- **[CR039](docs/cr/cr-039-research-sources-highlights.md) Phase C slice 3 — Passages.** The chapter view gets **Sources | Passages** tabs: highlights grouped by source, and a quote opens its source scrolled to the mark. Reference export takes `?include=sources|passages|both` and adds a **Key Passages** section (`p. N — “quote” — comment (Meaning)`, orphans flagged).
+- **[CR039](docs/cr/cr-039-research-sources-highlights.md) Phase C slice 4 — Highlight search and the clipper.** Search adds `is:source` and `ch:<label>` and a **Highlights** result section (`GET /search/highlights`). Clipper **v0.6.0** adds **Highlight selection** on a live page, clipping the page as a source first if needed. `GET /sources?url=` is the lookup. Phase C is complete.
+- **Security fix:** note-result snippets in search were set as raw HTML; they are now escaped except for the search `<mark>` tags.
+- **Fix:** the Research page reloads sources and chapter counts when you return to the tab, and has a **Refresh** button (counts went stale after clipping in another tab).
 
 ### Released v0.23.0 (2026-10-03)
 
