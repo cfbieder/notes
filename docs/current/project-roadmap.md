@@ -39,7 +39,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | CR | Title |
 |----|-------|
 | [CR009](docs/cr/cr-009-signed-attachment-urls.md) | Replace Attachment Query-String JWT with Signed URLs |
-| — | Unmapped prod setting `MAX_FILE_SIZE` — **Fixed (owner decision 2026-10-03: 25 MB everywhere).** It is mapped in prod compose (default 26214400), `.env.prod` and both templates say 25 MB, and it is off CI guard 7's allowlist. Uploads are unchanged; Drive imports rise from 10 MB to 25 MB. Takes effect with the next deploy |
+| — | Unmapped prod setting `MAX_FILE_SIZE` — **Fixed (owner decision 2026-10-03: 25 MB everywhere).** It is mapped in prod compose (default 26214400), `.env.prod` and both templates say 25 MB, and it is off CI guard 7's allowlist. Uploads are unchanged; Drive imports rise from 10 MB to 25 MB. Shipped in v0.22.2 |
 | — | `tag_ids` ownership on `POST`/`PUT /notes` — **Fixed v0.22.1.** Foreign tag ids are now ignored (create, update and offline check-in), and the reads join only the owner's tags. Covered by cross-user tests in `cr039-research.test.js` |
 | [CR020](docs/cr/cr-020-encrypted-password-vault.md) | Encrypted Password & Key Vault (client-side, zero-knowledge) — **Completed** |
 | [CR021](docs/cr/cr-021-biometric-vault-unlock.md) | Biometric Vault Unlock (WebAuthn PRF) — **Completed** |
@@ -107,6 +107,11 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ---
 
 ## Recently Completed
+
+### Released v0.22.2 (2026-10-03)
+
+- **Config — the upload limit is 25 MB everywhere** (owner decision). `MAX_FILE_SIZE` never reached the container, so uploads ran on the routes' 25 MB default while `.env.prod` said 10 MB and the Drive poller used its own 10 MB. It is now mapped in prod compose (default 26214400), set in `.env.prod` and both templates, and removed from CI guard 7's allowlist (which is now `BACKUP_DIR` only). Uploads are unchanged; Drive imports rise from 10 MB to 25 MB.
+- **[CR039](docs/cr/cr-039-research-sources-highlights.md) ocr-llm handoff `noted-source-metadata-task` closed** (ocr-llm `5cdf7d5`). The task is live on the mid tier first, and Noted routes through it automatically.
 
 ### Released v0.22.1 (2026-10-03)
 
