@@ -75,6 +75,7 @@ const registerRoutes = async () => {
   await fastify.register(require('./routes/system'), { prefix: '/api/v1/system' });
   await fastify.register(require('./routes/vault'), { prefix: '/api/v1/vault' });
   await fastify.register(require('./routes/research'), { prefix: '/api/v1' });
+  await fastify.register(require('./routes/highlights'), { prefix: '/api/v1' });
 };
 
 // Health check

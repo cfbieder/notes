@@ -42,16 +42,31 @@ function badRequest(reply, message) {
   return reply.code(400).send({ error: 'Bad Request', message, statusCode: 400 });
 }
 
+// Chapter membership (CR039 D4): a source belongs to the chapters assigned by
+// hand plus the chapters of any of its highlights. A subquery, not a view, so
+// every caller still joins chapters/sources with its own user filter (§5.3).
+// Rows may repeat a (source, chapter) pair once per route ('manual'/'highlight').
+const MEMBERS = `(
+  SELECT source_note_id, chapter_id, 'manual' AS via FROM source_chapters
+  UNION
+  SELECT h.source_note_id, hc.chapter_id, 'highlight' AS via
+  FROM highlight_chapters hc JOIN highlights h ON h.id = hc.highlight_id
+)`;
+
 // Source row + its chapters, excluding trashed notes. Shared by list and get.
+// Each chapter says whether it was assigned by hand (`manual`), which is the
+// only kind the UI can unassign — highlight-derived ones follow the highlights.
 const SOURCE_SELECT = `
   SELECT s.*, to_char(s.published_date, 'YYYY-MM-DD') AS published_date,
          n.title AS note_title, n.deleted_at,
          COALESCE((
-           SELECT json_agg(json_build_object('id', c.id, 'book_id', c.book_id, 'label', c.label, 'title', c.title)
-                           ORDER BY c.sort_order)
-           FROM source_chapters sc JOIN chapters c ON c.id = sc.chapter_id AND c.user_id = s.user_id
-           WHERE sc.source_note_id = s.note_id
-         ), '[]') AS chapters
+           SELECT json_agg(json_build_object('id', c.id, 'book_id', c.book_id, 'label', c.label, 'title', c.title,
+                                             'manual', x.manual) ORDER BY c.sort_order)
+           FROM (SELECT m.chapter_id, bool_or(m.via = 'manual') AS manual
+                 FROM ${MEMBERS} m WHERE m.source_note_id = s.note_id GROUP BY m.chapter_id) x
+           JOIN chapters c ON c.id = x.chapter_id AND c.user_id = s.user_id
+         ), '[]') AS chapters,
+         (SELECT COUNT(*)::int FROM highlights h WHERE h.source_note_id = s.note_id) AS highlight_count
   FROM sources s
   JOIN notes n ON n.id = s.note_id`;
 // published_date is re-selected as text (the later column wins in node-pg) so
@@ -186,9 +201,13 @@ async function researchRoutes(fastify) {
 
     const result = await fastify.db.query(
       `SELECT c.*,
-              (SELECT COUNT(*)::int FROM source_chapters sc
-                 JOIN notes n ON n.id = sc.source_note_id AND n.deleted_at IS NULL AND n.user_id = c.user_id
-               WHERE sc.chapter_id = c.id) AS source_count
+              (SELECT COUNT(DISTINCT m.source_note_id)::int FROM ${MEMBERS} m
+                 JOIN notes n ON n.id = m.source_note_id AND n.deleted_at IS NULL AND n.user_id = c.user_id
+               WHERE m.chapter_id = c.id) AS source_count,
+              (SELECT COUNT(*)::int FROM highlight_chapters hc
+                 JOIN highlights h ON h.id = hc.highlight_id
+                 JOIN notes n ON n.id = h.source_note_id AND n.deleted_at IS NULL AND n.user_id = c.user_id
+               WHERE hc.chapter_id = c.id) AS highlight_count
        FROM chapters c
        WHERE c.book_id = $1 AND c.user_id = $2
        ORDER BY c.sort_order`,
@@ -334,7 +353,8 @@ async function researchRoutes(fastify) {
     const userId = request.user.id;
     const { id } = request.params;
     const chapter = await fastify.db.query(
-      `SELECT c.id, (SELECT COUNT(*)::int FROM source_chapters WHERE chapter_id = c.id) AS assignments
+      `SELECT c.id, (SELECT COUNT(*)::int FROM source_chapters WHERE chapter_id = c.id)
+                  + (SELECT COUNT(*)::int FROM highlight_chapters WHERE chapter_id = c.id) AS assignments
        FROM chapters c WHERE c.id = $1 AND c.user_id = $2`,
       [id, userId]
     );
@@ -342,7 +362,7 @@ async function researchRoutes(fastify) {
     const { assignments } = chapter.rows[0];
     if (assignments > 0 && request.query.force !== 'true') {
       return conflict(reply, 'chapter_has_assignments',
-        `This chapter has ${assignments} source(s) assigned; pass force=true to delete it anyway`, { assignments });
+        `This chapter has ${assignments} source or highlight assignment(s); pass force=true to delete it anyway`, { assignments });
     }
     await fastify.db.query('DELETE FROM chapters WHERE id = $1 AND user_id = $2', [id, userId]);
     return reply.code(204).send();
@@ -373,11 +393,11 @@ async function researchRoutes(fastify) {
     let i = 2;
 
     if (chapter_id) {
-      conditions.push(`EXISTS (SELECT 1 FROM source_chapters sc WHERE sc.source_note_id = s.note_id AND sc.chapter_id = $${i++})`);
+      conditions.push(`EXISTS (SELECT 1 FROM ${MEMBERS} m WHERE m.source_note_id = s.note_id AND m.chapter_id = $${i++})`);
       params.push(chapter_id);
     }
     if (unassigned === 'true') {
-      conditions.push('NOT EXISTS (SELECT 1 FROM source_chapters sc WHERE sc.source_note_id = s.note_id)');
+      conditions.push(`NOT EXISTS (SELECT 1 FROM ${MEMBERS} m WHERE m.source_note_id = s.note_id)`);
     }
     if (kind) { conditions.push(`s.source_kind = $${i++}`); params.push(kind); }
     if (status) { conditions.push(`s.metadata_status = $${i++}`); params.push(status); }
@@ -780,13 +800,13 @@ async function researchRoutes(fastify) {
   // Markdown and plain text together; the client copies or downloads them.
   async function chapterSources(chapterIds, userId) {
     const result = await fastify.db.query(
-      `SELECT sc.chapter_id, s.source_kind, s.authors, s.title, s.container, s.publisher, s.volume,
+      `SELECT m.chapter_id, s.source_kind, s.authors, s.title, s.container, s.publisher, s.volume,
               s.issue, s.pages, to_char(s.published_date, 'YYYY-MM-DD') AS published_date,
               s.published_precision, s.accessed_at, s.url, s.doi
-       FROM source_chapters sc
-       JOIN sources s ON s.note_id = sc.source_note_id AND s.user_id = $2
+       FROM (SELECT DISTINCT source_note_id, chapter_id FROM ${MEMBERS} mm) m
+       JOIN sources s ON s.note_id = m.source_note_id AND s.user_id = $2
        JOIN notes n ON n.id = s.note_id AND n.deleted_at IS NULL
-       WHERE sc.chapter_id = ANY($1::uuid[])`,
+       WHERE m.chapter_id = ANY($1::uuid[])`,
       [chapterIds, userId]
     );
     const byChapter = new Map(chapterIds.map(id => [id, []]));
