@@ -152,8 +152,13 @@ export const useResearchStore = defineStore('research', () => {
   }
 
   // Phase B — { html, markdown, text, count, incomplete } for a chapter or a book.
-  async function fetchReferences(scope, id) {
-    return (await api.get(`/${scope === 'book' ? 'books' : 'chapters'}/${id}/references`)).data;
+  async function fetchReferences(scope, id, include = 'sources') {
+    return (await api.get(`/${scope === 'book' ? 'books' : 'chapters'}/${id}/references?include=${include}`)).data;
+  }
+
+  // Phase C — a chapter's highlights grouped by source: [{ source, highlights }].
+  async function listChapterHighlights(chapterId) {
+    return (await api.get(`/chapters/${chapterId}/highlights`)).data;
   }
 
   async function unassignChapter(sourceId, chapterId) {
@@ -166,6 +171,6 @@ export const useResearchStore = defineStore('research', () => {
     ensureLoaded, fetchBooks, fetchChapters, createBook, updateBook, deleteBook,
     createChapter, updateChapter, deleteChapter, reorderChapters,
     fetchSources, fetchMetadata, uploadPdfSource, extractMetadata, fetchText, getSource,
-    listHighlights, createHighlight, updateHighlight, deleteHighlight, reportAnchors, createSource, updateSource, assignChapter, unassignChapter, fetchReferences
+    listHighlights, createHighlight, updateHighlight, deleteHighlight, reportAnchors, createSource, updateSource, assignChapter, unassignChapter, fetchReferences, listChapterHighlights
   };
 });

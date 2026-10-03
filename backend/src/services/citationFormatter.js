@@ -174,33 +174,98 @@ function chapterHeading(chapter) {
 }
 
 // sections: [{ chapter, sources: [...] }] → { html, markdown, text, count, incomplete }
-function renderReferences(sections) {
+const LEGEND = { yellow: 'Evidence', red: 'Counter-argument', green: 'Quote-worthy', blue: 'Follow-up' };
+
+// "Sutton 2019 — The Bitter Lesson": the per-source heading in Key Passages.
+function shortTitle(source) {
+  const first = (source.authors || []).find(a => clean(a.literal) || clean(a.family));
+  const who = first ? clean(first.family) || clean(first.literal) : '';
+  const year = yearOf(source.published_date);
+  const lead = [who, year].filter(Boolean).join(' ');
+  return lead ? `${lead} — ${clean(source.title)}` : clean(source.title);
+}
+
+// One passage line: "p. 147 — “quote” — comment (Meaning)", as segments.
+function passageSegments(h) {
+  const segs = [];
+  const page = clean(h.page_label);
+  if (page) segs.push(plain(`p. ${page} — `));
+  segs.push(plain(`“${clean(h.exact)}”`));
+  if (clean(h.comment)) segs.push(plain(` — ${clean(h.comment)}`));
+  segs.push(plain(' ('), italic(LEGEND[h.color] || h.color), plain(')'));
+  if (h.anchor_status === 'orphaned') segs.push(plain(' [no longer in the source text]'));
+  return segs;
+}
+
+// sections: [{ chapter, sources: [...], passages?: [{ source, highlights: [...] }] }]
+// include: 'sources' | 'passages' | 'both'
+// → { html, markdown, text, count, incomplete, passages }
+function renderReferences(sections, include = 'sources') {
   const html = [];
   const md = [];
   const text = [];
   let count = 0;
   let incomplete = 0;
+  let passageCount = 0;
+  const withSources = include !== 'passages';
+  const withPassages = include !== 'sources';
 
-  for (const { chapter, sources } of sections) {
-    const entries = sources.map(buildEntry).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-    count += entries.length;
-    incomplete += entries.filter(e => e.incomplete).length;
+  for (const { chapter, sources, passages = [] } of sections) {
     const heading = chapterHeading(chapter);
+    html.push(`<h2>${escapeHtml(heading)}</h2>`);
+    md.push(`## ${escapeMd(heading)}`, '');
+    text.push(heading);
 
-    html.push(`<h2>${escapeHtml(heading)}</h2>`, '<h3>Sources and Further Reading</h3>');
-    md.push(`## ${escapeMd(heading)}`, '', '### Sources and Further Reading', '');
-    text.push(heading, 'Sources and Further Reading', '');
-
-    if (entries.length === 0) {
-      html.push('<p><em>No sources assigned.</em></p>');
-      md.push('*No sources assigned.*', '');
-      text.push('No sources assigned.', '');
+    if (withSources) {
+      const entries = sources.map(buildEntry).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+      count += entries.length;
+      incomplete += entries.filter(e => e.incomplete).length;
+      html.push('<h3>Sources and Further Reading</h3>');
+      md.push('### Sources and Further Reading', '');
+      text.push('Sources and Further Reading', '');
+      if (entries.length === 0) {
+        html.push('<p><em>No sources assigned.</em></p>');
+        md.push('*No sources assigned.*', '');
+        text.push('No sources assigned.', '');
+      }
+      for (const e of entries) {
+        // Hanging indent so the paste into Word looks like a bibliography.
+        html.push(`<p style="margin:0 0 0.6em 0.5in;text-indent:-0.5in">${renderHtml(e.segments)}</p>`);
+        md.push(renderMd(e.segments), '');
+        text.push(renderText(e.segments), '');
+      }
     }
-    for (const e of entries) {
-      // Hanging indent so the paste into Word looks like a bibliography.
-      html.push(`<p style="margin:0 0 0.6em 0.5in;text-indent:-0.5in">${renderHtml(e.segments)}</p>`);
-      md.push(renderMd(e.segments), '');
-      text.push(renderText(e.segments), '');
+
+    if (withPassages) {
+      // The author's own reference (§11.2): quotes grouped by source, in the
+      // same author order as the bibliography, each source's in text order.
+      const groups = passages
+        .filter(g => g.highlights.length)
+        .map(g => ({ ...g, key: buildEntry(g.source).sortKey }))
+        .sort((a, b) => a.key.localeCompare(b.key));
+      html.push('<h3>Key Passages</h3>');
+      md.push('### Key Passages', '');
+      text.push('Key Passages', '');
+      if (groups.length === 0) {
+        html.push('<p><em>No highlighted passages.</em></p>');
+        md.push('*No highlighted passages.*', '');
+        text.push('No highlighted passages.', '');
+      }
+      for (const g of groups) {
+        const title = shortTitle(g.source);
+        html.push(`<h4>${escapeHtml(title)}</h4>`);
+        md.push(`#### ${escapeMd(title)}`, '');
+        text.push(`  ${title}`);
+        for (const h of g.highlights) {
+          passageCount++;
+          const segs = passageSegments(h);
+          html.push(`<p style="margin:0 0 0.5em 0.25in">${renderHtml(segs)}</p>`);
+          md.push(`- ${renderMd(segs)}`);
+          text.push(`    ${renderText(segs)}`);
+        }
+        md.push('');
+        text.push('');
+      }
     }
   }
 
@@ -209,7 +274,8 @@ function renderReferences(sections) {
     markdown: md.join('\n').trimEnd() + '\n',
     text: text.join('\n').trimEnd() + '\n',
     count,
-    incomplete
+    incomplete,
+    passages: passageCount
   };
 }
 

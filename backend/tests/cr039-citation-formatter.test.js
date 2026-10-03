@@ -107,5 +107,33 @@ eq(out.count, 3, 'count');
 eq(out.incomplete, 0, 'no incomplete entries');
 eq(out.html.includes('text-indent:-0.5in'), true, 'HTML entries carry a hanging indent');
 
+console.log('\nKey Passages (§11.2):');
+const sutton = { source_kind: 'web', title: 'The Bitter Lesson', authors: [{ family: 'Sutton', given: 'Rich' }], published_date: '2019-03-13', published_precision: 'day' };
+const minsky = { source_kind: 'book', title: 'Perceptrons', authors: [{ family: 'Minsky', given: 'Marvin' }], publisher: 'MIT Press', published_date: '1969-01-01', published_precision: 'year' };
+const pass = renderReferences([{
+  chapter: { label: '3', title: 'Compute' },
+  sources: [sutton, minsky],
+  passages: [
+    { source: sutton, highlights: [
+      { exact: 'general methods that leverage computation', comment: 'Core claim', color: 'red', anchor_status: 'anchored' },
+      { exact: 'Moore\'s law', comment: null, color: 'yellow', anchor_status: 'orphaned' }
+    ] },
+    { source: minsky, highlights: [{ exact: 'the perceptron cannot learn XOR', comment: 'Classic limit', color: 'green', page_label: '147', anchor_status: 'anchored' }] }
+  ]
+}], 'both');
+const pl = pass.text.split('\n');
+eq(pl.includes('Key Passages'), true, 'both: Key Passages section after the bibliography');
+eq(pl.indexOf('  Minsky 1969 — Perceptrons') < pl.indexOf('  Sutton 2019 — The Bitter Lesson'), true, 'passage groups in author order with short titles');
+eq(pl.includes('    p. 147 — “the perceptron cannot learn XOR” — Classic limit (Quote-worthy)'), true, 'page label, quote, comment, meaning');
+eq(pl.includes('    “general methods that leverage computation” — Core claim (Counter-argument)'), true, 'web passage without a page');
+eq(pl.includes('    “Moore\'s law” (Evidence) [no longer in the source text]'), true, 'orphaned passage still exported, flagged');
+eq(pass.passages, 3, 'passage count');
+const only = renderReferences([{ chapter: { label: '3', title: 'Compute' }, sources: [sutton], passages: [{ source: sutton, highlights: [{ exact: 'q', color: 'blue' }] }] }], 'passages');
+eq(only.text.includes('Sources and Further Reading'), false, 'passages only: no bibliography');
+eq(only.count, 0, 'passages only: no bibliography entries counted');
+eq(only.markdown.includes('- “q” (*Follow-up*)'), true, 'Markdown passage line');
+const evil = renderReferences([{ chapter: { label: '1', title: 'X' }, sources: [], passages: [{ source: sutton, highlights: [{ exact: '<script>x</script>', comment: '<b>c</b>', color: 'red' }] }] }], 'passages');
+eq(/<script>|<b>/.test(evil.html), false, 'quotes and comments are HTML-escaped');
+
 console.log(`\n=== ${passed} passed, ${failed} failed ===\n`);
 process.exit(failed > 0 ? 1 : 0);

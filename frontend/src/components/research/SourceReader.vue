@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
 import { BookOpen, Pencil, CheckCircle2, X, ExternalLink, ArrowLeft, FileText, Sparkles, Archive, DownloadCloud } from 'lucide-vue-next';
 import ConfirmModal from '../ui/ConfirmModal.vue';
 import { getAccessToken } from '../../api/client.js';
@@ -89,6 +90,16 @@ async function onAnchored(updates) {
 
 function reveal(id) {
   bodyRef.value?.reveal(id);
+}
+
+// Opened from a chapter's Passages tab (?hl=<id>): scroll to that highlight
+// once the body has rendered its marks.
+const route = useRoute();
+async function revealFromRoute() {
+  const id = route.query.hl;
+  if (!id) return;
+  await nextTick();
+  setTimeout(() => reveal(String(id)), 150);
 }
 
 const source = ref(null);
@@ -273,7 +284,7 @@ function onSaved(updated) {
 onMounted(async () => {
   await research.ensureLoaded().catch(() => {});
 });
-watch(() => props.noteId, async () => { await Promise.all([load(), loadHighlights()]); schedulePoll(); }, { immediate: true });
+watch(() => props.noteId, async () => { await Promise.all([load(), loadHighlights()]); schedulePoll(); revealFromRoute(); }, { immediate: true });
 </script>
 
 <template>

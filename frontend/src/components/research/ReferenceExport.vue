@@ -16,11 +16,15 @@ const props = defineProps({
 const research = useResearchStore();
 const toasts = useToastsStore();
 const busy = ref(false);
+// Phase C: add the "Key Passages" section (highlights grouped by source).
+const withPassages = ref(false);
+const include = () => (withPassages.value ? 'both' : 'sources');
 
 function report(refs, verb) {
   const flagged = refs.incomplete ? ` — ${refs.incomplete} incomplete, marked [field?]` : '';
+  const passages = withPassages.value ? ` and ${refs.passages} passage${refs.passages === 1 ? '' : 's'}` : '';
   toasts.addToast({
-    message: `${verb} ${refs.count} reference${refs.count === 1 ? '' : 's'}${flagged}`,
+    message: `${verb} ${refs.count} reference${refs.count === 1 ? '' : 's'}${passages}${flagged}`,
     type: refs.incomplete ? 'warning' : 'success'
   });
 }
@@ -33,7 +37,7 @@ async function copyForWord() {
   busy.value = true;
   // Hand ClipboardItem promises rather than awaiting first, so Safari keeps the
   // click's user gesture across the fetch.
-  const refsPromise = research.fetchReferences(props.scope, props.id);
+  const refsPromise = research.fetchReferences(props.scope, props.id, include());
   try {
     await navigator.clipboard.write([new ClipboardItem({
       'text/html': refsPromise.then(r => new Blob([`<meta charset="utf-8">${r.html}`], { type: 'text/html' })),
@@ -50,7 +54,7 @@ async function copyForWord() {
 async function downloadMd() {
   busy.value = true;
   try {
-    const refs = await research.fetchReferences(props.scope, props.id);
+    const refs = await research.fetchReferences(props.scope, props.id, include());
     const url = URL.createObjectURL(new Blob([refs.markdown], { type: 'text/markdown;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
@@ -74,6 +78,9 @@ async function downloadMd() {
     <button class="re-btn" :disabled="busy" title="Download the reference list as Markdown" @click="downloadMd">
       <Download :size="14" /> .md
     </button>
+    <label class="re-check" title="Add a Key Passages section: your highlights, grouped by source">
+      <input v-model="withPassages" type="checkbox" /> passages
+    </label>
   </div>
 </template>
 
@@ -84,7 +91,8 @@ async function downloadMd() {
   background: transparent; color: var(--text-primary); border: none;
   padding: 7px 11px; font-size: 13px; cursor: pointer; white-space: nowrap;
 }
-.re-btn + .re-btn { border-left: 1px solid var(--border-strong); }
+.re-btn + .re-btn, .re-check { border-left: 1px solid var(--border-strong); }
+.re-check { display: inline-flex; align-items: center; gap: 4px; padding: 0 10px; font-size: 12px; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
 .re-btn:hover:not(:disabled) { background: var(--hover-bg); }
 .re-btn:disabled { opacity: 0.6; cursor: default; }
 </style>

@@ -77,6 +77,14 @@ async function run() {
   assert(c1.source_count === 1 && c1.highlight_count === 1, 'chapter counts: 1 source, 1 highlight');
   const refs = (await api(token, `/chapters/${ch1.id}/references`)).data.data;
   assert(refs.count === 1 && refs.text.includes('Sutton, Rich'), 'reference export includes the highlight-derived source');
+  const both = (await api(token, `/chapters/${ch1.id}/references?include=both`)).data.data;
+  assert(both.passages === 1 && both.text.includes('Key Passages') && both.text.includes('“general methods” — Core claim (Counter-argument)'),
+    'export include=both adds Key Passages with quote, comment and meaning');
+  const onlyP = (await api(token, `/chapters/${ch1.id}/references?include=passages`)).data.data;
+  assert(!onlyP.text.includes('Sources and Further Reading') && onlyP.passages === 1, 'include=passages leaves out the bibliography');
+  assert((await api(token, `/chapters/${ch1.id}/references?include=bogus`)).status === 400, 'unknown include → 400');
+  assert((await api(token, `/books/${book.id}/references?include=both`)).data.data.passages === 1, 'book export carries passages too');
+  assert((await api(other, `/chapters/${ch1.id}/references?include=passages`)).status === 404, 'cannot export another user\'s passages');
   const grouped = (await api(token, `/chapters/${ch1.id}/highlights`)).data.data;
   assert(grouped.length === 1 && grouped[0].source.title === `HL Source ${RUN}` && grouped[0].highlights[0].comment === 'Core claim',
     'GET /chapters/:id/highlights groups by source');

@@ -8,7 +8,7 @@ import ReferenceExport from '../components/research/ReferenceExport.vue';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import { useMobile } from '../composables/useMobile.js';
-import { SOURCE_KINDS, STATUS_LABELS, formatAuthors, formatPublished } from '../lib/citation.js';
+import { SOURCE_KINDS, STATUS_LABELS, HIGHLIGHT_LEGEND, formatAuthors, formatPublished } from '../lib/citation.js';
 
 // CR039 A1 — the source library (/research/sources, with ?view=attention or
 // ?view=unassigned) and a chapter's sources (/research/chapters/:id). One view,
@@ -57,6 +57,26 @@ const exportTarget = computed(() => {
   }
   return null;
 });
+
+// Phase C — a chapter's Passages tab: its highlights grouped by source; a
+// click opens the source scrolled to that highlight (?hl=).
+const tab = ref('sources');
+const passageGroups = ref([]);
+const passagesLoading = ref(false);
+const legendLabel = (c) => HIGHLIGHT_LEGEND.find(l => l.color === c)?.label || c;
+async function loadPassages() {
+  if (!chapterId.value) return;
+  passagesLoading.value = true;
+  try {
+    passageGroups.value = await research.listChapterHighlights(chapterId.value);
+  } catch (err) {
+    loadError.value = err.message || 'Could not load passages';
+  } finally {
+    passagesLoading.value = false;
+  }
+}
+watch([tab, () => route.params.id], () => { if (tab.value === 'passages') loadPassages(); });
+watch(() => route.params.id, () => { if (!route.params.id) tab.value = 'sources'; });
 
 const kindLabel = (k) => SOURCE_KINDS.find(x => x.value === k)?.label || k;
 
@@ -131,6 +151,35 @@ watch(() => research.activeBook?.id, (id, prev) => {
       Export covers every chapter of {{ research.activeBook.title }}, in outline order.
     </p>
 
+    <div v-if="chapterId" class="rv-tabs" role="tablist">
+      <button role="tab" :aria-selected="tab === 'sources'" :class="{ on: tab === 'sources' }" @click="tab = 'sources'">Sources</button>
+      <button role="tab" :aria-selected="tab === 'passages'" :class="{ on: tab === 'passages' }" @click="tab = 'passages'">
+        Passages<span v-if="chapter?.highlight_count" class="rv-tab-count">{{ chapter.highlight_count }}</span>
+      </button>
+    </div>
+
+    <section v-if="chapterId && tab === 'passages'" class="rv-passages" aria-label="Passages">
+      <p v-if="passagesLoading && !passageGroups.length" class="rv-empty-line">Loading…</p>
+      <p v-else-if="!passageGroups.length" class="rv-empty-line">No highlights in this chapter yet — select text in a source to add one.</p>
+      <div v-for="g in passageGroups" :key="g.source.note_id" class="rv-pg">
+        <h3 class="rv-pg-title">
+          <router-link :to="`/notes/${g.source.note_id}`">{{ g.source.title }}</router-link>
+          <span class="rv-pg-by">{{ [formatAuthors(g.source.authors), formatPublished(g.source.published_date, g.source.published_precision)].filter(Boolean).join(' · ') }}</span>
+        </h3>
+        <ul class="rv-pl">
+          <li v-for="h in g.highlights" :key="h.id" :class="`hs-${h.color}`">
+            <router-link :to="{ path: `/notes/${g.source.note_id}`, query: { hl: h.id } }" class="rv-quote">
+              <span v-if="h.page_label" class="rv-page">p. {{ h.page_label }} — </span>“{{ h.exact }}”
+            </router-link>
+            <span class="rv-meaning">{{ legendLabel(h.color) }}</span>
+            <span v-if="h.anchor_status === 'orphaned'" class="rv-orphan" title="No longer in the source text; kept and exported">unanchored</span>
+            <p v-if="h.comment" class="rv-comment">{{ h.comment }}</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <template v-if="!chapterId || tab === 'sources'">
     <div class="rv-filters">
       <input v-model="q" type="search" class="rv-search" aria-label="Search sources"
              placeholder="Search title, author, publication, text…" @input="onSearch" />
@@ -181,6 +230,8 @@ watch(() => research.activeBook?.id, (id, prev) => {
       </table>
     </div>
 
+    </template>
+
     <SourceFormModal
       v-if="creating"
       :defaultChapterId="chapterId"
@@ -206,6 +257,27 @@ watch(() => research.activeBook?.id, (id, prev) => {
   background: var(--accent-primary); color: #fff; border: none; border-radius: 6px;
   padding: 7px 12px; font-size: 13px; cursor: pointer; white-space: nowrap;
 }
+.rv-tabs { display: flex; gap: 4px; margin-top: 14px; border-bottom: 1px solid var(--border-subtle); }
+.rv-tabs button { background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); padding: 6px 12px; font-size: 13px; cursor: pointer; }
+.rv-tabs button.on { color: var(--text-primary); border-bottom-color: var(--accent-primary); }
+.rv-tab-count { margin-left: 6px; font-size: 11px; color: var(--text-muted); }
+.rv-passages { margin-top: 16px; display: flex; flex-direction: column; gap: 18px; }
+.rv-empty-line { color: var(--text-muted); font-size: 13px; }
+.rv-pg-title { margin: 0 0 6px; font-size: 14px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.rv-pg-title a { color: var(--text-primary); }
+.rv-pg-by { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.rv-pl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.rv-pl li { border-left: 3px solid; padding: 4px 10px; }
+.hs-yellow { border-left-color: rgb(250, 204, 21); }
+.hs-red { border-left-color: rgb(248, 113, 113); }
+.hs-green { border-left-color: rgb(74, 222, 128); }
+.hs-blue { border-left-color: rgb(96, 165, 250); }
+.rv-quote { color: var(--text-primary); text-decoration: none; font-size: 14px; }
+.rv-quote:hover, .rv-quote:focus-visible { text-decoration: underline; }
+.rv-page { color: var(--text-muted); }
+.rv-meaning { margin-left: 8px; font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+.rv-orphan { margin-left: 6px; font-size: 10px; border-radius: 999px; padding: 0 6px; background: var(--status-error-bg); color: var(--status-error); }
+.rv-comment { margin: 3px 0 0; font-size: 13px; color: var(--text-secondary); white-space: pre-wrap; }
 .rv-filters { display: flex; gap: 8px; margin: 16px 0; flex-wrap: wrap; }
 .rv-search, .rv-kind {
   background: var(--bg-card); color: var(--text-primary);

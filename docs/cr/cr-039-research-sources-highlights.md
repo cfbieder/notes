@@ -1067,3 +1067,23 @@ and `replace-body` had no UI.
   live on the owner's MIT Technology Review URL (about 15.6k characters captured); and
   6 headless-Chromium checks, including a rename autosaving after the fetch.
 
+**Slice 3: Passages.** Built 2026-10-03.
+- **Export:** `GET /chapters/:id/references` and `/books/:id/references` take
+  `?include=sources|passages|both` (default `sources`, an unknown value → 400).
+  `renderReferences` adds the §11.2 **Key Passages** section: per source, a short heading
+  ("Sutton 2019 — The Bitter Lesson"), in bibliography order; under it, each highlight in
+  text order as `p. N — “quote” — comment (Meaning)`. Orphaned highlights are included and
+  marked "[no longer in the source text]" (D8). The quotes go through the same segment
+  renderer, so HTML, Markdown and text agree and everything is escaped. The response
+  carries a `passages` count.
+- **UI:**
+  - The chapter view gets **Sources | Passages** tabs. Passages are grouped by source, with
+    meaning, comment and an "unanchored" badge.
+  - A quote opens its source at `?hl=<id>`, where the Reader scrolls to and flashes the mark.
+  - The export control gains a **passages** checkbox (`include=both`), and the toast counts
+    passages.
+- **Verified:** 10 formatter assertions (ordering, page labels, the orphan flag,
+  passages-only, Markdown line, escaping); 5 API assertions (include modes, a bad value,
+  book export, cross-user 404); 4 headless-Chromium checks (the tab, scroll-to-highlight
+  past 40 paragraphs, Copy for Word with Key Passages, the toast).
+

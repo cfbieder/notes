@@ -851,7 +851,8 @@ PUT    /api/v1/highlights/:id                { color?, comment?, chapter_ids? }
 DELETE /api/v1/highlights/:id                hard delete
 PUT    /api/v1/sources/:id/highlights/anchors { updates: [{ id, anchor_status, position_start?, position_end? }] } — browser-reported
 GET    /api/v1/chapters/:id/highlights       a chapter's highlights grouped by source
-GET    /api/v1/chapters/:id/references       Phase B: { html, markdown, text, count, incomplete } (Chicago)
+GET    /api/v1/chapters/:id/references       Phase B: { html, markdown, text, count, incomplete, passages } (Chicago);
+                                             ?include=sources|passages|both adds the Key Passages section (Phase C)
 GET    /api/v1/books/:id/references          Same, one section per chapter in outline order
 ```
 

@@ -894,18 +894,57 @@ async function researchRoutes(fastify) {
     return byChapter;
   }
 
-  fastify.get('/chapters/:id/references', { schema: { params: uuidParam('id') } }, async (request, reply) => {
+  // Key Passages (§11.2): each chapter's highlights grouped by source, in text
+  // order, trashed sources excluded. Orphaned highlights are kept (D8).
+  async function chapterPassages(chapterIds, userId) {
+    const result = await fastify.db.query(
+      `SELECT hc.chapter_id, h.source_note_id, h.exact, h.comment, h.color, h.page_label, h.anchor_status,
+              s.source_kind, s.authors, s.title, to_char(s.published_date, 'YYYY-MM-DD') AS published_date,
+              s.published_precision
+       FROM highlight_chapters hc
+       JOIN highlights h ON h.id = hc.highlight_id AND h.user_id = $2
+       JOIN chapters c ON c.id = hc.chapter_id AND c.user_id = $2
+       JOIN sources s ON s.note_id = h.source_note_id AND s.user_id = $2
+       JOIN notes n ON n.id = s.note_id AND n.deleted_at IS NULL
+       WHERE hc.chapter_id = ANY($1::uuid[])
+       ORDER BY h.page_index NULLS FIRST, h.position_start NULLS LAST, h.created_at`,
+      [chapterIds, userId]
+    );
+    const byChapter = new Map(chapterIds.map(id => [id, new Map()]));
+    for (const r of result.rows) {
+      const groups = byChapter.get(r.chapter_id);
+      if (!groups.has(r.source_note_id)) {
+        groups.set(r.source_note_id, {
+          source: { source_kind: r.source_kind, authors: r.authors, title: r.title,
+            published_date: r.published_date, published_precision: r.published_precision },
+          highlights: []
+        });
+      }
+      groups.get(r.source_note_id).highlights.push(r);
+    }
+    return new Map([...byChapter].map(([id, groups]) => [id, [...groups.values()]]));
+  }
+
+  const includeQuery = {
+    type: 'object',
+    properties: { include: { type: 'string', enum: ['sources', 'passages', 'both'], default: 'sources' } }
+  };
+
+  fastify.get('/chapters/:id/references', { schema: { params: uuidParam('id'), querystring: includeQuery } }, async (request, reply) => {
     const userId = request.user.id;
     const chapter = await fastify.db.query(
       'SELECT id, label, title FROM chapters WHERE id = $1 AND user_id = $2',
       [request.params.id, userId]
     );
     if (chapter.rows.length === 0) return notFound(reply, 'Chapter');
-    const sources = await chapterSources([chapter.rows[0].id], userId);
-    return { data: renderReferences([{ chapter: chapter.rows[0], sources: sources.get(chapter.rows[0].id) }]) };
+    const id = chapter.rows[0].id;
+    const { include } = request.query;
+    const sources = await chapterSources([id], userId);
+    const passages = include === 'sources' ? new Map() : await chapterPassages([id], userId);
+    return { data: renderReferences([{ chapter: chapter.rows[0], sources: sources.get(id), passages: passages.get(id) }], include) };
   });
 
-  fastify.get('/books/:id/references', { schema: { params: uuidParam('id') } }, async (request, reply) => {
+  fastify.get('/books/:id/references', { schema: { params: uuidParam('id'), querystring: includeQuery } }, async (request, reply) => {
     const userId = request.user.id;
     const book = await fastify.db.query('SELECT id FROM books WHERE id = $1 AND user_id = $2', [request.params.id, userId]);
     if (book.rows.length === 0) return notFound(reply, 'Book');
@@ -913,8 +952,11 @@ async function researchRoutes(fastify) {
       'SELECT id, label, title FROM chapters WHERE book_id = $1 AND user_id = $2 ORDER BY sort_order',
       [request.params.id, userId]
     );
-    const sources = await chapterSources(chapters.rows.map(c => c.id), userId);
-    return { data: renderReferences(chapters.rows.map(c => ({ chapter: c, sources: sources.get(c.id) }))) };
+    const ids = chapters.rows.map(c => c.id);
+    const { include } = request.query;
+    const sources = await chapterSources(ids, userId);
+    const passages = include === 'sources' ? new Map() : await chapterPassages(ids, userId);
+    return { data: renderReferences(chapters.rows.map(c => ({ chapter: c, sources: sources.get(c.id), passages: passages.get(c.id) })), include) };
   });
 
   // The only sanctioned way to change a source body (§6.1). Opts past the
