@@ -23,12 +23,22 @@ const els = {
   srcContainer: document.getElementById('srcContainer'),
   chapters: document.getElementById('chapters'),
   bookName: document.getElementById('bookName'),
-  openExisting: document.getElementById('openExisting')
+  openExisting: document.getElementById('openExisting'),
+  pdfNote: document.getElementById('pdfNote'),
+  snapshotRow: document.getElementById('snapshotRow'),
+  srcSnapshot: document.getElementById('srcSnapshot')
 };
 
 // CR039 A2 state: what the page's metadata said, and the research context.
 let extracted = null;
 let research = { supported: false };
+// CR039 A3: a PDF tab is saved by downloading the file (scripts can't run in
+// Chrome's PDF viewer); the tab is remembered for the permission prompt.
+let pdfMode = false;
+let currentTab = null;
+let titleEdited = false;
+const isPdfUrl = (url) => /\.pdf($|[?#])/i.test(url || '') || /\/pdf\//i.test(url || '');
+const originPattern = (url) => `${new URL(url).origin}/*`;
 
 function send(msg) {
   return new Promise((resolve) => chrome.runtime.sendMessage(msg, resolve));
@@ -199,8 +209,19 @@ async function initResearch(tab) {
   const info = await send({ type: 'researchInfo' });
   if (!info?.ok || !info.data.supported) return; // older server: plain clips only
   research = info.data;
+  currentTab = tab;
 
   extracted = tab?.id ? await extractCitation(tab.id) : null;
+  pdfMode = !extracted && isPdfUrl(tab?.url);
+  if (pdfMode) {
+    // The file supplies its own metadata (then AI); hide the page fields.
+    els.pdfNote.classList.remove('hidden');
+    els.snapshotRow.classList.add('hidden');
+    for (const el of [els.srcKind.closest('.row2'), els.srcAuthors.closest('.field'), els.srcContainer.closest('.field')]) {
+      el.classList.add('hidden');
+    }
+    els.mode.disabled = true;
+  }
   if (extracted) {
     els.srcKind.value = extracted.source_kind;
     els.srcPublished.value = extracted.published || '';
@@ -290,8 +311,23 @@ const versionEl = document.getElementById('version');
 if (versionEl) versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
 
 els.asSource.addEventListener('change', applySourceMode);
+els.title.addEventListener('input', () => { titleEdited = true; });
 
 els.clipBtn.addEventListener('click', async () => {
+  // Permission prompts first, while this click still counts as a user gesture.
+  // Both permissions are optional and asked only when this clip needs them.
+  const wantsSource = !els.asSource.closest('.hidden') && els.asSource.checked;
+  let snapshotAllowed = false;
+  if (wantsSource && pdfMode) {
+    const ok = await chrome.permissions.request({ origins: [originPattern(currentTab.url)] }).catch(() => false);
+    if (!ok) {
+      setStatus(`Allow access to ${new URL(currentTab.url).host} to save this PDF`, 'error');
+      return;
+    }
+  } else if (wantsSource && els.srcSnapshot.checked) {
+    snapshotAllowed = await chrome.permissions.request({ permissions: ['pageCapture'] }).catch(() => false);
+  }
+
   els.clipBtn.disabled = true;
   els.openExisting.classList.add('hidden');
   setStatus('Clipping...', '');
@@ -308,7 +344,32 @@ els.clipBtn.addEventListener('click', async () => {
       tag_names: els.tags.value.split(',').map(s => s.trim()).filter(Boolean),
       send_to_inbox: els.sendToInbox.checked
     };
-    const asSource = !els.asSource.closest('.hidden') && els.asSource.checked;
+    const asSource = wantsSource;
+    if (asSource && pdfMode) {
+      const chapterIds = [...els.chapters.querySelectorAll('input:checked')].map(b => b.value);
+      await chrome.storage.local.set({ lastChapterIds: chapterIds });
+      const res = await send({
+        type: 'clipPdf',
+        url: tab.url,
+        fields: {
+          title: titleEdited ? els.title.value.trim() : '', // else the PDF (and AI) supply it
+          url: tab.url,
+          chapter_ids: chapterIds.length ? JSON.stringify(chapterIds) : ''
+        }
+      });
+      if (!res?.ok) {
+        if (res?.status === 409 && res.body?.error === 'source_exists') {
+          setStatus(res.error, 'error');
+          showExisting(res.body.data);
+          els.clipBtn.disabled = false;
+          return;
+        }
+        throw new Error(res?.error || 'Saving the PDF failed');
+      }
+      setStatus('PDF saved as source ✓ — AI is reading it', 'success');
+      setTimeout(() => window.close(), 1500);
+      return;
+    }
     if (asSource) {
       Object.assign(payload, { as_source: true }, sourcePayload());
       await chrome.storage.local.set({ lastChapterIds: payload.chapter_ids });
@@ -337,7 +398,12 @@ els.clipBtn.addEventListener('click', async () => {
       }
       throw new Error(res?.error || 'Clip failed');
     }
-    setStatus(asSource ? 'Saved as source ✓' : 'Saved to Noted ✓', 'success');
+    let message = asSource ? 'Saved as source ✓' : 'Saved to Noted ✓';
+    if (asSource && snapshotAllowed) {
+      const snap = await send({ type: 'snapshot', tabId: tab.id, noteId: res.data?.note?.id });
+      message += snap?.ok ? ' (snapshot archived)' : ` (snapshot failed: ${snap?.error || 'unknown'})`;
+    }
+    setStatus(message, 'success');
     setTimeout(() => window.close(), 800);
   } catch (err) {
     setStatus(err.message || String(err), 'error');

@@ -80,9 +80,10 @@ async function authFetch(path, init = {}) {
   }
   const headers = {
     ...(init.headers || {}),
-    'Authorization': `Bearer ${accessToken}`,
-    'Content-Type': 'application/json'
+    'Authorization': `Bearer ${accessToken}`
   };
+  // JSON bodies only; FormData sets its own multipart boundary.
+  if (typeof init.body === 'string') headers['Content-Type'] = 'application/json';
   let res = await fetch(`${apiBase}${path}`, { ...init, headers });
   if (res.status === 401) {
     await refreshAccessToken();
@@ -107,6 +108,50 @@ async function postClip(payload) {
     throw err;
   }
   return body.data;
+}
+
+// CR039 A3 — save the PDF open in a tab as a source. Content scripts cannot run
+// in Chrome's PDF viewer, so the extension fetches the file itself (the popup
+// has already obtained host permission for that site) and uploads it.
+async function postMultipart(path, form) {
+  const res = await authFetch(path, { method: 'POST', body: form });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(body.message || `Upload failed (${res.status})`);
+    err.status = res.status;
+    err.body = body;
+    throw err;
+  }
+  return body.data;
+}
+
+async function clipPdf({ url, fields }) {
+  let res;
+  try {
+    res = await fetch(url, { credentials: 'include' });
+  } catch (_) {
+    throw new Error('Could not download the PDF from this site');
+  }
+  if (!res.ok) throw new Error(`The site answered ${res.status} for the PDF`);
+  const blob = await res.blob();
+  const head = new Uint8Array(await blob.slice(0, 1024).arrayBuffer());
+  if (!new TextDecoder('latin1').decode(head).includes('%PDF-')) throw new Error('This tab is not a PDF file');
+  const form = new FormData();
+  for (const [k, v] of Object.entries(fields || {})) {
+    if (v !== undefined && v !== null && v !== '') form.append(k, v);
+  }
+  const name = decodeURIComponent(new URL(url).pathname.split('/').pop() || 'document') || 'document';
+  form.append('file', blob, /\.pdf$/i.test(name) ? name : `${name}.pdf`);
+  return postMultipart('/sources/from-pdf', form);
+}
+
+// CR039 A3 — archive the page as MHTML next to its source (optional
+// pageCapture permission, granted from the popup click).
+async function snapshotTab({ tabId, noteId }) {
+  const mhtml = await chrome.pageCapture.saveAsMHTML({ tabId });
+  const form = new FormData();
+  form.append('file', mhtml, 'snapshot.mhtml');
+  return postMultipart(`/sources/${noteId}/snapshot`, form);
 }
 
 // CR039 — research support + the active book's chapters. A server without
@@ -168,6 +213,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           break;
         case 'clip':
           sendResponse({ ok: true, data: await postClip(msg.payload) });
+          break;
+        case 'clipPdf':
+          sendResponse({ ok: true, data: await clipPdf(msg) });
+          break;
+        case 'snapshot':
+          sendResponse({ ok: true, data: await snapshotTab(msg) });
           break;
         case 'researchInfo':
           sendResponse({ ok: true, data: await researchInfo() });

@@ -547,6 +547,71 @@ async function researchRoutes(fastify) {
     }
   });
 
+  // A3 — archive snapshot (MHTML from the clipper's optional pageCapture), kept
+  // for preservation and offered as a download; never rendered in the app.
+  // Replaces an earlier snapshot of the same source.
+  fastify.post('/sources/:id/snapshot', { schema: { params: uuidParam('id') } }, async (request, reply) => {
+    const userId = request.user.id;
+    const noteId = request.params.id;
+    const own = await fastify.db.query(
+      `SELECT s.snapshot_attachment_id FROM sources s JOIN notes n ON n.id = s.note_id AND n.deleted_at IS NULL
+       WHERE s.note_id = $1 AND s.user_id = $2`,
+      [noteId, userId]
+    );
+    if (own.rows.length === 0) return notFound(reply, 'Source');
+    const data = await request.file();
+    if (!data) return badRequest(reply, 'No file uploaded');
+    let buffer;
+    try {
+      buffer = await data.toBuffer();
+    } catch {
+      return reply.code(413).send({ error: 'Payload Too Large', message: 'Snapshot exceeds maximum size limit', statusCode: 413 });
+    }
+    // MHTML is a MIME message; sniff for its headers rather than trusting the name.
+    const head = buffer.subarray(0, 2048).toString('latin1');
+    if (!/^(From:|MIME-Version:|Snapshot-Content-Location:|Subject:)/im.test(head) || !/multipart\/related/i.test(head)) {
+      return reply.code(415).send({ error: 'not_mhtml', message: 'That file is not an MHTML snapshot', statusCode: 415 });
+    }
+
+    const now = new Date();
+    const year = String(now.getFullYear());
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const dir = path.join(uploadDir, year, month, noteId);
+    const storedName = `${Date.now()}_snapshot.mhtml`;
+    await fsp.mkdir(dir, { recursive: true });
+    const filePath = path.join(dir, storedName);
+    await fsp.writeFile(filePath, buffer);
+
+    const client = await fastify.db.connect();
+    let releaseErr;
+    let oldPath = null;
+    try {
+      await client.query('BEGIN');
+      const att = await client.query(
+        `INSERT INTO attachments (note_id, user_id, filename, mime_type, size_bytes, storage_path)
+         VALUES ($1, $2, 'snapshot.mhtml', 'multipart/related', $3, $4) RETURNING id`,
+        [noteId, userId, buffer.length, path.join(year, month, noteId, storedName)]
+      );
+      await client.query('UPDATE sources SET snapshot_attachment_id = $1 WHERE note_id = $2 AND user_id = $3',
+        [att.rows[0].id, noteId, userId]);
+      const previous = own.rows[0].snapshot_attachment_id;
+      if (previous) {
+        const old = await client.query('DELETE FROM attachments WHERE id = $1 AND user_id = $2 RETURNING storage_path', [previous, userId]);
+        oldPath = old.rows[0]?.storage_path || null;
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      releaseErr = await rollbackQuietly(client);
+      await fsp.unlink(filePath).catch(() => {});
+      throw err;
+    } finally {
+      client.release(releaseErr);
+    }
+    if (oldPath) await fsp.unlink(path.join(uploadDir, oldPath)).catch(() => {});
+    const updated = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1 AND s.user_id = $2`, [noteId, userId]);
+    return reply.code(201).send({ data: updated.rows[0] });
+  });
+
   // §9 — "Fill with AI" on any source: the model reads the source's own text
   // and fills only empty fields (flagged until verified). Synchronous so the
   // card can refresh; a slow model answers within the 60 s generate deadline.

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import MarkdownIt from 'markdown-it';
-import { BookOpen, Pencil, CheckCircle2, X, ExternalLink, ArrowLeft, FileText, Sparkles } from 'lucide-vue-next';
+import { BookOpen, Pencil, CheckCircle2, X, ExternalLink, ArrowLeft, FileText, Sparkles, Archive } from 'lucide-vue-next';
 import { getAccessToken } from '../../api/client.js';
 import { useResearchStore } from '../../stores/research.js';
 import { useToastsStore } from '../../stores/toasts.js';
@@ -107,6 +107,24 @@ async function openPdf() {
   }
 }
 
+// A3 — the archived page snapshot (MHTML) is for preservation: download only.
+async function downloadSnapshot() {
+  try {
+    const res = await fetch(`/api/v1/attachments/${source.value.snapshot_attachment_id}`, {
+      headers: { Authorization: `Bearer ${getAccessToken()}` }
+    });
+    if (!res.ok) throw new Error(`Could not download the snapshot (${res.status})`);
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(source.value.title || 'snapshot').replace(/[^\w.-]+/g, '_').slice(0, 80)}.mhtml`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    toasts.addToast({ message: err.message || 'Could not download the snapshot', type: 'error' });
+  }
+}
+
 async function verify() {
   try {
     source.value = await research.updateSource(props.noteId, {});
@@ -168,6 +186,9 @@ watch(() => props.noteId, async () => { await load(); schedulePoll(); }, { immed
         </button>
         <button v-if="source.metadata_status !== 'verified'" class="cc-btn" title="Confirm this citation is correct" @click="verify">
           <CheckCircle2 :size="14" /> Verify
+        </button>
+        <button v-if="source.snapshot_attachment_id" class="cc-btn" title="Download the archived copy of the page (MHTML)" @click="downloadSnapshot">
+          <Archive :size="14" /> Snapshot
         </button>
         <button v-if="source.pdf_attachment_id" class="cc-btn" title="Open the PDF in a new tab" @click="openPdf">
           <FileText :size="14" /> Open PDF

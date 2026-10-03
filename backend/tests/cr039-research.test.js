@@ -375,6 +375,25 @@ async function run() {
   assert((await fetch(`${BASE}/attachments/${up.data.data.pdf_attachment_id}`, { headers: { Authorization: `Bearer ${otherToken}` } })).status === 404,
     'another user cannot download the PDF');
 
+  console.log('\nSnapshots:');
+  const mhtml = Buffer.from('From: <Saved by Blink>\r\nSnapshot-Content-Location: https://example.com/a\r\nSubject: A page\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related;\r\n\ttype="text/html";\r\n\tboundary="----b"\r\n\r\n------b\r\nContent-Type: text/html\r\n\r\n<html><body>Hi</body></html>\r\n------b--\r\n');
+  async function uploadSnap(tok, id, buf, name = 'page.mhtml') {
+    const fd = new FormData();
+    fd.append('file', new Blob([buf], { type: 'multipart/related' }), name);
+    const res = await fetch(`${BASE}/sources/${id}/snapshot`, { method: 'POST', headers: { Authorization: `Bearer ${tok}` }, body: fd });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  }
+  const snap1 = await uploadSnap(token, clipId, mhtml);
+  assert(snap1.status === 201 && !!snap1.data.data.snapshot_attachment_id, 'POST /sources/:id/snapshot stores the MHTML');
+  const snap2 = await uploadSnap(token, clipId, mhtml);
+  assert(snap2.status === 201 && snap2.data.data.snapshot_attachment_id !== snap1.data.data.snapshot_attachment_id, 'a new snapshot replaces the old one');
+  const oldGone = await fetch(`${BASE}/attachments/${snap1.data.data.snapshot_attachment_id}`, { headers: { Authorization: `Bearer ${token}` } });
+  assert(oldGone.status === 404, 'the replaced snapshot is deleted');
+  assert((await uploadSnap(token, clipId, Buffer.from('<html>not mhtml</html>'))).status === 415, 'non-MHTML content → 415');
+  assert((await uploadSnap(otherToken, clipId, mhtml)).status === 404, 'snapshot onto another user\'s source → 404');
+  assert((await api(token, `/attachments/${snap2.data.data.snapshot_attachment_id}`, { method: 'DELETE' })).status === 409,
+    'deleting a snapshot directly → 409 (delete the source instead)');
+
   // ------------------------------------------------------------ trash
   console.log('\nTrash:');
   await api(token, `/notes/${srcId}`, { method: 'DELETE' });

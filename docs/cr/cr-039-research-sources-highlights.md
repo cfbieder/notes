@@ -1,6 +1,6 @@
 # CR039 — Research Sources, Highlights & Chapter References
 
-**Status:** In progress — **Phases A1, B and A2 shipped** (see Outcome; versions in the CR index); A3 next.
+**Status:** In progress — **Phases A1, B and A2 shipped; A3 built** (see Outcome; versions in the CR index). Next: C (web highlights), pending its §15c priority re-check and the §16 #13 anchoring decision.
 Phases C, D and E are a design of record; each gets a priority re-check before it is built (§15c).
 **Severity:** Feature (large; phased, first usable release = A1 + B)
 **Origin:** User proposal, 2026-10-02 — reviewed against the code the same day (see §15)
@@ -871,7 +871,7 @@ was skipped by decision. Requests from QA: URL autofill on the New source form (
 going into A3), and a clearer clipper login error (extension v0.4.1 now names the
 address it tried).
 
-### Phase A3 (in progress)
+### Phase A3 (built 2026-10-03; slice 1 shipped in v0.21.0, the rest pending release)
 
 **Slice 1: Fetch details (§16 #14).** Built 2026-10-03.
 - **Route:** `POST /sources/fetch-metadata { url }` returns the extracted metadata and
@@ -968,4 +968,34 @@ moved from the end-of-life Node 20 first.
   paper and on a typed-in source. The first live run caught **two safeguard gaps**,
   affiliations accepted as authors and an arXiv id accepted as a DOI; both are fixed and
   now covered by regression tests. 5 headless-Chromium checks.
+
+**Slice 4: clipper PDF tabs and page snapshots.** Built 2026-10-03; extension v0.5.0.
+- **Permissions:** `optional_permissions: ["pageCapture"]` and `optional_host_permissions`
+  (`http://*/*`, `https://*/*`), both **requested on the Clip click that needs them**, never
+  at install. A PDF tab asks for that one site's origin; a snapshot asks for `pageCapture`.
+  The §8.3 question ("does `activeTab` cover the PDF fetch?") is settled by design: the
+  popup requests the origin explicitly rather than relying on `activeTab`'s scope. The
+  request is the click handler's first await, so Chrome still treats it as a user gesture.
+- **PDF tabs:** content scripts cannot run in Chrome's PDF viewer, so the popup recognizes
+  a PDF tab (no page metadata, plus a `.pdf` or `/pdf/` URL) and hides the page fields.
+  The background worker downloads the file (checking the `%PDF-` signature) and posts it
+  to `/sources/from-pdf`, so slices 2 and 3 take over, AI included. A title is sent only
+  if the user edited it, so the PDF and the AI can supply it otherwise.
+- **Archive snapshot:** for web sources, **on by default**.
+  - `chrome.pageCapture.saveAsMHTML` posts to the new `POST /sources/:id/snapshot`.
+  - The server checks the content is MHTML (415 otherwise) and stores it as an attachment.
+  - A new snapshot replaces and deletes the old one.
+  - Deleting it directly returns 409.
+  - The Reader card offers **Snapshot** as a download only: the snapshot is for
+    preservation, not browsing.
+- **Fixed on the way:** `popup.css` declared `.hidden` **before** `.check`, `.row2` and
+  `.field`. Those rules set `display`, have the same specificity and so won, which meant any
+  of those elements could never be hidden. That had also silently broken A2's feature
+  detection: on an older server, the "Save as research source" toggle stayed visible.
+  `.hidden` is now `!important`. The A2 test missed it because it checked the class, not
+  whether the element was actually visible.
+- **Verified:** 6 more API assertions (106 total): snapshot stored and replaced, the old one
+  deleted, non-MHTML 415, cross-user 404, direct-delete 409. 10 checks of the real
+  extension in headless Chromium: a PDF tab saved into a chapter and its title filled by AI,
+  then an article saved with a genuine MHTML snapshot. The A2 suite reran, 25/25.
 
