@@ -20,8 +20,18 @@ config repository with per-capability + per-tier resolution, SSRF-guarded
 - [AIAssistModal.vue](frontend/src/components/ai/AIAssistModal.vue) deep-tier
   tooltip still names the gateway model unconditionally (the heavy-tier *warning*
   is correctly gated).
-- End-to-end verification against a real Anthropic / OpenAI / local endpoint
-  (needs a real key).
+- ✅ *(verified in owner QA, 2026-10-03)* End-to-end with a real cloud key: saving, Test, and
+  switching back to the built-in gateway all pass on prod (v0.20.0). A **local**
+  endpoint was not verified. QA showed that prod could never allow one:
+  `AI_PROVIDER_ALLOW_PRIVATE` was missing from both env templates and from
+  `docker-compose.prod.yml`. It is now mapped (default `false`), and CI guard 7 covers
+  every documented setting. The form also accepted "Local" with no Base URL and failed
+  at Test with "not reachable"; Save and Test now refuse with a clear message. Its
+  inputs were unstyled, because SettingsView's scoped styles don't reach a child
+  component; the component now carries its own. The ocr-llm gateway has **no**
+  OpenAI-compatible endpoint (contract v1: `/llm/generate`, `/task`), so "local AI" for
+  this owner means the built-in gateway. The "Local" option serves self-hosters
+  without it.
 - ✅ *(fixed in v0.17.1, 2026-10-02)* **`AI_KEYS_ENC_KEY`
   was not mapped in `docker-compose.prod.yml`'s `environment:` block**, so it could not
   reach the `noted-api` container: on production, saving a provider key failed with

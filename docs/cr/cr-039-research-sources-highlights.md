@@ -442,8 +442,11 @@ disable the installed extension until the user re-approves it, so:
   fetch the PDF URL itself. **Verify in Phase A3** whether `activeTab`'s temporary host grant
   covers a service-worker fetch of the tab's URL; if not, request the origin via
   `optional_host_permissions` at clip time. Never add `<all_urls>` as a required permission.
-- The backend does **not** fetch PDF URLs on the clipper's behalf (that would be a new SSRF
-  surface).
+- The backend does **not** fetch PDF URLs on the clipper's behalf. *Revised 2026-10-03
+  (§16 #14):* the backend **may** fetch a page's HTML when the user clicks **Fetch
+  details** on the New source form. That fetch goes through the existing CR038
+  `ssrfGuard`: public hosts only, DNS pinned, `http`/`https` only, a 2 MB limit and a
+  10 s timeout. It is never automatic. PDF fetching stays in the extension.
 
 ### 8.4 PDFs
 If the active tab is a PDF, the clipper fetches it and posts to `/sources/from-pdf`. The
@@ -729,6 +732,7 @@ each took the recommended option.
 | 10 | Join-table isolation | **Route checks plus an isolation test per join table**, following `note_tags`; no composite FKs. |
 | 11 | Converting an existing plain clip | **Unsupported in v1.** Re-clip as a source; tracked as deferred on the roadmap. |
 | 12 | Research rail visibility | **Shown only once a book exists.** Creating a book is the opt-in. |
+| 14 | Autofill the New source form from a pasted URL (owner, during QA 2026-10-03) | **A3: a "Fetch details" button.** The server fetches the URL through the existing `ssrfGuard` (public hosts only, 2 MB, 10 s) and runs the clipper's extraction order; the form prefills for review. The form also offers this when a URL is pasted into Title. The clipper stays the way to capture a page you have open. |
 
 ### Open
 
@@ -856,4 +860,14 @@ foreign chapter → 404, and plain clips unchanged. Also 25 headless-Chromium ch
 
 The browser harness lives outside the repo: the clipper has no test runner, so §14's fixture
 pages were exercised with Playwright rather than committed.
+
+### Owner QA (2026-10-03, on prod v0.20.0)
+
+A walkthrough of everything shipped in A1, B and A2. All of it passed: book and chapter
+setup; manual sources and the Reader view; the read-only body and visibility rules; the
+clipper on real pages; and **the export pasted into Word with italics, hanging indents
+and placeholders intact**. That last one closes Phase B's manual acceptance check. Mobile
+was skipped by decision. Requests from QA: URL autofill on the New source form (§16 #14,
+going into A3), and a clearer clipper login error (extension v0.4.1 now names the
+address it tried).
 

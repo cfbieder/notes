@@ -39,6 +39,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | CR | Title |
 |----|-------|
 | [CR009](docs/cr/cr-009-signed-attachment-urls.md) | Replace Attachment Query-String JWT with Signed URLs |
+| — | Unmapped prod settings — **Known issue, no CR yet** (found 2026-10-03). `MAX_FILE_SIZE`, `LLM_GENERATION_MODEL`, `LLM_CONTEXT_WINDOW` and `LLM_GENERATE_TIMEOUT_MS` are read by the code and documented in `.env.prod.example`, but not set in `docker-compose.prod.yml`, so setting them in `.env.prod` does nothing (prod runs on code defaults). `RATE_LIMIT_*` are documented but read by nothing. They are allowlisted in CI guard 7 (shrink, never grow). Fix: map each with a default equal to the code default, and drop the dead ones |
 | — | `tag_ids` ownership on `POST`/`PUT /notes` — **Known issue, no CR yet** (found in the CR039 A1 security review, 2026-10-02). Tag ids are inserted into `note_tags` without checking they belong to the caller, and `GET /notes/:id` joins `tags` without a user filter, so a known foreign tag UUID can be attached and its name and color read. UUIDs are unguessable, so practical risk is low. Fix: `INSERT … SELECT … FROM tags WHERE user_id = $1 AND id = ANY($2)` |
 | [CR020](docs/cr/cr-020-encrypted-password-vault.md) | Encrypted Password & Key Vault (client-side, zero-knowledge) — **Completed** |
 | [CR021](docs/cr/cr-021-biometric-vault-unlock.md) | Biometric Vault Unlock (WebAuthn PRF) — **Completed** |
