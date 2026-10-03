@@ -1,6 +1,6 @@
 # CR039 — Research Sources, Highlights & Chapter References
 
-**Status:** In progress — **Phases A1, B, A2 and A3 shipped; Phase C (web highlights, Passages, highlight search, clipper live-page highlighting) and Fetch text shipped; Phase D (PDF highlights) built, awaiting release** (see Outcome; versions in the CR index). Next: E (AI over sources, after CR001).
+**Status:** In progress — **Phases A1, B, A2 and A3 shipped; Phase C (web highlights, Passages, highlight search, clipper live-page highlighting) Phase D (PDF highlights) and Fetch text shipped** (see Outcome; versions in the CR index). Next: E (AI over sources, after CR001).
 Phases C, D and E are a design of record; each gets a priority re-check before it is built (§15c).
 **Severity:** Feature (large; phased, first usable release = A1 + B)
 **Origin:** User proposal, 2026-10-02 — reviewed against the code the same day (see §15)
@@ -1116,7 +1116,7 @@ and `replace-body` had no UI.
   the source, the Reader placing the live-page quote, statuses reported back as anchored).
 
 
-### Phase D: PDF highlights (built 2026-10-03)
+### Phase D: PDF highlights (completed 2026-10-03)
 
 Built immediately after C, by owner go-ahead, with the two open questions settled first:
 viewer auth (§16 #16) and scanned PDFs (§16 #17). No migration: the Phase C `highlights` table
