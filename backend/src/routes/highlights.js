@@ -201,7 +201,8 @@ async function highlightRoutes(fastify) {
       }
     }
   }, async (request) => {
-    const { updates } = request.body;
+    // De-duplicate by id (last wins) so UPDATE … FROM never picks a row arbitrarily.
+    const updates = [...new Map(request.body.updates.map(u => [u.id, u])).values()];
     if (!updates.length) return { data: { updated: 0 } };
     const r = await fastify.db.query(
       `UPDATE highlights h
@@ -211,7 +212,8 @@ async function highlightRoutes(fastify) {
        FROM jsonb_to_recordset($1::jsonb) AS u(id uuid, anchor_status text, position_start int, position_end int)
        WHERE h.id = u.id AND h.source_note_id = $2 AND h.user_id = $3
          AND (h.anchor_status IS DISTINCT FROM u.anchor_status
-              OR h.position_start IS DISTINCT FROM COALESCE(u.position_start, h.position_start))
+              OR h.position_start IS DISTINCT FROM COALESCE(u.position_start, h.position_start)
+              OR h.position_end IS DISTINCT FROM COALESCE(u.position_end, h.position_end))
        RETURNING h.id`,
       [JSON.stringify(updates), request.params.id, request.user.id]
     );

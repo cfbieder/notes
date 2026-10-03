@@ -46,11 +46,19 @@ function badRequest(reply, message) {
 // hand plus the chapters of any of its highlights. A subquery, not a view, so
 // every caller still joins chapters/sources with its own user filter (§5.3).
 // Rows may repeat a (source, chapter) pair once per route ('manual'/'highlight').
+// Each arm also requires the chapter and the source/highlight to share an owner,
+// so a cross-user link row could never surface even if a future writer skipped
+// its parent checks (security review, 2026-10-03).
 const MEMBERS = `(
-  SELECT source_note_id, chapter_id, 'manual' AS via FROM source_chapters
+  SELECT sc.source_note_id, sc.chapter_id, 'manual' AS via
+  FROM source_chapters sc
+  JOIN sources s2 ON s2.note_id = sc.source_note_id
+  JOIN chapters c2 ON c2.id = sc.chapter_id AND c2.user_id = s2.user_id
   UNION
   SELECT h.source_note_id, hc.chapter_id, 'highlight' AS via
-  FROM highlight_chapters hc JOIN highlights h ON h.id = hc.highlight_id
+  FROM highlight_chapters hc
+  JOIN highlights h ON h.id = hc.highlight_id
+  JOIN chapters c2 ON c2.id = hc.chapter_id AND c2.user_id = h.user_id
 )`;
 
 // Source row + its chapters, excluding trashed notes. Shared by list and get.
@@ -66,7 +74,7 @@ const SOURCE_SELECT = `
                  FROM ${MEMBERS} m WHERE m.source_note_id = s.note_id GROUP BY m.chapter_id) x
            JOIN chapters c ON c.id = x.chapter_id AND c.user_id = s.user_id
          ), '[]') AS chapters,
-         (SELECT COUNT(*)::int FROM highlights h WHERE h.source_note_id = s.note_id) AS highlight_count
+         (SELECT COUNT(*)::int FROM highlights h WHERE h.source_note_id = s.note_id AND h.user_id = s.user_id) AS highlight_count
   FROM sources s
   JOIN notes n ON n.id = s.note_id`;
 // published_date is re-selected as text (the later column wins in node-pg) so
@@ -354,7 +362,9 @@ async function researchRoutes(fastify) {
     const { id } = request.params;
     const chapter = await fastify.db.query(
       `SELECT c.id, (SELECT COUNT(*)::int FROM source_chapters WHERE chapter_id = c.id)
-                  + (SELECT COUNT(*)::int FROM highlight_chapters WHERE chapter_id = c.id) AS assignments
+                  + (SELECT COUNT(*)::int FROM highlight_chapters hc
+                       JOIN highlights h ON h.id = hc.highlight_id AND h.user_id = c.user_id
+                     WHERE hc.chapter_id = c.id) AS assignments
        FROM chapters c WHERE c.id = $1 AND c.user_id = $2`,
       [id, userId]
     );
