@@ -39,7 +39,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | CR | Title |
 |----|-------|
 | [CR009](docs/cr/cr-009-signed-attachment-urls.md) | Replace Attachment Query-String JWT with Signed URLs |
-| — | Unmapped prod setting `MAX_FILE_SIZE` — **Known issue, owner decision pending** (narrowed in v0.22.1: the `LLM_*` settings are now mapped with code-equal defaults, and the dead `RATE_LIMIT_*` lines were removed). `.env.prod` says 10 MB, but the container never sees it: the upload routes run on their 25 MB default and the Drive poller on its own 10 MB one. Mapping it would cut prod uploads to 10 MB, so pick the intended limit first, then map it and drop it from CI guard 7's allowlist |
+| — | Unmapped prod setting `MAX_FILE_SIZE` — **Fixed (owner decision 2026-10-03: 25 MB everywhere).** It is mapped in prod compose (default 26214400), `.env.prod` and both templates say 25 MB, and it is off CI guard 7's allowlist. Uploads are unchanged; Drive imports rise from 10 MB to 25 MB. Takes effect with the next deploy |
 | — | `tag_ids` ownership on `POST`/`PUT /notes` — **Fixed v0.22.1.** Foreign tag ids are now ignored (create, update and offline check-in), and the reads join only the owner's tags. Covered by cross-user tests in `cr039-research.test.js` |
 | [CR020](docs/cr/cr-020-encrypted-password-vault.md) | Encrypted Password & Key Vault (client-side, zero-knowledge) — **Completed** |
 | [CR021](docs/cr/cr-021-biometric-vault-unlock.md) | Biometric Vault Unlock (WebAuthn PRF) — **Completed** |

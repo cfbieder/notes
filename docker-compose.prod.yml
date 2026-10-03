@@ -41,6 +41,8 @@ services:
       JWT_EXPIRATION: 15m
       JWT_REFRESH_EXPIRATION: 30d
       UPLOAD_DIR: /app/uploads
+      # 25 MB, matching nginx's client_max_body_size (owner decision 2026-10-03).
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-26214400}
       LOG_DIR: /app/logs
       LOG_LEVEL: info
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
