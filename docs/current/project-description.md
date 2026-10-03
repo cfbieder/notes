@@ -824,6 +824,8 @@ PUT    /api/v1/sources/:id                   Metadata edit; any PUT (even {}) ma
 POST   /api/v1/sources/:id/chapters          { chapter_id } — both parents must be the caller's
 DELETE /api/v1/sources/:id/chapters/:chId
 POST   /api/v1/sources/:id/replace-body      { content } — the only way to change a source body
+POST   /api/v1/sources/from-pdf              A3: multipart PDF (+ title?, source_kind?, url?, chapter_ids JSON) → source with
+                                             the PDF attached and its text layer as the body; 415 not a PDF, 422 unreadable
 POST   /api/v1/sources/fetch-metadata        A3: { url } → citation metadata read from a public page (not stored;
                                              SSRF-guarded fetch, 30/min) — backs "Fetch details" on the New source form
 GET    /api/v1/chapters/:id/references       Phase B: { html, markdown, text, count, incomplete } (Chicago)

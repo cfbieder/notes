@@ -26,6 +26,7 @@
     "googleapis": "^171.4.0",
     "jsonwebtoken": "^9.0.2",
     "linkedom": "^0.18.13",
+    "pdfjs-dist": "^6.3.289",
     "pg": "^8.13.0"
   },
   "devDependencies": {

@@ -93,6 +93,33 @@ async function fetchDetails() {
   }
 }
 
+// A3 — "Upload a PDF": the server stores it, reads its text layer and info
+// fields, and creates the source; the citation is then finished in the Reader.
+const pdfInput = ref(null);
+async function uploadPdf(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  error.value = '';
+  existing.value = null;
+  saving.value = true;
+  try {
+    const f = form.value;
+    const saved = await research.uploadPdfSource(file, {
+      title: looksLikeUrl(f.title) ? '' : f.title.trim(),
+      source_kind: f.source_kind === 'web' ? undefined : f.source_kind,
+      url: f.url.trim() || undefined,
+      chapterIds: f.chapterIds
+    });
+    emit('saved', saved);
+  } catch (err) {
+    if (err.status === 409 && err.body?.error === 'source_exists') existing.value = err.body.data;
+    error.value = err.message || 'Could not upload the PDF.';
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function save() {
   error.value = '';
   existing.value = null;
@@ -263,6 +290,14 @@ function openExisting() {
         </p>
 
         <div class="sf-actions">
+          <template v-if="!isEdit">
+            <input ref="pdfInput" type="file" accept="application/pdf,.pdf" hidden @change="uploadPdf" />
+            <button type="button" class="sf-btn sf-pdf" :disabled="saving"
+                    title="Create the source from a PDF: its text, title and author are read from the file"
+                    @click="pdfInput.click()">
+              Upload a PDF instead…
+            </button>
+          </template>
           <button type="button" class="sf-btn" @click="emit('cancel')">Cancel</button>
           <button type="submit" class="sf-btn sf-primary" :disabled="saving">
             {{ saving ? 'Saving…' : isEdit ? 'Save' : 'Create source' }}
@@ -329,7 +364,8 @@ function openExisting() {
 .sf-title-hint { align-self: flex-start; padding: 0; margin-top: 2px; }
 .sf-error { margin: 0; color: var(--status-error); font-size: 12px; }
 .sf-link { background: none; border: none; color: var(--accent-primary); cursor: pointer; text-decoration: underline; font-size: 12px; }
-.sf-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.sf-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.sf-pdf { margin-right: auto; }
 .sf-btn {
   background: transparent; color: var(--text-primary);
   border: 1px solid var(--border-strong); border-radius: 6px;

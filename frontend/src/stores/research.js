@@ -86,6 +86,18 @@ export const useResearchStore = defineStore('research', () => {
     return (await api.post('/sources/fetch-metadata', { url })).data;
   }
 
+  // A3 — upload a PDF as a source. fields: { title?, source_kind?, url?, chapterIds? }
+  async function uploadPdfSource(file, fields = {}) {
+    const res = await api.upload('/sources/from-pdf', file, {
+      title: fields.title,
+      source_kind: fields.source_kind,
+      url: fields.url,
+      chapter_ids: fields.chapterIds?.length ? JSON.stringify(fields.chapterIds) : undefined
+    });
+    await fetchChapters();
+    return res.data;
+  }
+
   async function getSource(id) {
     return (await api.get(`/sources/${id}`)).data;
   }
@@ -120,6 +132,6 @@ export const useResearchStore = defineStore('research', () => {
     books, chapters, loaded, activeBook, hasBook,
     ensureLoaded, fetchBooks, fetchChapters, createBook, updateBook, deleteBook,
     createChapter, updateChapter, deleteChapter, reorderChapters,
-    fetchSources, fetchMetadata, getSource, createSource, updateSource, assignChapter, unassignChapter, fetchReferences
+    fetchSources, fetchMetadata, uploadPdfSource, getSource, createSource, updateSource, assignChapter, unassignChapter, fetchReferences
   };
 });

@@ -326,6 +326,55 @@ async function run() {
   const xUrl = await api(otherToken, '/sources', { method: 'POST', body: { source_kind: 'web', title: 'same url', url } });
   assert(xUrl.status === 201, 'URL uniqueness is per user, not global');
 
+  // ------------------------------------------------------- PDF sources (A3)
+  console.log('\nPDF sources:');
+  const mkPdf = (stream, info) => Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
+    '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+    '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 144]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n' +
+    `4 0 obj<</Length ${stream.length}>>stream\n${stream}\nendstream endobj\n` +
+    '5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n' +
+    `6 0 obj${info}endobj\ntrailer<</Root 1 0 R/Info 6 0 R>>\n%%EOF\n`);
+  async function uploadPdf(tok, buf, fields = {}, name = 'report.pdf') {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+    fd.append('file', new Blob([buf], { type: 'application/pdf' }), name);
+    const res = await fetch(`${BASE}/sources/from-pdf`, { method: 'POST', headers: { Authorization: `Bearer ${tok}` }, body: fd });
+    return { status: res.status, data: await res.json().catch(() => null) };
+  }
+  const textPdf = mkPdf('BT /F1 18 Tf 20 60 Td (Hello PDF source) Tj ET', '<</Title(Test Report)/Author(Jane Doe; John Roe)>>');
+  const up = await uploadPdf(token, textPdf, { chapter_ids: JSON.stringify([ids[2]]) });
+  const pdfId = up.data?.data?.note_id;
+  noteIds.push(pdfId);
+  assert(up.status === 201 && up.data.data.source_kind === 'pdf_report', 'POST /sources/from-pdf → 201 pdf_report');
+  assert(up.data.data.title === 'Test Report' && up.data.data.authors.length === 2 &&
+         up.data.data.authors[0].family === 'Doe', 'title + authors from the PDF info fields');
+  assert(up.data.data.metadata_status === 'incomplete' && !!up.data.data.pdf_attachment_id, 'status incomplete, PDF attached');
+  assert(up.data.data.chapters.length === 1, 'chapter assigned at upload');
+  const pdfNote = await api(token, `/notes/${pdfId}`);
+  assert(pdfNote.data.data.content.includes('Hello PDF source') && pdfNote.data.data.content.startsWith('> PDF: report.pdf · 1 page'),
+    'body = header + text layer');
+  const fileRes = await fetch(`${BASE}/attachments/${up.data.data.pdf_attachment_id}`, { headers: { Authorization: `Bearer ${token}` } });
+  const fileBytes = Buffer.from(await fileRes.arrayBuffer());
+  assert(fileRes.status === 200 && fileBytes.equals(textPdf), 'stored PDF downloads byte-identical');
+  assert((await api(token, `/attachments/${up.data.data.pdf_attachment_id}`, { method: 'DELETE' })).status === 409,
+    'deleting a source\'s PDF directly → 409 attachment_in_use');
+  assert((await api(token, `/sources/${pdfId}/replace-body`, { method: 'POST', body: { content: 'x' } })).status === 422,
+    'replace-body refused for a PDF source');
+  const titled = await uploadPdf(token, textPdf, { title: 'My Own Title', source_kind: 'book' });
+  noteIds.push(titled.data?.data?.note_id);
+  assert(titled.data?.data?.title === 'My Own Title' && titled.data.data.source_kind === 'book', 'title/kind fields override the PDF');
+  const scan = await uploadPdf(token, mkPdf('0 0 m 10 10 l S', '<<>>'), {}, 'scan.pdf');
+  noteIds.push(scan.data?.data?.note_id);
+  const scanNote = await api(token, `/notes/${scan.data?.data?.note_id}`);
+  assert(scan.status === 201 && scan.data.data.title === 'scan' && /No text layer/.test(scanNote.data.data.content),
+    'no text layer → filename title, body says so (OCR pending or unavailable)');
+  assert((await uploadPdf(token, Buffer.from('just text, not a pdf'), {}, 'fake.pdf')).status === 415, 'non-PDF content → 415 despite .pdf name');
+  assert((await uploadPdf(token, Buffer.from('%PDF-1.4 garbage'), {}, 'bad.pdf')).status === 422, 'damaged PDF → 422');
+  assert((await uploadPdf(otherToken, textPdf, { chapter_ids: JSON.stringify([ids[0]]) })).status === 404,
+    'PDF upload into another user\'s chapter → 404');
+  assert((await fetch(`${BASE}/attachments/${up.data.data.pdf_attachment_id}`, { headers: { Authorization: `Bearer ${otherToken}` } })).status === 404,
+    'another user cannot download the PDF');
+
   // ------------------------------------------------------------ trash
   console.log('\nTrash:');
   await api(token, `/notes/${srcId}`, { method: 'DELETE' });

@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import MarkdownIt from 'markdown-it';
-import { BookOpen, Pencil, CheckCircle2, X, ExternalLink, ArrowLeft } from 'lucide-vue-next';
+import { BookOpen, Pencil, CheckCircle2, X, ExternalLink, ArrowLeft, FileText } from 'lucide-vue-next';
+import { getAccessToken } from '../../api/client.js';
 import { useResearchStore } from '../../stores/research.js';
 import { useToastsStore } from '../../stores/toasts.js';
 import SourceFormModal from './SourceFormModal.vue';
@@ -46,6 +47,25 @@ async function load() {
   } catch (err) {
     source.value = null;
     loadError.value = err.message || 'Could not load the citation';
+  }
+}
+
+// Open the source's PDF without putting the token in a URL (CR009): fetch it
+// with the auth header and open the blob. The tab is opened first, inside the
+// click, so popup blockers allow it.
+async function openPdf() {
+  const tab = window.open('', '_blank');
+  try {
+    const res = await fetch(`/api/v1/attachments/${source.value.pdf_attachment_id}`, {
+      headers: { Authorization: `Bearer ${getAccessToken()}` }
+    });
+    if (!res.ok) throw new Error(`Could not open the PDF (${res.status})`);
+    const url = URL.createObjectURL(await res.blob());
+    if (tab) tab.location = url; else window.location = url;
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    tab?.close();
+    toasts.addToast({ message: err.message || 'Could not open the PDF', type: 'error' });
   }
 }
 
@@ -106,6 +126,9 @@ watch(() => props.noteId, load, { immediate: true });
         <span class="cc-spacer" />
         <button v-if="source.metadata_status !== 'verified'" class="cc-btn" title="Confirm this citation is correct" @click="verify">
           <CheckCircle2 :size="14" /> Verify
+        </button>
+        <button v-if="source.pdf_attachment_id" class="cc-btn" title="Open the PDF in a new tab" @click="openPdf">
+          <FileText :size="14" /> Open PDF
         </button>
         <button class="cc-btn" title="Edit citation metadata" @click="editing = true">
           <Pencil :size="14" /> Edit

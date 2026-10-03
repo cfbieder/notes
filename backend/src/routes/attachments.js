@@ -209,10 +209,24 @@ async function attachmentRoutes(fastify) {
     const { id } = request.params;
     const userId = request.user.id;
 
-    const result = await fastify.db.query(
-      'DELETE FROM attachments WHERE id = $1 AND user_id = $2 RETURNING storage_path',
-      [id, userId]
-    );
+    let result;
+    try {
+      result = await fastify.db.query(
+        'DELETE FROM attachments WHERE id = $1 AND user_id = $2 RETURNING storage_path',
+        [id, userId]
+      );
+    } catch (err) {
+      // CR039: a research source's PDF/snapshot cannot be deleted on its own —
+      // its highlights and citation point at it. Trash the source instead.
+      if (err.code === '23503' && /^sources_/.test(err.constraint || '')) {
+        return reply.code(409).send({
+          error: 'attachment_in_use',
+          message: 'This file belongs to a research source; delete the source instead',
+          statusCode: 409
+        });
+      }
+      throw err;
+    }
 
     if (result.rows.length === 0) {
       return reply.code(404).send({ error: 'Not Found', message: 'Attachment not found', statusCode: 404 });

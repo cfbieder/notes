@@ -897,3 +897,38 @@ address it tried).
   socket-pinning bug: happy-eyeballs asks the lookup for `all: true` addresses. The unit
   tests could not have caught it.
 
+**Slice 2: PDF sources.** Built 2026-10-03, on Node 22 (v0.21.0). The fix for
+GHSA-hq66-cqwq-w95j needs `pdfjs-dist` ≥ 6.2.108, which needs Node ≥ 22.13, so the runtime
+moved from the end-of-life Node 20 first.
+- **Route:** `POST /sources/from-pdf` (multipart). The content is checked for the
+  `%PDF-` signature, so a renamed file is refused with 415; a damaged or encrypted PDF gets
+  422.
+- **Reading the PDF:** [pdfText.js](backend/src/services/pdfText.js) reads the text layer
+  and info fields with headless PDF.js (eval disabled). Text is capped at 400k characters,
+  under Postgres' 1 MB tsvector limit.
+- **Storage:** the PDF is stored as the source note's attachment **inside** the creating
+  transaction, through a new `attach` hook in `sourceService.createSource` (the composite
+  FK from migration 022). A failed transaction removes the written file.
+- **The new source:**
+  - The body is a `> PDF: name · N pages` header followed by the text.
+  - The kind is `pdf_report` unless the form says otherwise.
+  - The title comes from the form, then the PDF's Title field, then the filename.
+  - Authors come from the PDF's Author field.
+  - The status is always `incomplete`: the info fields never carry a publication date, and
+    AI extraction (slice 3) is what fills that.
+- **Scanned PDFs** (no text layer) say so in the body. The existing OCR runs after the
+  response and writes its text through the new `setSourceBody`, which, like
+  `replace-body`, opts past the read-only trigger.
+- **Deleting the attachment:** `DELETE /attachments/:id` on a source's PDF now returns
+  **409 `attachment_in_use`**. Before, it would have been a raw 23503.
+- **UI:** "Upload a PDF instead…" on the New source form, and **Open PDF** on the citation
+  card. Open PDF fetches with the auth header and opens a blob, with **no `?token=` URL**
+  (CR009).
+- **Verified:** 10 more API assertions (100 total). PDFs are built inside the test, so no
+  binary fixtures are committed. The checks cover: info-field metadata, the stored file
+  downloading byte-identical, the 409 on deleting it directly, replace-body refused, form
+  overrides, a scan-like PDF, the content check, a damaged PDF, a foreign chapter, and a
+  foreign download. A real 15-page arXiv paper is extracted in 0.6 s, and PDF.js was
+  verified in the Alpine image. Headless Chromium uploaded that paper through the form
+  and opened it through Open PDF (full file, no token in the URL).
+

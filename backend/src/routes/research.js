@@ -5,11 +5,16 @@
 
 const { normalizeSourceUrl } = require('../utils/sourceUrl');
 const {
-  SOURCE_KINDS, metadataProperties, SourceError, createSource, sourceExistsError, hasAuthorAndDate, rollbackQuietly
+  SOURCE_KINDS, metadataProperties, SourceError, createSource, sourceExistsError, hasAuthorAndDate, rollbackQuietly,
+  setSourceBody
 } = require('../services/sourceService');
 const { renderReferences } = require('../services/citationFormatter');
 const { citationFromUrl } = require('../services/pageCitation');
 const { PageFetchError } = require('../utils/pageFetch');
+const path = require('path');
+const fsp = require('fs/promises');
+const llmService = require('../services/llmService');
+const { extractPdf, looksLikePdf } = require('../services/pdfText');
 
 const METADATA_STATUSES = ['auto', 'llm', 'verified', 'incomplete'];
 
@@ -51,8 +56,23 @@ const SOURCE_SELECT = `
 // published_date is re-selected as text (the later column wins in node-pg) so
 // a DATE never round-trips through a timezone-shifted JS Date.
 
+// "Family, Given" → person; otherwise the last word is the family name.
+function personFromName(name) {
+  if (name.includes(',')) {
+    const [family, ...rest] = name.split(',');
+    return rest.join(',').trim() ? { family: family.trim(), given: rest.join(',').trim() } : { literal: family.trim() };
+  }
+  const parts = name.split(/\s+/);
+  return parts.length > 1 ? { family: parts[parts.length - 1], given: parts.slice(0, -1).join(' ') } : { literal: name };
+}
+
 async function researchRoutes(fastify) {
   fastify.addHook('onRequest', fastify.authenticate);
+  // Multipart for PDF sources (A3). Registered per plugin scope, like attachments.js.
+  await fastify.register(require('@fastify/multipart'), {
+    limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE, 10) || 25 * 1024 * 1024, files: 1 }
+  });
+  const uploadDir = process.env.UPLOAD_DIR || './uploads';
 
   // ---------------------------------------------------------------- books
 
@@ -405,6 +425,110 @@ async function researchRoutes(fastify) {
       }
       request.log.warn({ err }, 'fetch-metadata failed');
       return reply.code(422).send({ error: 'fetch_failed', message: 'Could not read details from that page', statusCode: 422 });
+    }
+  });
+
+  // A3 — a PDF as a source: the PDF is stored as the source note's attachment
+  // (same transaction; the composite FK keeps it on this note), its text layer
+  // becomes the searchable body, and the PDF's info fields seed the citation.
+  // Scanned PDFs (no text layer) are OCR'd after the response.
+  fastify.post('/sources/from-pdf', async (request, reply) => {
+    const userId = request.user.id;
+    const data = await request.file();
+    if (!data) return badRequest(reply, 'No file uploaded');
+    let buffer;
+    try {
+      buffer = await data.toBuffer();
+    } catch {
+      return reply.code(413).send({ error: 'Payload Too Large', message: 'File exceeds maximum size limit', statusCode: 413 });
+    }
+    // Sniff the content; the name and declared type are the client's word only.
+    if (!looksLikePdf(buffer)) {
+      return reply.code(415).send({ error: 'not_a_pdf', message: 'That file is not a PDF', statusCode: 415 });
+    }
+    const field = (name) => (data.fields[name]?.value || '').toString().trim();
+    let chapterIds = [];
+    try {
+      chapterIds = field('chapter_ids') ? JSON.parse(field('chapter_ids')) : [];
+    } catch {
+      return badRequest(reply, 'chapter_ids must be a JSON array');
+    }
+    if (!Array.isArray(chapterIds) || chapterIds.some(id => typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id))) {
+      return badRequest(reply, 'chapter_ids must be a JSON array of ids');
+    }
+
+    let pdf;
+    try {
+      pdf = await extractPdf(buffer);
+    } catch (err) {
+      request.log.warn({ err }, 'pdf parse failed');
+      return reply.code(422).send({ error: 'pdf_unreadable', message: 'Could not read this PDF — it may be damaged or encrypted', statusCode: 422 });
+    }
+
+    const filename = path.basename(data.filename || 'document.pdf');
+    const title = (field('title') || pdf.info.title || filename.replace(/\.pdf$/i, '')).slice(0, 1000);
+    const authors = pdf.info.authors.map(personFromName);
+    const hasText = pdf.text.trim().length > 0;
+    const header = `> PDF: ${filename} · ${pdf.pages} page${pdf.pages === 1 ? '' : 's'}\n\n`;
+    const ocrPending = !hasText && llmService.isEnabled();
+    let content = header;
+    if (hasText) content += pdf.text + (pdf.truncated ? '\n\n_(Text truncated for search; the PDF is complete.)_' : '');
+    else content += ocrPending ? '_No text layer — reading it with OCR…_' : '_No text layer, and OCR is not enabled on this server._';
+
+    let writtenPath = null;
+    let attachmentId = null;
+    try {
+      const noteId = await createSource(fastify.db, userId, {
+        source_kind: SOURCE_KINDS.includes(field('source_kind')) ? field('source_kind') : 'pdf_report',
+        title,
+        authors,
+        url: field('url') || null,
+        content,
+        chapter_ids: chapterIds,
+        metadata_status: 'incomplete', // the info dict never carries a publication date
+        metadata_raw: { pdf: { pages: pdf.pages, info: pdf.info, has_text: hasText } },
+        attach: async (client, id) => {
+          const now = new Date();
+          const year = String(now.getFullYear());
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          const storedName = `${Date.now()}_${filename.replace(/\.pdf$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100)}.pdf`;
+          const dir = path.join(uploadDir, year, month, id);
+          await fsp.mkdir(dir, { recursive: true });
+          writtenPath = path.join(dir, storedName);
+          await fsp.writeFile(writtenPath, buffer);
+          const att = await client.query(
+            `INSERT INTO attachments (note_id, user_id, filename, mime_type, size_bytes, storage_path)
+             VALUES ($1, $2, $3, 'application/pdf', $4, $5) RETURNING id`,
+            [id, userId, filename, buffer.length, path.join(year, month, id, storedName)]
+          );
+          attachmentId = att.rows[0].id;
+          return attachmentId;
+        }
+      });
+
+      if (ocrPending) {
+        // Fire-and-forget, as the attachment upload route does; the body says
+        // OCR is pending until the text arrives.
+        llmService.ocrFile({ filePath: writtenPath, filename, mimeType: 'application/pdf' })
+          .then(async (text) => {
+            const body = text && text.trim()
+              ? header + text.trim()
+              : header + '_No text layer, and OCR found no text._';
+            await setSourceBody(fastify.db, noteId, body);
+            if (text) await fastify.db.query('UPDATE attachments SET ocr_text = $1 WHERE id = $2', [text, attachmentId]);
+          })
+          .catch(async (err) => {
+            request.log.warn({ err, noteId }, 'pdf source ocr failed');
+            await setSourceBody(fastify.db, noteId, header + '_No text layer, and OCR failed._').catch(() => {});
+          });
+      }
+
+      const created = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1 AND s.user_id = $2`, [noteId, userId]);
+      return reply.code(201).send({ data: { ...created.rows[0], ocr_pending: ocrPending } });
+    } catch (err) {
+      if (writtenPath) await fsp.unlink(writtenPath).catch(() => {});
+      if (err instanceof SourceError) return reply.code(err.statusCode).send(err.body);
+      throw err;
     }
   });
 

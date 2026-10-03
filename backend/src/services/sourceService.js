@@ -77,7 +77,9 @@ async function sourceExistsError(db, userId, url) {
 }
 
 // input: citation fields (metadataProperties) + content, chapter_ids,
-//        metadata_status, metadata_raw, source_url (raw tab URL, optional).
+//        metadata_status, metadata_raw, source_url (raw tab URL, optional),
+//        attach (optional async (client, noteId) => attachmentId: stores the PDF
+//        inside this transaction; it must belong to noteId — composite FK).
 // Returns the new note id.
 async function createSource(db, userId, input) {
   let url;
@@ -131,6 +133,10 @@ async function createSource(db, userId, input) {
         [noteId, chapterIds]
       );
     }
+    if (input.attach) {
+      const attachmentId = await input.attach(client, noteId);
+      await client.query('UPDATE sources SET pdf_attachment_id = $1 WHERE note_id = $2', [attachmentId, noteId]);
+    }
     await client.query('COMMIT');
     return noteId;
   } catch (err) {
@@ -144,6 +150,26 @@ async function createSource(db, userId, input) {
   }
 }
 
+// Server-side body update for a source (e.g. OCR text arriving after upload).
+// The only other sanctioned writer besides POST /sources/:id/replace-body: it
+// opts past guard_source_body for this transaction only.
+async function setSourceBody(db, noteId, content) {
+  const client = await db.connect();
+  let releaseErr;
+  try {
+    await client.query('BEGIN');
+    await client.query(`SET LOCAL noted.allow_source_body = 'on'`);
+    await client.query("UPDATE notes SET content = $1 WHERE id = $2 AND note_type = 'source'", [content, noteId]);
+    await client.query('COMMIT');
+  } catch (err) {
+    releaseErr = await rollbackQuietly(client);
+    throw err;
+  } finally {
+    client.release(releaseErr);
+  }
+}
+
 module.exports = {
+  setSourceBody,
   SOURCE_KINDS, metadataProperties, SourceError, createSource, sourceExistsError, hasAuthorAndDate, rollbackQuietly
 };
