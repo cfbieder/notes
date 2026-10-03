@@ -63,7 +63,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR032](docs/cr/cr-032-drop-is-inbox-flag.md) | Drop `notes.is_inbox` flag; derive Inbox from default notebook (`notebook_id IS NULL OR is_default = TRUE`) and exclude `note_type='idea'` — **Completed** |
 | [CR036](docs/cr/cr-036-export-note-as-pdf.md) | Export Note as PDF (Markdown + HTML) — relabel the print flow as "Export as PDF"; reuse the existing print-window pipeline (no new deps) — **Completed** |
 | [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) | Multi-Note Editor Tabs (desktop) — tab strip over a persisted open-note list; active tab derived from route; no per-tab buffers — **Completed** |
-| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — **In progress.** Shipped: A1 (v0.18.0), B (v0.19.0), A2 (v0.20.0), A3 (v0.21.0–v0.22.0), C (v0.23.0–v0.24.0). Next: D (PDF highlights, with CR025) and E (after CR001) |
+| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — **In progress.** Shipped: A1 (v0.18.0), B (v0.19.0), A2 (v0.20.0), A3 (v0.21.0–v0.22.0), C (v0.23.0–v0.24.0). Built, awaiting release: D (PDF highlights in a PDF.js viewer). Then E (AI over sources, after CR001) |
 
 **Deferred from CR039** (out of scope for v1; each a later CR if wanted):
 - `.docx` reference export — add if a publisher asks for a file (Copy for Word covers drafting)
@@ -71,6 +71,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 - Chapter import from an external outline document (chapters are entered by hand)
 - Promote a CR025 document to a CR039 source
 - User-defined highlight color legend (v1 ships a fixed legend)
+- Highlighting scanned PDFs (no text layer): draw-a-box with a typed quote, or region OCR via ocr-llm (§16 #17; Phase D covers text-layer PDFs)
 - Convert an existing plain clip into a source (v1: re-clip as a source)
 - Mobile entry point for Research — not needed yet (owner, 2026-10-02); sources still open in the Reader view on mobile
 

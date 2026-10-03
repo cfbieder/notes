@@ -3,7 +3,7 @@ import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import MarkdownIt from 'markdown-it';
 import { anchor, describe } from '../../lib/anchoring.js';
 import { buildTextMap, rangeToOffsets, applyMarks } from '../../lib/highlightDom.js';
-import { HIGHLIGHT_LEGEND } from '../../lib/citation.js';
+import HighlightPopover from './HighlightPopover.vue';
 
 // CR039 Phase C — the source body with its highlights. Anchoring runs here, in
 // the browser, against the text actually rendered (§16 #13): each highlight is
@@ -13,9 +13,12 @@ const props = defineProps({
   highlights: { type: Array, default: () => [] },
   chapters: { type: Array, default: () => [] }, // the active book's chapters
   defaultChapterId: { type: String, default: '' },
-  enabled: { type: Boolean, default: true } // false for PDF sources (Phase D)
+  enabled: { type: Boolean, default: true }, // false for a PDF's read-only Text view
+  // Declared as a prop (bound by @create) so the save can be awaited: it
+  // resolves true on success, and the popover stays open on failure.
+  onCreate: { type: Function, default: null }
 });
-const emit = defineEmits(['create', 'anchored', 'select-highlight']);
+const emit = defineEmits(['anchored', 'select-highlight']);
 
 // html:false — rendered text only; no raw HTML reaches the DOM.
 const md = new MarkdownIt({ html: false, linkify: true, typographer: true, breaks: true });
@@ -30,7 +33,7 @@ let textMap = null;
 
 // The selection popover.
 const popover = ref(null); // { top, left, start, end }
-const draft = ref({ color: 'yellow', chapterId: '', comment: '' });
+const popoverSeq = ref(0); // a fresh popover (empty draft) per selection
 const saving = ref(false);
 
 function render() {
@@ -70,6 +73,7 @@ function onMouseUp() {
     if (!bodyEl.value.contains(range.commonAncestorContainer)) return;
     const offsets = rangeToOffsets(textMap, range);
     if (!offsets) return;
+    popoverSeq.value++;
     const rect = range.getBoundingClientRect();
     const host = bodyEl.value.getBoundingClientRect();
     popover.value = {
@@ -77,7 +81,6 @@ function onMouseUp() {
       left: Math.max(0, Math.min(rect.left - host.left, host.width - 300)),
       ...offsets
     };
-    draft.value = { color: draft.value.color, chapterId: props.defaultChapterId || '', comment: '' };
   }, 0);
 }
 
@@ -86,20 +89,15 @@ function onClick(e) {
   if (mark && window.getSelection()?.isCollapsed) emit('select-highlight', mark.dataset.hid);
 }
 
-async function save() {
+async function save(fields) {
   if (!popover.value) return;
   saving.value = true;
   try {
     const sel = describe(textMap.text, popover.value.start, popover.value.end);
-    await emit('create', {
-      anchor_type: 'text_quote',
-      ...sel,
-      color: draft.value.color,
-      comment: draft.value.comment.trim() || null,
-      chapter_ids: draft.value.chapterId ? [draft.value.chapterId] : []
-    });
-    popover.value = null;
-    window.getSelection()?.removeAllRanges();
+    if (await props.onCreate?.({ anchor_type: 'text_quote', ...sel, ...fields })) {
+      popover.value = null;
+      window.getSelection()?.removeAllRanges();
+    }
   } finally {
     saving.value = false;
   }
@@ -137,23 +135,9 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
 <template>
   <div class="hb">
     <article ref="bodyEl" class="source-body" @mouseup="onMouseUp" @click="onClick" />
-    <div v-if="popover" class="hb-pop" :style="{ top: `${popover.top}px`, left: `${popover.left}px` }"
-         role="dialog" aria-label="New highlight" @mousedown.stop @mouseup.stop>
-      <div class="hb-colors" role="radiogroup" aria-label="Highlight meaning">
-        <button v-for="l in HIGHLIGHT_LEGEND" :key="l.color" type="button" role="radio"
-                :aria-checked="draft.color === l.color" :class="['hb-color', `hl-${l.color}`, { on: draft.color === l.color }]"
-                @click="draft.color = l.color">{{ l.label }}</button>
-      </div>
-      <select v-if="chapters.length" v-model="draft.chapterId" class="hb-input" aria-label="Chapter">
-        <option value="">No chapter</option>
-        <option v-for="c in chapters" :key="c.id" :value="c.id">{{ c.label }} · {{ c.title }}</option>
-      </select>
-      <textarea v-model="draft.comment" class="hb-input" rows="2" placeholder="Comment (optional)" aria-label="Comment" />
-      <div class="hb-actions">
-        <button type="button" class="hb-btn" @click="cancel">Cancel</button>
-        <button type="button" class="hb-btn hb-primary" :disabled="saving" @click="save">{{ saving ? 'Saving…' : 'Highlight' }}</button>
-      </div>
-    </div>
+    <HighlightPopover v-if="popover" :key="popoverSeq" :style="{ top: `${popover.top}px`, left: `${popover.left}px` }"
+                      :chapters="chapters" :defaultChapterId="defaultChapterId" :saving="saving"
+                      @save="save" @cancel="cancel" />
   </div>
 </template>
 
@@ -169,20 +153,4 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
 :deep(.hl-green) { background: rgba(74, 222, 128, 0.34); }
 :deep(.hl-blue) { background: rgba(96, 165, 250, 0.38); }
 .source-body :deep(mark.hl-flash) { outline: 2px solid var(--accent-primary); }
-.hb-pop {
-  position: absolute; z-index: 20; width: 300px; padding: 10px;
-  background: var(--bg-card); border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: var(--shadow-md);
-  display: flex; flex-direction: column; gap: 8px;
-}
-.hb-colors { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.hb-color { border: 1px solid transparent; border-radius: 6px; padding: 5px 6px; font-size: 12px; color: var(--text-primary); cursor: pointer; }
-.hb-color.on { border-color: var(--text-primary); font-weight: 600; }
-.hb-input {
-  background: var(--bg-main); color: var(--text-primary); border: 1px solid var(--border-strong);
-  border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 13px; resize: vertical;
-}
-.hb-actions { display: flex; justify-content: flex-end; gap: 6px; }
-.hb-btn { background: transparent; color: var(--text-primary); border: 1px solid var(--border-strong); border-radius: 6px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
-.hb-primary { background: var(--accent-primary); border-color: var(--accent-primary); color: #fff; }
-.hb-btn:disabled { opacity: 0.6; }
 </style>

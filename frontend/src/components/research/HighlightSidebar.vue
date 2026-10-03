@@ -47,7 +47,7 @@ function quote(h) {
     <h4 class="hs-title">Highlights <span class="hs-count">{{ highlights.length }}</span></h4>
     <p v-if="!highlights.length" class="hs-empty">Select text in the source to highlight it.</p>
     <ul class="hs-list">
-      <li v-for="h in ordered" :key="h.id" class="hs-item" :class="`hs-${h.color}`">
+      <li v-for="h in ordered" :key="h.id" class="hs-item" :class="`hs-${h.color}`" :data-hid="h.id">
         <template v-if="editingId === h.id">
           <form class="hs-edit" @submit.prevent="saveEdit(h)" @keydown.esc="editingId = null">
             <select v-model="draft.color" class="hs-input" aria-label="Meaning">
@@ -67,6 +67,7 @@ function quote(h) {
         <template v-else>
           <div class="hs-head">
             <span class="hs-label">{{ labelOf(h.color) }}</span>
+            <span v-if="h.page_label" class="hs-page">p. {{ h.page_label }}</span>
             <span v-if="h.anchor_status === 'orphaned'" class="hs-badge" title="The quote is no longer in the source text; it is kept and still exported">unanchored</span>
             <span v-else-if="h.anchor_status === 'fuzzy'" class="hs-badge hs-fuzzy" title="Placed by an approximate match — the source text changed slightly">approx.</span>
             <span class="hs-spacer" />
@@ -107,6 +108,7 @@ function quote(h) {
 .hs-green { border-left-color: rgb(74, 222, 128); }
 .hs-blue { border-left-color: rgb(96, 165, 250); }
 .hs-head { display: flex; align-items: center; gap: 6px; }
+.hs-page { font-size: 11px; color: var(--text-muted); }
 .hs-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
 .hs-badge { font-size: 10px; border-radius: 999px; padding: 0 6px; background: var(--status-error-bg); color: var(--status-error); }
 .hs-fuzzy { background: var(--status-warning-bg); color: var(--status-warning); }

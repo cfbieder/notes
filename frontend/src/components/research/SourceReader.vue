@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick, defineAsyncComponent } from 'vue';
 import { useRoute } from 'vue-router';
 import { BookOpen, Pencil, CheckCircle2, X, ExternalLink, ArrowLeft, FileText, Sparkles, Archive, DownloadCloud } from 'lucide-vue-next';
 import ConfirmModal from '../ui/ConfirmModal.vue';
@@ -10,6 +10,9 @@ import SourceFormModal from './SourceFormModal.vue';
 import HighlightedBody from './HighlightedBody.vue';
 import HighlightSidebar from './HighlightSidebar.vue';
 import { SOURCE_KINDS, STATUS_LABELS, formatAuthors, formatPublished } from '../../lib/citation.js';
+
+// Phase D: the PDF.js viewer is its own chunk, loaded only for PDF sources.
+const PdfViewer = defineAsyncComponent(() => import('./PdfViewer.vue'));
 
 // CR039 A1 — Reader view for a source note: citation card + read-only body.
 // Sources never open in an editor; their body changes only via replace-body.
@@ -25,11 +28,22 @@ const research = useResearchStore();
 const toasts = useToastsStore();
 
 // html:false — the body is rendered text only, so no raw HTML reaches v-html.
-// Phase C — highlights. Text highlights only on web/Markdown sources; PDF
-// sources get page-anchored highlights in Phase D.
+// Phase C — highlights. Web/Markdown sources highlight their text; PDF sources
+// (Phase D) highlight pages in the PDF viewer, with the extracted text as a
+// read-only second view.
 const highlights = ref([]);
 const bodyRef = ref(null);
+const pdfRef = ref(null);
 const isPdf = computed(() => !!source.value?.pdf_attachment_id);
+const pdfView = ref('pages'); // 'pages' | 'text'
+const NO_HIGHLIGHTS = []; // the Text view of a PDF shows none (stable, so it doesn't re-render)
+
+// Clicking a mark in the PDF selects its entry in the sidebar.
+function selectInSidebar(id) {
+  const item = document.querySelector(`.reader-side [data-hid="${id}"]`);
+  item?.scrollIntoView({ block: 'nearest' });
+  item?.querySelector('.hs-quote')?.focus({ preventScroll: true });
+}
 const LAST_CHAPTER_KEY = 'noted.lastHighlightChapter';
 const defaultChapterId = computed(() => {
   let last = '';
@@ -46,6 +60,8 @@ async function loadHighlights() {
   }
 }
 
+// Resolves true on success: the viewers keep their popover (and the typed
+// comment) open when a save fails.
 async function createHighlight(data) {
   try {
     const h = await research.createHighlight(props.noteId, data);
@@ -53,9 +69,11 @@ async function createHighlight(data) {
     if (data.chapter_ids[0]) {
       try { localStorage.setItem(LAST_CHAPTER_KEY, data.chapter_ids[0]); } catch { /* ignore */ }
     }
-    source.value = await research.getSource(props.noteId); // chapter chips follow highlights
+    source.value = await research.getSource(props.noteId).catch(() => source.value); // chapter chips follow highlights
+    return true;
   } catch (err) {
     toasts.addToast({ message: err.message || 'Could not save the highlight', type: 'error' });
+    return false;
   }
 }
 
@@ -89,15 +107,25 @@ async function onAnchored(updates) {
 }
 
 function reveal(id) {
-  bodyRef.value?.reveal(id);
+  if (isPdf.value) {
+    pdfView.value = 'pages';
+    nextTick(() => pdfRef.value?.reveal(id));
+  } else {
+    bodyRef.value?.reveal(id);
+  }
 }
 
 // Opened from a chapter's Passages tab (?hl=<id>): scroll to that highlight
 // once the body has rendered its marks.
 const route = useRoute();
+const pdfRevealId = ref('');
 async function revealFromRoute() {
   const id = route.query.hl;
   if (!id) return;
+  if (isPdf.value) {
+    pdfRevealId.value = String(id); // the viewer reveals it once the PDF is loaded
+    return;
+  }
   await nextTick();
   setTimeout(() => reveal(String(id)), 150);
 }
@@ -171,14 +199,26 @@ async function load() {
 // Open the source's PDF without putting the token in a URL (CR009): fetch it
 // with the auth header and open the blob. The tab is opened first, inside the
 // click, so popup blockers allow it.
+async function fetchPdf() {
+  const get = () => fetch(`/api/v1/attachments/${source.value.pdf_attachment_id}`, {
+    headers: { Authorization: `Bearer ${getAccessToken()}` }
+  });
+  let res = await get();
+  if (res.status === 401) {
+    // An expired access token: any API call refreshes it, then retry once.
+    await research.getSource(props.noteId).catch(() => {});
+    res = await get();
+  }
+  if (!res.ok) throw new Error(`Could not open the PDF (${res.status})`);
+  return res;
+}
+// The viewer gets the bytes the same way (§16 #16).
+const fetchPdfBytes = async () => (await fetchPdf()).arrayBuffer();
+
 async function openPdf() {
   const tab = window.open('', '_blank');
   try {
-    const res = await fetch(`/api/v1/attachments/${source.value.pdf_attachment_id}`, {
-      headers: { Authorization: `Bearer ${getAccessToken()}` }
-    });
-    if (!res.ok) throw new Error(`Could not open the PDF (${res.status})`);
-    const url = URL.createObjectURL(await res.blob());
+    const url = URL.createObjectURL(await (await fetchPdf()).blob());
     if (tab) tab.location = url; else window.location = url;
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   } catch (err) {
@@ -358,23 +398,49 @@ watch(() => props.noteId, async () => { await Promise.all([load(), loadHighlight
       </div>
     </section>
 
-    <div v-if="content" class="reader-grid" :class="{ 'with-side': !isPdf }">
+    <div v-if="source && isPdf" class="reader-grid with-side">
       <div>
-        <p v-if="isPdf" class="source-note">Highlighting PDF sources by page arrives with the PDF viewer (Phase D).</p>
+        <div class="pdf-views" role="group" aria-label="PDF view">
+          <button type="button" :aria-pressed="pdfView === 'pages'" :class="{ on: pdfView === 'pages' }" @click="pdfView = 'pages'">Pages</button>
+          <button type="button" :aria-pressed="pdfView === 'text'" :class="{ on: pdfView === 'text' }" @click="pdfView = 'text'">Text</button>
+        </div>
+        <PdfViewer
+          v-show="pdfView === 'pages'"
+          ref="pdfRef"
+          :fetchBytes="fetchPdfBytes"
+          :highlights="highlights"
+          :chapters="research.chapters"
+          :defaultChapterId="defaultChapterId"
+          :revealId="pdfRevealId"
+          :active="pdfView === 'pages'"
+          @create="createHighlight"
+          @select-highlight="selectInSidebar"
+        />
+        <HighlightedBody v-if="pdfView === 'text'" :content="content" :highlights="NO_HIGHLIGHTS" :enabled="false" />
+      </div>
+      <HighlightSidebar
+        class="reader-side"
+        :highlights="highlights"
+        :chapters="research.chapters"
+        @update="updateHighlight"
+        @delete="deleteHighlight"
+        @reveal="reveal"
+      />
+    </div>
+    <div v-else-if="content" class="reader-grid with-side">
+      <div>
         <HighlightedBody
           ref="bodyRef"
           :content="content"
           :highlights="highlights"
           :chapters="research.chapters"
           :defaultChapterId="defaultChapterId"
-          :enabled="!isPdf"
           @create="createHighlight"
           @anchored="onAnchored"
           @select-highlight="reveal"
         />
       </div>
       <HighlightSidebar
-        v-if="!isPdf"
         class="reader-side"
         :highlights="highlights"
         :chapters="research.chapters"
@@ -448,7 +514,11 @@ watch(() => props.noteId, async () => { await Promise.all([load(), loadHighlight
 .reader-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
 .reader-grid.with-side { grid-template-columns: minmax(0, 820px) 280px; }
 .reader-side { position: sticky; top: 0; align-self: start; max-height: calc(100vh - 140px); overflow-y: auto; }
-.source-note { color: var(--text-muted); font-size: 12px; margin: 0 0 8px; }
+.pdf-views { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+.pdf-views button { background: transparent; border: none; color: var(--text-secondary); padding: 4px 12px; font-size: 12px; cursor: pointer; }
+.pdf-views button + button { border-left: 1px solid var(--border-strong); }
+.pdf-views button.on { background: var(--rail-active); color: var(--text-primary); }
+.pdf-views button:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
 @media (max-width: 1100px) {
   .reader-grid.with-side { grid-template-columns: minmax(0, 1fr); }
   .reader-side { position: static; max-height: none; }

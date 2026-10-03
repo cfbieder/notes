@@ -900,7 +900,7 @@ async function researchRoutes(fastify) {
        JOIN sources s ON s.note_id = h.source_note_id AND s.user_id = $2
        JOIN notes n ON n.id = s.note_id AND n.deleted_at IS NULL
        WHERE hc.chapter_id = ANY($1::uuid[])
-       ORDER BY h.page_index NULLS FIRST, h.position_start NULLS LAST, h.created_at`,
+       ORDER BY h.page_index NULLS FIRST, h.position_start NULLS LAST, (h.rects->0->>'y')::float NULLS LAST, h.created_at`,
       [chapterIds, userId]
     );
     const byChapter = new Map(chapterIds.map(id => [id, new Map()]));

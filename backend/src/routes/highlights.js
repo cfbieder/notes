@@ -48,7 +48,7 @@ async function highlightRoutes(fastify) {
     if (own.rows.length === 0) return notFound(reply, 'Source');
     const r = await fastify.db.query(
       `${HIGHLIGHT_SELECT} WHERE h.source_note_id = $1 AND h.user_id = $2
-       ORDER BY h.page_index NULLS FIRST, h.position_start NULLS LAST, h.created_at`,
+       ORDER BY h.page_index NULLS FIRST, h.position_start NULLS LAST, (h.rects->0->>'y')::float NULLS LAST, h.created_at`,
       [request.params.id, userId]
     );
     return { data: r.rows };
@@ -85,7 +85,10 @@ async function highlightRoutes(fastify) {
           color: { type: 'string', enum: COLORS },
           comment: { type: ['string', 'null'], maxLength: 10000 },
           chapter_ids: chapterIdsSchema
-        }
+        },
+        // A PDF highlight is its page and boxes; without them it can't be shown.
+        if: { properties: { anchor_type: { const: 'pdf' } } },
+        then: { required: ['page_index', 'rects'], properties: { page_index: { type: 'integer' }, rects: { type: 'array', minItems: 1 } } }
       }
     }
   }, async (request, reply) => {
@@ -236,7 +239,7 @@ async function highlightRoutes(fastify) {
        JOIN highlight_chapters hcx ON hcx.highlight_id = h.id AND hcx.chapter_id = $1
        JOIN notes n ON n.id = h.source_note_id AND n.deleted_at IS NULL
        WHERE h.user_id = $2
-       ORDER BY h.source_note_id, h.page_index NULLS FIRST, h.position_start NULLS LAST, h.created_at`,
+       ORDER BY h.source_note_id, h.page_index NULLS FIRST, h.position_start NULLS LAST, (h.rects->0->>'y')::float NULLS LAST, h.created_at`,
       [request.params.id, userId]
     );
     const sourceIds = [...new Set(r.rows.map(h => h.source_note_id))];

@@ -1,6 +1,6 @@
 # CR039 — Research Sources, Highlights & Chapter References
 
-**Status:** In progress — **Phases A1, B, A2 and A3 shipped; Phase C (web highlights, Passages, highlight search, clipper live-page highlighting) and Fetch text shipped** (see Outcome; versions in the CR index). Next: D (PDF highlights, with CR025).
+**Status:** In progress — **Phases A1, B, A2 and A3 shipped; Phase C (web highlights, Passages, highlight search, clipper live-page highlighting) and Fetch text shipped; Phase D (PDF highlights) built, awaiting release** (see Outcome; versions in the CR index). Next: E (AI over sources, after CR001).
 Phases C, D and E are a design of record; each gets a priority re-check before it is built (§15c).
 **Severity:** Feature (large; phased, first usable release = A1 + B)
 **Origin:** User proposal, 2026-10-02 — reviewed against the code the same day (see §15)
@@ -525,15 +525,14 @@ configured provider (CR038).
 - **Chapter management** in Settings → Research: add, rename, drag-reorder.
 
 ### 10.3 PDF.js viewer (Phase D)
-- One viewer component shared with CR025 (D6). **Its auth is unresolved across the two CRs:**
-  this CR says an `Authorization` header via `httpHeaders`, while CR025 says PDF.js can't
-  reliably set one and relies on [CR009](docs/cr/cr-009-signed-attachment-urls.md) (replace the
-  attachment query-string JWT with signed URLs). Reconcile this, in both CRs, before whichever
-  builds the viewer first. Either way, no `?token=`.
+- One viewer component shared with CR025 (D6). **Auth resolved (§16 #16):** the viewer fetches
+  the file with the `Authorization` header and hands PDF.js the bytes. No `?token=`, no
+  `httpHeaders`; [CR009](docs/cr/cr-009-signed-attachment-urls.md) (signed URLs) can replace the
+  fetch later without changing the viewer.
 - Rects stored **normalized to page size (0–1)** so they hold at any zoom.
 - `page_label` from `pdfDocument.getPageLabels()`, falling back to `page_index + 1`.
-- Scanned PDFs with no text layer: area selection, `exact` filled from the page's OCR text
-  where possible, else a user-typed excerpt.
+- Scanned PDFs with no text layer: **deferred** (§16 #17). They open in the viewer with a "no
+  selectable text" note; area selection is a later follow-up.
 - Lazy-loaded on its route only (bundle size).
 
 ### 10.4 Search (Phase C)
@@ -735,6 +734,8 @@ each took the recommended option.
 | 13 | Where anchoring runs (Phase C) | **The browser only** (owner, 2026-10-03, recommended). The Reader matches each highlight against the text it actually rendered and saves changed statuses (anchored / fuzzy / orphaned) back. The server only stores quotes. `replace-body` and clipper highlights therefore can't report "placed" straight away; statuses update the next time the source is opened. A shared server-side matcher (option c, the `metadata.js` two-copies pattern) can be added later without a schema change. |
 | 15 | §15c priority re-check for Phase C | **Start C now** (owner, 2026-10-03). This overrode the recommendation to use A/B for a week or two first. C is built next; D and E keep their own re-checks. |
 | 14 | Autofill the New source form from a pasted URL (owner, during QA 2026-10-03) | **A3: a "Fetch details" button.** The server fetches the URL through the existing `ssrfGuard` (public hosts only, 2 MB, 10 s) and runs the clipper's extraction order; the form prefills for review. The form also offers this when a URL is pasted into Title. The clipper stays the way to capture a page you have open. |
+| 16 | PDF viewer auth (Phase D; reconciles §10.3 with CR025) | **Fetch with the `Authorization` header, give PDF.js the bytes** (`getDocument({ data })`) (owner, 2026-10-03, recommended). It is the pattern Open PDF already uses. No credential goes in a URL, and it needs neither CR009 nor `httpHeaders`. The cost is no range requests: the whole file (≤ 25 MB) loads before page 1. CR025 can move to signed URLs later without changing the viewer's interface. |
+| 17 | Scanned PDFs in Phase D | **Text-layer PDFs only; scanned PDFs deferred** (owner, 2026-10-03, recommended). A scanned PDF opens in the viewer with a "no selectable text" note. A3's OCR text is one block for the whole file, not per page, so it cannot fill a drawn box. Draw-a-box with a typed quote, or region OCR via ocr-llm, is a later follow-up if scans turn out to matter. |
 
 ### Open
 
@@ -1114,3 +1115,66 @@ and `replace-body` had no UI.
   clipped then highlighted, meaning/comment/chapter/context stored, a second highlight reusing
   the source, the Reader placing the live-page quote, statuses reported back as anchored).
 
+
+### Phase D: PDF highlights (built 2026-10-03)
+
+Built immediately after C, by owner go-ahead, with the two open questions settled first:
+viewer auth (§16 #16) and scanned PDFs (§16 #17). No migration: the Phase C `highlights` table
+already carried `anchor_type='pdf'`, `page_index`, `page_label` and `rects`.
+
+- **Viewer** (`frontend/src/components/research/PdfViewer.vue`, shared with CR025 per D6):
+  - PDF.js 6 is loaded only when a PDF source opens: its own chunk, worker bundled by Vite
+    (`?worker`).
+  - The caller supplies the bytes (`fetchBytes`). Here that is a fetch with the
+    `Authorization` header (§16 #16).
+  - **Lazy pages:** placeholders are sized for every page, and a page renders its canvas and
+    text layer only within ~800 px of the viewport, then is torn down again. A 300-page PDF
+    keeps a handful of pages live.
+  - Zoom in/out and fit-to-width.
+- **Highlighting:**
+  - Select text within one page; a selection across two pages is refused with a hint. The
+    popover is shared with the text Reader (`HighlightPopover.vue`).
+  - Saved as `anchor_type='pdf'` with the selection's line boxes, **normalized to the page
+    (0–1)** and merged per line. Marks are drawn in percentages, so they hold at any zoom
+    with no re-anchoring (the PDF never changes).
+  - `page_label` comes from `getPageLabels()` (the printed "xii", "147"), falling back to
+    index + 1. It shows in the sidebar, Passages and the export.
+  - Highlights list in reading order: page, then the first rect's position on the page.
+- **Reader:**
+  - PDF sources get **Pages | Text** views. Text shows the extracted or OCR text, read-only.
+  - The sidebar works as for web sources.
+  - Clicking a mark selects it, hit-tested through the text layer.
+  - `?hl=` (from Passages or search) opens at the highlight once the PDF has loaded.
+- **Scanned PDFs** (§16 #17): no text layer means nothing to select. The viewer says so and
+  points to the Text view. Highlighting scans is deferred (roadmap).
+- **Production details:**
+  - The worker ships as `.js`: prod nginx maps only `js`, so a `.mjs` module worker would be
+    served as `application/octet-stream` and refused.
+  - PDF.js (~1.7 MB) is kept out of the PWA precache, so installs, phones included, don't
+    download it up front.
+- **Review fixes** (UI and code-quality reviews):
+  - **Saves are awaited.** The viewers take the save as a function prop and close the popover
+    only on success, so a failed save keeps the typed comment. This was also latent in Phase C:
+    `await emit()` never waits.
+  - **Each selection gets a fresh draft.**
+  - **The popover takes focus** when it opens.
+  - **Leaving mid-load stops the load.** Each viewer owns its PDF.js worker and terminates it,
+    so a closing viewer can't break an opening one.
+  - **Scrolled-past pages release their memory** (`page.cleanup()`).
+  - **Canvases are capped at 16.7 MP**, Safari's limit, so iOS doesn't go blank at high zoom.
+  - **Rotated pages** get the text-layer rotation rules.
+  - **The scan banner is decided from a sample of pages**, not from whichever render first,
+    so an image cover doesn't trigger it.
+  - **Pages ↔ Text keeps the reading position.**
+  - **Clicking a mark focuses its sidebar entry.**
+  - **The API requires `page_index` and at least one rect** for `pdf` highlights.
+- **Verified:**
+  - 10 API assertions: create, reading order, rect bounds and shape, extra fields stripped,
+    label length, page and rects required, export with the printed label.
+  - 20 headless-Chromium checks on a generated 300-page PDF with roman-numbered front matter:
+    lazy rendering; labels i… then 1…; saved page 150 → printed "147"; the mark overlapping
+    the selected text by more than 80% at fit, zoomed in and zoomed out; `?hl=` reveal; a
+    cross-page selection refused; the Text view; the export showing "p. 147"; every review
+    fix above that a browser can show; the scan banner shown for a text-less PDF and not for
+    a text one; no console errors.
+  - The Phase C highlight, Passages and search browser suites rerun unchanged.

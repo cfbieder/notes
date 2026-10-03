@@ -65,6 +65,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // CR039 D: PDF.js (~1.7 MB) loads only when a PDF source is opened; don't
+        // make every install, phones included, download it up front.
+        globIgnores: ['**/assets/pdf-*.js', '**/assets/pdf.worker*.js'],
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {

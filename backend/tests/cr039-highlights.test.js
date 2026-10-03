@@ -142,6 +142,30 @@ async function run() {
   assert((await api(other, `/search/highlights?q=general`)).data.data.length === 0, 'another user\'s highlights never appear in search');
   assert((await api(other, `/search?q=computation&note_type=source`)).data.data.every(n => n.id !== src.note_id), 'another user\'s sources never appear');
 
+  console.log('\nPDF highlights (Phase D, §10.3):');
+  const pdfSrc = (await api(token, '/sources', {
+    method: 'POST', body: { source_kind: 'pdf_report', title: `PDF Source ${RUN}`, authors: [{ literal: 'Acme Lab' }], content: 'pdf text' }
+  })).data.data;
+  cleanup.notes.push(pdfSrc.note_id);
+  const pdfHl = (body) => api(token, `/sources/${pdfSrc.note_id}/highlights`, { method: 'POST', body: { anchor_type: 'pdf', ...body } });
+  const lower = await pdfHl({ exact: 'lower on page', page_index: 14, page_label: 'xii', rects: [{ x: 0.1, y: 0.6, w: 0.5, h: 0.02 }], chapter_ids: [ch1.id] });
+  const upper = await pdfHl({ exact: 'upper on page', page_index: 14, page_label: 'xii', rects: [{ x: 0.1, y: 0.2, w: 0.5, h: 0.02 }, { x: 0.1, y: 0.22, w: 0.3, h: 0.02 }] });
+  const early = await pdfHl({ exact: 'earlier page', page_index: 2, page_label: 'ii', rects: [{ x: 0.1, y: 0.9, w: 0.2, h: 0.02 }] });
+  assert(lower.status === 201 && lower.data.data.anchor_type === 'pdf' && lower.data.data.page_label === 'xii' && lower.data.data.rects[0].y === 0.6,
+    'POST pdf highlight → 201 with page label and normalized rects');
+  const pdfList = (await api(token, `/sources/${pdfSrc.note_id}/highlights`)).data.data.map(h => h.id);
+  assert(pdfList.join() === [early, upper, lower].map(r => r.data.data.id).join(), 'listed in reading order: page, then top to bottom');
+  assert((await pdfHl({ exact: 'x', page_index: 0, rects: [{ x: 1.5, y: 0, w: 0.1, h: 0.1 }] })).status === 400, 'a rect outside 0–1 → 400');
+  assert((await pdfHl({ exact: 'x', page_index: 0, rects: [{ x: 0, y: 0, w: 0.1 }] })).status === 400, 'a rect missing a side → 400');
+  const extra = await pdfHl({ exact: 'x', page_index: 0, rects: [{ x: 0, y: 0, w: 0.1, h: 0.1, z: 1 }] });
+  assert(extra.status === 201 && !('z' in extra.data.data.rects[0]), 'extra rect fields are stripped, never stored');
+  assert((await pdfHl({ exact: 'x', page_index: 0, page_label: 'x'.repeat(21), rects: [{ x: 0, y: 0, w: 0.1, h: 0.1 }] })).status === 400, 'a page label over 20 characters → 400');
+  assert((await pdfHl({ exact: 'x', rects: [{ x: 0, y: 0, w: 0.1, h: 0.1 }] })).status === 400, 'a pdf highlight without a page → 400');
+  assert((await pdfHl({ exact: 'x', page_index: 0 })).status === 400, 'a pdf highlight without rects → 400');
+  assert((await pdfHl({ exact: 'x', page_index: 0, rects: [] })).status === 400, 'a pdf highlight with no rects → 400');
+  const pdfRefs = (await api(token, `/chapters/${ch1.id}/references?include=passages`)).data.data;
+  assert(pdfRefs.text.includes('p. xii — “lower on page” (Evidence)'), 'export shows the printed page label');
+
   console.log('\nDelete + trash:');
   assert((await api(token, `/chapters/${ch2.id}`, { method: 'DELETE' })).status === 409, 'deleting a chapter with highlight assignments → 409');
   assert((await api(token, `/highlights/${h2.data.data.id}`, { method: 'DELETE' })).status === 204, 'DELETE highlight → 204 (hard delete)');
