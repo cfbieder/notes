@@ -61,6 +61,10 @@ services:
       # host (SSRF guard opt-in). Off unless set to "true" in .env.prod.
       AI_PROVIDER_ALLOW_PRIVATE: ${AI_PROVIDER_ALLOW_PRIVATE:-false}
       LLM_ENABLED: ${LLM_ENABLED:-true}
+      # Defaults equal the code's, so leaving these unset in .env.prod changes nothing.
+      LLM_GENERATION_MODEL: ${LLM_GENERATION_MODEL:-qwen3:32b}
+      LLM_CONTEXT_WINDOW: ${LLM_CONTEXT_WINDOW:-32000}
+      LLM_GENERATE_TIMEOUT_MS: ${LLM_GENERATE_TIMEOUT_MS:-180000}
       LLM_OCR_TIMEOUT_MS: ${LLM_OCR_TIMEOUT_MS:-120000}
       LLM_TRANSLATE_TIMEOUT_MS: ${LLM_TRANSLATE_TIMEOUT_MS:-150000}
       LLM_TRANSLATE_MAX_CHARS: ${LLM_TRANSLATE_MAX_CHARS:-8000}

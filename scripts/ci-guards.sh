@@ -88,10 +88,11 @@ ok "native-dialog ratchet ($count/$NATIVE_DIALOG_BASELINE)"
 # AI_KEYS_ENC_KEY in v0.17.1, AI_PROVIDER_ALLOW_PRIVATE in v0.20.1).
 # Exceptions must be listed here with a reason:
 #   BACKUP_DIR — read by host-side scripts/backup-*.sh, not by the container.
-#   KNOWN GAP (see project-roadmap.md): MAX_FILE_SIZE, LLM_GENERATION_MODEL,
-#     LLM_CONTEXT_WINDOW, LLM_GENERATE_TIMEOUT_MS are read by the code but unmapped
-#     (prod runs on code defaults); RATE_LIMIT_* are read by nothing. Shrink, never grow.
-UNMAPPED_OK='^(BACKUP_DIR|MAX_FILE_SIZE|LLM_GENERATION_MODEL|LLM_CONTEXT_WINDOW|LLM_GENERATE_TIMEOUT_MS|RATE_LIMIT_WINDOW_MS|RATE_LIMIT_MAX_REQUESTS)$'
+#   KNOWN GAP (see project-roadmap.md): MAX_FILE_SIZE is read by the code but unmapped.
+#     Mapping it as-is would CHANGE prod: .env.prod says 10 MB while the routes run on
+#     their 25 MB default (and drivePoller on a 10 MB one) — an owner decision, not a fix.
+#     Shrink this list, never grow it.
+UNMAPPED_OK='^(BACKUP_DIR|MAX_FILE_SIZE)$'
 for v in $(grep -oE '^[A-Z_][A-Z0-9_]*=' backend/.env.prod.example | tr -d = | grep -vE "$UNMAPPED_OK"); do
   # Mapped = set in the environment: block, as a substitution or a fixed value (NODE_ENV).
   grep -qE "^[[:space:]]+$v:" docker-compose.prod.yml \

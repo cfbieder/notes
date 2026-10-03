@@ -38,6 +38,19 @@ async function syncWikilinks(fastify, noteId, userId, content) {
   );
 }
 
+// Attach tags by id — only the caller's own tags. A foreign tag id is silently
+// ignored (found in the CR039 security review: unchecked ids let a user attach
+// another user's tag and read its name and color back).
+async function attachTags(db, noteId, userId, tagIds) {
+  if (!tagIds || tagIds.length === 0) return;
+  await db.query(
+    `INSERT INTO note_tags (note_id, tag_id)
+     SELECT $1, id FROM tags WHERE user_id = $2 AND id = ANY($3::uuid[])
+     ON CONFLICT DO NOTHING`,
+    [noteId, userId, tagIds]
+  );
+}
+
 async function noteRoutes(fastify) {
   fastify.addHook('onRequest', fastify.authenticate);
 
@@ -167,7 +180,7 @@ async function noteRoutes(fastify) {
               ) AS drive_imported
        FROM notes n
        LEFT JOIN note_tags nt ON nt.note_id = n.id
-       LEFT JOIN tags t ON t.id = nt.tag_id
+       LEFT JOIN tags t ON t.id = nt.tag_id AND t.user_id = n.user_id
        WHERE n.id = $1 AND n.user_id = $2
        GROUP BY n.id`,
       [id, request.user.id]
@@ -239,14 +252,7 @@ async function noteRoutes(fastify) {
 
     const note = result.rows[0];
 
-    if (tag_ids && tag_ids.length > 0) {
-      const tagValues = tag_ids.map((tid, i) => `($1, $${i + 2})`).join(', ');
-      const tagParams = [note.id, ...tag_ids];
-      await fastify.db.query(
-        `INSERT INTO note_tags (note_id, tag_id) VALUES ${tagValues} ON CONFLICT DO NOTHING`,
-        tagParams
-      );
-    }
+    await attachTags(fastify.db, note.id, userId, tag_ids);
 
     // Wikilinks are markdown-only in v1 (CR023).
     if (content && finalFormat === 'markdown') {
@@ -334,13 +340,7 @@ async function noteRoutes(fastify) {
 
     if (tag_ids !== undefined) {
       await fastify.db.query('DELETE FROM note_tags WHERE note_id = $1', [id]);
-      if (tag_ids.length > 0) {
-        const tagValues = tag_ids.map((tid, i) => `($1, $${i + 2})`).join(', ');
-        await fastify.db.query(
-          `INSERT INTO note_tags (note_id, tag_id) VALUES ${tagValues} ON CONFLICT DO NOTHING`,
-          [id, ...tag_ids]
-        );
-      }
+      await attachTags(fastify.db, id, request.user.id, tag_ids);
     }
 
     // Sync wikilinks when content changes — markdown only (CR023)
@@ -388,7 +388,7 @@ async function noteRoutes(fastify) {
               ) AS tags
        FROM notes n
        LEFT JOIN note_tags nt ON nt.note_id = n.id
-       LEFT JOIN tags t ON t.id = nt.tag_id
+       LEFT JOIN tags t ON t.id = nt.tag_id AND t.user_id = n.user_id
        WHERE n.id = $1 AND n.user_id = $2 AND n.deleted_at IS NULL
        GROUP BY n.id`,
       [id, userId]
@@ -452,13 +452,7 @@ async function noteRoutes(fastify) {
 
     if (tag_ids !== undefined) {
       await fastify.db.query('DELETE FROM note_tags WHERE note_id = $1', [id]);
-      if (tag_ids.length > 0) {
-        const tagValues = tag_ids.map((_, i) => `($1, $${i + 2})`).join(', ');
-        await fastify.db.query(
-          `INSERT INTO note_tags (note_id, tag_id) VALUES ${tagValues} ON CONFLICT DO NOTHING`,
-          [id, ...tag_ids]
-        );
-      }
+      await attachTags(fastify.db, id, userId, tag_ids);
     }
 
     if (content !== undefined && updateRes.rows[0].format === 'markdown') {
@@ -474,7 +468,7 @@ async function noteRoutes(fastify) {
               ) AS tags
        FROM notes n
        LEFT JOIN note_tags nt ON nt.note_id = n.id
-       LEFT JOIN tags t ON t.id = nt.tag_id
+       LEFT JOIN tags t ON t.id = nt.tag_id AND t.user_id = n.user_id
        WHERE n.id = $1 AND n.user_id = $2
        GROUP BY n.id`,
       [id, userId]

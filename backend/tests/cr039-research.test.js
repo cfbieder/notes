@@ -323,6 +323,18 @@ async function run() {
   assert(xCreate.status === 404, 'POST /sources with another user\'s chapter_ids → 404');
   const xDelAssign = await api(otherToken, `/sources/${srcId}/chapters/${ids[0]}`, { method: 'DELETE' });
   assert(xDelAssign.status === 404, 'cannot remove another user\'s assignment');
+  // Tag ownership (security review): a foreign tag id is ignored, not attached.
+  const theirTag = await api(otherToken, '/tags', { method: 'POST', body: { name: `secret-${RUN}` } });
+  const myTag = await api(token, '/tags', { method: 'POST', body: { name: `mine-${RUN}` } });
+  const tagged = await api(token, '/notes', { method: 'POST', body: { title: `tag test ${RUN}`, content: 'x', tag_ids: [theirTag.data.data.id, myTag.data.data.id] } });
+  noteIds.push(tagged.data?.data?.id);
+  let seen = (await api(token, `/notes/${tagged.data.data.id}`)).data.data.tags.map(t => t.name);
+  assert(!seen.includes(`secret-${RUN}`) && seen.includes(`mine-${RUN}`), 'POST /notes ignores another user\'s tag id, keeps own');
+  await api(token, `/notes/${tagged.data.data.id}`, { method: 'PUT', body: { tag_ids: [theirTag.data.data.id] } });
+  seen = (await api(token, `/notes/${tagged.data.data.id}`)).data.data.tags.map(t => t.name);
+  assert(seen.length === 0, 'PUT /notes ignores another user\'s tag id');
+  await pool.query('DELETE FROM tags WHERE id = $1', [myTag.data.data.id]);
+
   const xUrl = await api(otherToken, '/sources', { method: 'POST', body: { source_kind: 'web', title: 'same url', url } });
   assert(xUrl.status === 201, 'URL uniqueness is per user, not global');
 
