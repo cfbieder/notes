@@ -1,6 +1,6 @@
 # CR039 — Research Sources, Highlights & Chapter References
 
-**Status:** In progress — **Phases A1 and B built** (see Outcome; versions in the CR index); A2 next, then A3.
+**Status:** In progress — **Phases A1 and B shipped** (see Outcome; versions in the CR index); A2 next, then A3.
 Phases C, D and E are a design of record; each gets a priority re-check before it is built (§15c).
 **Severity:** Feature (large; phased, first usable release = A1 + B)
 **Origin:** User proposal, 2026-10-02 — reviewed against the code the same day (see §15)
@@ -784,7 +784,7 @@ pool-safe rollback, 409 on concurrent book activation, input limits). Composite 
 FKs were again declined per §16 #10. One pre-existing issue surfaced outside this CR:
 `tag_ids` on `POST`/`PUT /notes` are not checked against the caller's own tags.
 
-### Phase B (built 2026-10-02; version in the [CR index](docs/cr/README.md))
+### Phase B (shipped 2026-10-03; version in the [CR index](docs/cr/README.md))
 
 The Chicago bibliography formatter is one pure module,
 [citationFormatter.js](backend/src/services/citationFormatter.js). It builds each entry as

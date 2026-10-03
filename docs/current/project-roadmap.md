@@ -62,7 +62,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR032](docs/cr/cr-032-drop-is-inbox-flag.md) | Drop `notes.is_inbox` flag; derive Inbox from default notebook (`notebook_id IS NULL OR is_default = TRUE`) and exclude `note_type='idea'` — **Completed** |
 | [CR036](docs/cr/cr-036-export-note-as-pdf.md) | Export Note as PDF (Markdown + HTML) — relabel the print flow as "Export as PDF"; reuse the existing print-window pipeline (no new deps) — **Completed** |
 | [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) | Multi-Note Editor Tabs (desktop) — tab strip over a persisted open-note list; active tab derived from route; no per-tab buffers — **Completed** |
-| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — `source` note type with citation metadata, books/chapters, per-chapter Chicago reference export, later web + PDF highlights. **In progress — Phase A1 shipped v0.18.0** (server core, read-only guards + trigger, manual sources, Research rail/panel/views, Reader view); **Phase B built** (Chicago reference export: Copy for Word + .md, per chapter and per book). Next: A2 (clipper) → A3 (PDF + AI metadata); C/D/E re-prioritized when reached (D with CR025, E after CR001) |
+| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — `source` note type with citation metadata, books/chapters, per-chapter Chicago reference export, later web + PDF highlights. **In progress — Phase A1 shipped v0.18.0** (server core, read-only guards + trigger, manual sources, Research rail/panel/views, Reader view); **Phase B shipped v0.19.0** (Chicago reference export: Copy for Word + .md, per chapter and per book). Next: A2 (clipper) → A3 (PDF + AI metadata); C/D/E re-prioritized when reached (D with CR025, E after CR001) |
 
 **Deferred from CR039** (out of scope for v1; each a later CR if wanted):
 - `.docx` reference export — add if a publisher asks for a file (Copy for Word covers drafting)
@@ -106,6 +106,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ---
 
 ## Recently Completed
+
+### Released v0.19.0 (2026-10-03)
+
+- **[CR039](docs/cr/cr-039-research-sources-highlights.md) Phase B — Reference export.** This is the first usable release of the research layer. `backend/src/services/citationFormatter.js` renders Chicago (18th ed.) bibliography entries as typed segments, which become HTML, Markdown and plain text. Missing required fields appear as bold `[field?]` placeholders. `GET /chapters/:id/references` and `GET /books/:id/references` return all three renderings; the book export has one section per chapter, in outline order. The Research view header gains **Copy for Word** (an HTML + plain-text clipboard item with italics preserved) and **.md** download. Verified by 23 formatter unit assertions, 75 API assertions, and a headless-Chromium read-back of the clipboard and downloads. Pasting into Word itself is a manual check.
 
 ### Released v0.18.0 (2026-10-02)
 
