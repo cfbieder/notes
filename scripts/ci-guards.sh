@@ -81,17 +81,23 @@ if [ "$count" -lt "$NATIVE_DIALOG_BASELINE" ]; then
 fi
 ok "native-dialog ratchet ($count/$NATIVE_DIALOG_BASELINE)"
 
-# --- 7. Every prod secret is mapped into the prod compose file ---------------------------
-# The api service has no `env_file:`, so a secret listed in .env.prod.example but never
-# substituted in docker-compose.prod.yml never reaches the container. Missed twice
-# (OCR_LLM_CLIENT_KEY in v0.17.0, then AI_KEYS_ENC_KEY). Scoped to secret-named vars;
-# non-secret tunables may deliberately rely on code defaults.
-for v in $(grep -oE '^[A-Z_][A-Z0-9_]*=' backend/.env.prod.example | tr -d = \
-             | grep -E 'PASSWORD|SECRET|TOKEN|KEY'); do
-  grep -qE "\\\$\{$v[:}]" docker-compose.prod.yml \
-    || fail "$v is in backend/.env.prod.example but never substituted in docker-compose.prod.yml"
+# --- 7. Every documented prod setting is mapped into the prod compose file ---------------
+# The api service has no `env_file:`, so a variable listed in .env.prod.example but never
+# substituted in docker-compose.prod.yml never reaches the container — setting it in
+# .env.prod silently does nothing. Missed three times (OCR_LLM_CLIENT_KEY in v0.17.0,
+# AI_KEYS_ENC_KEY in v0.17.1, AI_PROVIDER_ALLOW_PRIVATE in v0.20.1).
+# Exceptions must be listed here with a reason:
+#   BACKUP_DIR — read by host-side scripts/backup-*.sh, not by the container.
+#   KNOWN GAP (see project-roadmap.md): MAX_FILE_SIZE, LLM_GENERATION_MODEL,
+#     LLM_CONTEXT_WINDOW, LLM_GENERATE_TIMEOUT_MS are read by the code but unmapped
+#     (prod runs on code defaults); RATE_LIMIT_* are read by nothing. Shrink, never grow.
+UNMAPPED_OK='^(BACKUP_DIR|MAX_FILE_SIZE|LLM_GENERATION_MODEL|LLM_CONTEXT_WINDOW|LLM_GENERATE_TIMEOUT_MS|RATE_LIMIT_WINDOW_MS|RATE_LIMIT_MAX_REQUESTS)$'
+for v in $(grep -oE '^[A-Z_][A-Z0-9_]*=' backend/.env.prod.example | tr -d = | grep -vE "$UNMAPPED_OK"); do
+  # Mapped = set in the environment: block, as a substitution or a fixed value (NODE_ENV).
+  grep -qE "^[[:space:]]+$v:" docker-compose.prod.yml \
+    || fail "$v is in backend/.env.prod.example but is not set in docker-compose.prod.yml's environment: block"
 done
-ok "every prod secret is mapped in prod compose"
+ok "every documented prod setting is mapped in prod compose"
 
 # --- What these guards CANNOT see (the blind spot is where the next bug lands) -----------
 # * Missing `user_id` scoping in a query — the isolation model is enforced in application

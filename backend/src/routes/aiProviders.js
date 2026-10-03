@@ -50,6 +50,10 @@ async function routes(fastify) {
       return badRequest(reply, 'modelConfig must be an object');
     }
 
+    if (provider === 'openai_compatible' && !body.baseUrl) {
+      return badRequest(reply, 'A local / OpenAI-compatible provider needs a Base URL');
+    }
+
     // base_url: only relevant for gateway / openai_compatible; SSRF-validate it.
     let baseUrl = null;
     if (BASE_URL_PROVIDERS.has(provider) && body.baseUrl) {
@@ -104,6 +108,9 @@ async function routes(fastify) {
       return badRequest(reply, `Unknown provider: ${provider}`);
     }
 
+    if (provider === 'openai_compatible' && !body.baseUrl) {
+      return badRequest(reply, 'A local / OpenAI-compatible provider needs a Base URL');
+    }
     if (BASE_URL_PROVIDERS.has(provider) && body.baseUrl) {
       try {
         await assertSafeProviderUrl(body.baseUrl);

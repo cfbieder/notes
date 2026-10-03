@@ -28,6 +28,9 @@ const showResetConfirm = ref(false);
 const isCloud = computed(() => provider.value !== 'gateway');
 const showBaseUrl = computed(() => provider.value === 'openai_compatible');
 const keyOptional = computed(() => provider.value === 'openai_compatible');
+// A local / OpenAI-compatible provider has no fixed endpoint: without a Base
+// URL, Save and Test can only fail, so block them and say why.
+const missingBaseUrl = computed(() => showBaseUrl.value && !baseUrl.value.trim());
 const hasExistingRow = computed(() => !!store.forCapability(CAPABILITY));
 
 const modelPlaceholders = computed(() => {
@@ -139,8 +142,9 @@ async function resetToDefault() {
 
       <template v-if="isCloud">
         <div v-if="showBaseUrl" class="form-group">
-          <label>Base URL</label>
-          <input v-model="baseUrl" type="text" class="form-input" placeholder="http://localhost:11434/v1" />
+          <label>Base URL <span class="section-hint">(required)</span></label>
+          <input v-model="baseUrl" type="text" class="form-input" placeholder="http://localhost:11434/v1"
+                 :aria-invalid="missingBaseUrl" />
           <span class="section-hint">Local/private hosts require <code>AI_PROVIDER_ALLOW_PRIVATE=true</code> on the server.</span>
         </div>
 
@@ -165,11 +169,13 @@ async function resetToDefault() {
       </template>
 
       <div class="btn-row">
-        <button class="btn btn-primary" @click="save" :disabled="saving">
+        <button class="btn btn-primary" @click="save" :disabled="saving || missingBaseUrl"
+                :title="missingBaseUrl ? 'Enter the Base URL of your local / OpenAI-compatible server' : ''">
           <Loader2 v-if="saving" :size="14" class="spin" />
           <span>{{ saving ? 'Saving…' : 'Save' }}</span>
         </button>
-        <button class="btn btn-ghost" @click="runTest" :disabled="testing">
+        <button class="btn btn-secondary" @click="runTest" :disabled="testing || missingBaseUrl"
+                :title="missingBaseUrl ? 'Enter the Base URL of your local / OpenAI-compatible server' : ''">
           <Loader2 v-if="testing" :size="14" class="spin" />
           <span>{{ testing ? 'Testing…' : 'Test connection' }}</span>
         </button>
@@ -197,6 +203,35 @@ async function resetToDefault() {
 </template>
 
 <style scoped>
+/* SettingsView's form styles are scoped to that view and do not reach this
+   child component, so it carries the same rules itself. */
+.config-form { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label {
+  font-size: 12px; font-weight: 500; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.form-group label .section-hint { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.form-input {
+  padding: 8px 12px; background: var(--bg-main); border: 1px solid var(--border-subtle);
+  border-radius: 6px; color: var(--text-primary); font-family: 'Inter', sans-serif; font-size: 13px;
+}
+.form-input:focus { outline: none; border-color: var(--accent-primary); }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: none;
+  border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: background 0.15s;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--accent-primary); color: #ffffff; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-secondary { background: var(--bg-main); border: 1px solid var(--border-subtle); color: var(--text-primary); }
+.btn-secondary:hover:not(:disabled) { border-color: var(--accent-primary); }
+.btn-ghost { background: none; color: var(--text-muted); }
+.btn-ghost:hover:not(:disabled) { color: var(--text-primary); }
+.btn-danger:hover:not(:disabled) { color: var(--status-error); }
+.config-msg { font-size: 12px; color: var(--status-success); }
+.config-msg-error { color: var(--status-error); }
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .test-result { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 0.9em; }
 .status-error { color: var(--color-danger, #e5484d); }

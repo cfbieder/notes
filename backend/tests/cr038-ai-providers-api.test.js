@@ -72,6 +72,12 @@ async function run() {
   });
   assert(ssrf.status === 400, 'base URL → cloud metadata IP rejected (400)');
 
+  console.log('\nLocal provider needs a Base URL:');
+  const noUrl = await api('/ai-providers/ocr', { method: 'PUT', body: { provider: 'openai_compatible' } });
+  assert(noUrl.status === 400 && /Base URL/.test(noUrl.data?.message), 'save without base URL → 400 with a clear message');
+  const noUrlTest = await api('/ai-providers/ocr/test', { method: 'POST', body: { provider: 'openai_compatible' } });
+  assert(noUrlTest.status === 400 && /Base URL/.test(noUrlTest.data?.message), 'test without base URL → 400, not "not reachable"');
+
   console.log('\nPublic base URL accepted:');
   let ok = await api('/ai-providers/ocr', {
     method: 'PUT',

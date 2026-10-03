@@ -57,6 +57,9 @@ services:
       # mapped explicitly or it never reaches the container. Empty default =
       # gateway-only; saving a Claude/OpenAI/local key is refused until set.
       AI_KEYS_ENC_KEY: ${AI_KEYS_ENC_KEY:-}
+      # Allow a local / OpenAI-compatible AI provider on a private or Tailscale
+      # host (SSRF guard opt-in). Off unless set to "true" in .env.prod.
+      AI_PROVIDER_ALLOW_PRIVATE: ${AI_PROVIDER_ALLOW_PRIVATE:-false}
       LLM_ENABLED: ${LLM_ENABLED:-true}
       LLM_OCR_TIMEOUT_MS: ${LLM_OCR_TIMEOUT_MS:-120000}
       LLM_TRANSLATE_TIMEOUT_MS: ${LLM_TRANSLATE_TIMEOUT_MS:-150000}

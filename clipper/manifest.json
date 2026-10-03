@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Noted Web Clipper (dev)",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Clip pages, selections, and screenshots into your Noted instance.",
   "permissions": [
     "activeTab",

@@ -23,11 +23,17 @@ async function saveTokens({ accessToken, refreshToken }) {
 
 async function login({ apiBase, username, password }) {
   const base = apiBase || DEFAULT_API_BASE;
-  const res = await fetch(`${base}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  });
+  let res;
+  try {
+    res = await fetch(`${base}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+  } catch (_) {
+    // A network failure says only "Failed to fetch"; name the address tried.
+    throw new Error(`Couldn't reach ${base} — set API Base URL to your Noted server, ending in /api/v1`);
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.message || `Login failed (${res.status})`);
