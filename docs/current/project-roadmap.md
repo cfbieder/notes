@@ -108,6 +108,12 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 ## Recently Completed
 
+### Released v0.21.0 (2026-10-03)
+
+- **Runtime: Node 22 LTS.** Node 20 reached end-of-life in April 2026, and the PDF.js fix for GHSA-hq66-cqwq-w95j (arbitrary JavaScript on opening a malicious PDF), which CR039's PDF sources need, requires Node ≥ 22.13. Both images now use `node:22-alpine`; CI and `engines` were updated; the dev host was moved to NodeSource 22.x.
+- **[CR039](docs/cr/cr-039-research-sources-highlights.md) A3 slice 1 — Fetch details.** On the New source form, paste a URL (or paste it into Title and accept the hint) and click **Fetch details**: the server reads the page through an SSRF-guarded fetch (public addresses only, pinned connections, 10 s / 2 MB / 3 redirects) and runs the clipper's own extractor, filling only the empty fields. New route: `POST /sources/fetch-metadata`. CI guard 8 keeps the backend copy of the extractor identical to `clipper/metadata.js`.
+- **Owner QA fixes.** `AI_PROVIDER_ALLOW_PRIVATE` is now mapped in prod compose (default `false`) and documented. CI guard 7 now covers every documented prod setting (the third miss of this class). A "Local / OpenAI-compatible" provider requires a Base URL, and the AI Provider form is styled. Clipper v0.4.1 names the address it tried when login fails. A real cloud key was verified end to end on prod.
+
 ### Released v0.20.0 (2026-10-03)
 
 - **[CR039](docs/cr/cr-039-research-sources-highlights.md) Phase A2 — Clipper capture as a research source** (extension v0.4.0; no new permissions). `POST /clips` with `as_source` creates a source through the new shared `backend/src/services/sourceService.js`, which `POST /sources` now also uses: the clipped text is the body, the canonical URL comes from the metadata, status is `auto`/`incomplete`, a duplicate returns 409, and screenshot mode returns 422. `clipper/metadata.js` extracts citation metadata (`citation_*` → JSON-LD → OG → Dublin Core → fallback). The popup gets an editable "Save as research source" with a chapter picker and the duplicate "Open existing" flow, and feature-detects older servers. Verified by 86 API assertions and 25 headless-Chromium checks (fixture pages + the real unpacked extension). **Reload the extension after deploy.**
