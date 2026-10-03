@@ -83,7 +83,7 @@ Single-user now, but auth, data model, and API are architected for multi-user fr
 
 | Layer        | Choice                                 | Rationale                                       |
 | ------------ | -------------------------------------- | ----------------------------------------------- |
-| Runtime      | Node.js (LTS)                          | Full-stack JS coherence with Vue frontend       |
+| Runtime      | Node.js 22 LTS (images `node:22-alpine`) | Full-stack JS coherence with Vue frontend       |
 | Framework    | Fastify                                | Fast, low overhead, excellent plugin ecosystem  |
 | Auth         | JWT (jsonwebtoken / jose)              | Stateless, scales naturally to multi-user       |
 | File storage | Local filesystem (VM)                  | Simple for self-hosted; S3-compatible API later |

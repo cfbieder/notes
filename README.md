@@ -31,7 +31,7 @@ OCR, translation, and text generation on top — all running on your own hardwar
 
 ## Quick start (development)
 
-Requires Docker and Node.js 20+.
+Requires Docker and Node.js 22.13+ (22 LTS).
 
 ```bash
 # 1. Start the dev database
