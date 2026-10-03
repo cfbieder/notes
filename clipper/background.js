@@ -93,8 +93,31 @@ async function postClip(payload) {
     body: JSON.stringify(payload)
   });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.message || `Clip failed (${res.status})`);
+  if (!res.ok) {
+    // Keep status + body so the popup can act on e.g. 409 source_exists.
+    const err = new Error(body.message || `Clip failed (${res.status})`);
+    err.status = res.status;
+    err.body = body;
+    throw err;
+  }
   return body.data;
+}
+
+// CR039 — research support + the active book's chapters. A server without
+// research routes answers 404, and the popup then hides "Save as source".
+async function researchInfo() {
+  const res = await authFetch('/books');
+  if (res.status === 404) return { supported: false };
+  if (!res.ok) throw new Error(`Could not load books (${res.status})`);
+  const books = (await res.json().catch(() => ({}))).data || [];
+  const active = books.find(b => b.is_active) || null;
+  let chapters = [];
+  if (active) {
+    const chRes = await authFetch(`/books/${active.id}/chapters`);
+    if (chRes.ok) chapters = (await chRes.json().catch(() => ({}))).data || [];
+  }
+  const { apiBase } = await getSettings();
+  return { supported: true, book: active, chapters, appBase: apiBase.replace(/\/api\/v1\/?$/, '') };
 }
 
 async function listNotebooks() {
@@ -140,6 +163,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         case 'clip':
           sendResponse({ ok: true, data: await postClip(msg.payload) });
           break;
+        case 'researchInfo':
+          sendResponse({ ok: true, data: await researchInfo() });
+          break;
         case 'captureVisible': {
           const dataUrl = await captureVisibleTabAsDataUrl(msg.tabId);
           sendResponse({ ok: true, data: dataUrl });
@@ -150,7 +176,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       }
     } catch (err) {
       console.error('[noted clipper]', err);
-      sendResponse({ ok: false, error: err.message || String(err) });
+      sendResponse({ ok: false, error: err.message || String(err), status: err.status, body: err.body });
     }
   })();
   return true; // keep channel open for async sendResponse

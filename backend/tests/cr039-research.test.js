@@ -176,6 +176,55 @@ async function run() {
   const delCh = await api(token, `/chapters/${ids[0]}`, { method: 'DELETE' });
   assert(delCh.status === 409 && delCh.data.error === 'chapter_has_assignments', 'deleting an assigned chapter → 409');
 
+  // ------------------------------------------- clipper as_source (A2)
+  console.log('\nClipper as_source:');
+  const clipUrl = `https://news.example.com/a/${RUN}?utm_medium=x`;
+  const clip = await api(token, '/clips', {
+    method: 'POST',
+    body: {
+      url: clipUrl, title: 'Tab title', mode: 'article', content: 'Clipped article body.',
+      as_source: true, chapter_ids: [ids[1]], tag_names: ['cr039-clip'],
+      metadata: { source_kind: 'web', title: 'Real Headline', authors: [{ family: 'Doe', given: 'Jane' }],
+        container: 'Example News', published_date: '2024-05-02', published_precision: 'day',
+        url: `https://news.example.com/a/${RUN}` },
+      metadata_raw: { jsonld: { headline: 'Real Headline' } }
+    }
+  });
+  const clipId = clip.data?.data?.note?.id;
+  noteIds.push(clipId);
+  assert(clip.status === 201, 'POST /clips as_source → 201');
+  const clipSrc = await api(token, `/sources/${clipId}`);
+  assert(clipSrc.data.data.title === 'Real Headline' && clipSrc.data.data.metadata_status === 'auto',
+    'extracted metadata stored, status auto (not verified)');
+  assert(clipSrc.data.data.metadata_raw?.jsonld?.headline === 'Real Headline', 'metadata_raw kept for debugging');
+  assert(clipSrc.data.data.chapters.length === 1, 'chapter assigned from the clipper');
+  const clipNote = await api(token, `/notes/${clipId}`);
+  assert(clipNote.data.data.note_type === 'source' && clipNote.data.data.notebook_id === null &&
+         clipNote.data.data.content === 'Clipped article body.' && clipNote.data.data.source_url === clipUrl,
+    'source note: notebook-less, body = clipped text, raw tab URL kept');
+  assert(clipNote.data.data.tags.some(t => t.name === 'cr039-clip'), 'tags applied');
+  const dupClip = await api(token, '/clips', {
+    method: 'POST', body: { url: `https://NEWS.example.com/a/${RUN}/#top`, mode: 'link', as_source: true }
+  });
+  assert(dupClip.status === 409 && dupClip.data.data.note_id === clipId, 're-clipping the same page → 409 source_exists');
+  const shot = await api(token, '/clips', { method: 'POST', body: { url: clipUrl, mode: 'screenshot', as_source: true } });
+  assert(shot.status === 422, 'screenshot as source → 422');
+  const noMeta = await api(token, '/clips', {
+    method: 'POST', body: { url: `https://example.org/${RUN}`, title: 'Bare page', mode: 'link', as_source: true }
+  });
+  noteIds.push(noMeta.data?.data?.note?.id);
+  const noMetaSrc = await api(token, `/sources/${noMeta.data.data.note.id}`);
+  assert(noMetaSrc.data.data.title === 'Bare page' && noMetaSrc.data.data.metadata_status === 'incomplete',
+    'no metadata → tab title, incomplete');
+  const xClip = await api(otherToken, '/clips', {
+    method: 'POST', body: { url: `https://example.net/${RUN}`, mode: 'link', as_source: true, chapter_ids: [ids[0]] }
+  });
+  assert(xClip.status === 404, 'clipping into another user\'s chapter → 404');
+  const plainClip = await api(token, '/clips', { method: 'POST', body: { url: clipUrl, mode: 'link' } });
+  noteIds.push(plainClip.data?.data?.note?.id);
+  assert(plainClip.status === 201 && (await api(token, `/notes/${plainClip.data.data.note.id}`)).data.data.note_type === 'note',
+    'a clip without as_source is still a plain note');
+
   // ------------------------------------------------- export (Phase B)
   console.log('\nReference export:');
   const ref = await api(token, `/chapters/${ids[0]}/references`);

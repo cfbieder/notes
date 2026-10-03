@@ -33,6 +33,47 @@
         <input id="title" type="text" />
       </label>
 
+      <!-- CR039 A2 — shown only when the server supports research sources. -->
+      <label id="asSourceRow" class="check hidden">
+        <input type="checkbox" id="asSource" />
+        <span>Save as research source</span>
+      </label>
+
+      <div id="sourceFields" class="hidden">
+        <div class="row2">
+          <label class="field">
+            <span>Kind</span>
+            <select id="srcKind">
+              <option value="web">Web page</option>
+              <option value="journal">Journal article</option>
+              <option value="pdf_report">Report</option>
+              <option value="book">Book</option>
+              <option value="book_chapter">Book chapter</option>
+              <option value="video">Video</option>
+              <option value="podcast">Podcast</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Published</span>
+            <input id="srcPublished" type="text" placeholder="YYYY[-MM[-DD]]" />
+          </label>
+        </div>
+        <label class="field">
+          <span>Authors (one per line: Family, Given)</span>
+          <textarea id="srcAuthors" rows="2"></textarea>
+        </label>
+        <label class="field">
+          <span>Publication / site</span>
+          <input id="srcContainer" type="text" />
+        </label>
+        <div class="field">
+          <span>Chapters <em id="bookName"></em></span>
+          <div id="chapters" class="chips"></div>
+        </div>
+      </div>
+
+      <div id="noteFields">
       <label class="field">
         <span>Notebook</span>
         <select id="notebook">
@@ -49,12 +90,14 @@
         <input type="checkbox" id="sendToInbox" checked />
         <span>Send to inbox</span>
       </label>
+      </div>
 
       <div id="preview" class="preview hidden"></div>
 
       <div class="actions">
         <button id="clipBtn" class="primary">Clip</button>
         <span id="status"></span>
+        <button id="openExisting" class="link-btn hidden"></button>
       </div>
     </div>
   </div>

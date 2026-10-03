@@ -9,6 +9,7 @@
 const path = require('path');
 const fs = require('fs/promises');
 const llmService = require('../services/llmService');
+const { metadataProperties, SourceError, createSource, hasAuthorAndDate } = require('../services/sourceService');
 
 const VALID_MODES = new Set(['article', 'selection', 'screenshot', 'link']);
 const MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024; // 10MB decoded
@@ -51,6 +52,50 @@ async function upsertTagsByName(fastify, userId, names) {
 async function clipRoutes(fastify) {
   fastify.addHook('onRequest', fastify.authenticate);
 
+  // CR039 A2 — a clip saved as a research source: a notebook-less source note
+  // whose body is the clipped text, plus its citation row (via the shared
+  // sourceService). The note body is the source text itself, with no
+  // "Clipped from" header — the citation card shows provenance.
+  async function clipAsSource(request, reply) {
+    const userId = request.user.id;
+    const { url, title, content, mode, tag_names, chapter_ids } = request.body;
+    if (mode === 'screenshot') {
+      return reply.code(422).send({
+        error: 'source_body_readonly',
+        message: 'A screenshot cannot be saved as a source; clip the article, a selection or the link',
+        statusCode: 422
+      });
+    }
+    const meta = request.body.metadata || {};
+    const finalTitle = ((meta.title || title || '').trim() || url).slice(0, 1000);
+    try {
+      const noteId = await createSource(fastify.db, userId, {
+        ...meta,
+        source_kind: meta.source_kind || 'web',
+        title: finalTitle,
+        url: meta.url || url,
+        source_url: url,
+        content: mode === 'link' ? '' : (content || ''),
+        chapter_ids,
+        // Extracted, not typed: complete metadata is 'auto' until the user verifies it.
+        metadata_status: hasAuthorAndDate(meta.authors, meta.published_date) ? 'auto' : 'incomplete',
+        metadata_raw: request.body.metadata_raw
+      });
+      const tagIds = await upsertTagsByName(fastify, userId, tag_names);
+      if (tagIds.length > 0) {
+        const values = tagIds.map((_, i) => `($1, $${i + 2})`).join(', ');
+        await fastify.db.query(
+          `INSERT INTO note_tags (note_id, tag_id) VALUES ${values} ON CONFLICT DO NOTHING`,
+          [noteId, ...tagIds]
+        );
+      }
+      return reply.code(201).send({ data: { note: { id: noteId, note_type: 'source', title: finalTitle }, tag_ids: tagIds } });
+    } catch (err) {
+      if (err instanceof SourceError) return reply.code(err.statusCode).send(err.body);
+      throw err;
+    }
+  }
+
   fastify.post('/', {
     schema: {
       body: {
@@ -64,7 +109,12 @@ async function clipRoutes(fastify) {
           notebook_id: { type: ['string', 'null'], format: 'uuid' },
           tag_names: { type: 'array', items: { type: 'string' }, maxItems: 20 },
           send_to_inbox: { type: 'boolean' },
-          screenshot_data_url: { type: 'string' }
+          screenshot_data_url: { type: 'string' },
+          // CR039 A2 — save the clip as a research source.
+          as_source: { type: 'boolean' },
+          metadata: { type: 'object', properties: metadataProperties, additionalProperties: false },
+          metadata_raw: { type: 'object' },
+          chapter_ids: { type: 'array', items: { type: 'string', format: 'uuid' }, uniqueItems: true, maxItems: 500 }
         }
       }
     }
@@ -86,6 +136,10 @@ async function clipRoutes(fastify) {
       if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error();
     } catch {
       return reply.code(400).send({ error: 'Bad Request', message: 'URL must be http(s)', statusCode: 400 });
+    }
+
+    if (request.body.as_source) {
+      return clipAsSource(request, reply);
     }
 
     // Resolve the destination notebook. `send_to_inbox=true` forces a

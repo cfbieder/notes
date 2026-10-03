@@ -126,3 +126,31 @@ button:disabled { opacity: 0.5; cursor: wait; }
 }
 #status.error { color: var(--danger); }
 #status.success { color: var(--success); }
+
+/* CR039 A2 — research source fields */
+.field textarea {
+  width: 100%;
+  background: var(--bg-card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+.field textarea:focus { outline: none; border-color: var(--accent); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field span em { font-style: normal; text-transform: none; letter-spacing: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips input { width: auto; padding: 0; margin: 0; }
+.chips label {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px;
+  font-size: 12px; cursor: pointer;
+}
+.chips .empty { color: var(--text-muted); font-size: 12px; }
+.link-btn {
+  background: none; border: none; padding: 0; color: var(--accent);
+  text-decoration: underline; cursor: pointer; font-size: 12px;
+}

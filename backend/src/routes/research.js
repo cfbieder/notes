@@ -4,42 +4,18 @@
 // request.user.id, and join-table writes verify both parents first.
 
 const { normalizeSourceUrl } = require('../utils/sourceUrl');
+const {
+  SOURCE_KINDS, metadataProperties, SourceError, createSource, sourceExistsError, hasAuthorAndDate, rollbackQuietly
+} = require('../services/sourceService');
 const { renderReferences } = require('../services/citationFormatter');
 
-const SOURCE_KINDS = ['web', 'journal', 'pdf_report', 'book', 'book_chapter', 'video', 'podcast', 'other'];
 const METADATA_STATUSES = ['auto', 'llm', 'verified', 'incomplete'];
 
 // Citation fields a client may write. url is normalized separately.
 const META_FIELDS = ['source_kind', 'title', 'container', 'publisher', 'volume', 'issue', 'pages',
   'published_date', 'published_precision', 'doi', 'isbn'];
 
-const authorSchema = {
-  type: 'object',
-  properties: {
-    family: { type: 'string', maxLength: 200 },
-    given: { type: 'string', maxLength: 200 },
-    literal: { type: 'string', maxLength: 300 }
-  },
-  additionalProperties: false
-};
-
 const nullableText = (max) => ({ type: ['string', 'null'], maxLength: max });
-
-const metadataProperties = {
-  source_kind: { type: 'string', enum: SOURCE_KINDS },
-  title: { type: 'string', minLength: 1, maxLength: 1000 },
-  authors: { type: 'array', items: authorSchema, maxItems: 50 },
-  container: nullableText(500),
-  publisher: nullableText(500),
-  volume: nullableText(50),
-  issue: nullableText(50),
-  pages: nullableText(50),
-  published_date: { type: ['string', 'null'], format: 'date' },
-  published_precision: { type: ['string', 'null'], enum: ['year', 'month', 'day', null] },
-  url: nullableText(2000),
-  doi: nullableText(200),
-  isbn: nullableText(50)
-};
 
 const uuidParam = (...names) => ({
   type: 'object',
@@ -56,23 +32,6 @@ function conflict(reply, error, message, data) {
 
 function badRequest(reply, message) {
   return reply.code(400).send({ error: 'Bad Request', message, statusCode: 400 });
-}
-
-// Roll back; if that itself fails, return the error so the caller can pass it
-// to client.release(err) and the pool destroys the client instead of reusing
-// one whose transaction state (and any SET LOCAL) is unknown.
-async function rollbackQuietly(client) {
-  try {
-    await client.query('ROLLBACK');
-    return undefined;
-  } catch (err) {
-    return err;
-  }
-}
-
-function hasAuthorAndDate(authors, publishedDate) {
-  const named = (authors || []).some(a => (a.family || a.literal || '').trim());
-  return named && !!publishedDate;
 }
 
 // Source row + its chapters, excluding trashed notes. Shared by list and get.
@@ -448,86 +407,20 @@ async function researchRoutes(fastify) {
   }, async (request, reply) => {
     const userId = request.user.id;
     const body = request.body;
-    let url;
     try {
-      url = normalizeSourceUrl(body.url);
-    } catch (err) {
-      return badRequest(reply, err.message);
-    }
-    const chapterIds = body.chapter_ids || [];
-    const authors = body.authors || [];
-    // Typed in by the user, so complete entries are already verified.
-    const status = hasAuthorAndDate(authors, body.published_date) ? 'verified' : 'incomplete';
-
-    const client = await fastify.db.connect();
-    let releaseErr;
-    try {
-      await client.query('BEGIN');
-
-      if (chapterIds.length > 0) {
-        const owned = await client.query(
-          'SELECT COUNT(*)::int AS n FROM chapters WHERE user_id = $1 AND id = ANY($2::uuid[])',
-          [userId, chapterIds]
-        );
-        if (owned.rows[0].n !== chapterIds.length) {
-          await client.query('ROLLBACK');
-          return notFound(reply, 'Chapter');
-        }
-      }
-
-      // Sources are notebook-less (D9) and always markdown.
-      const note = await client.query(
-        `INSERT INTO notes (user_id, notebook_id, title, content, note_type, format, source_url)
-         VALUES ($1, NULL, $2, $3, 'source', 'markdown', $4)
-         RETURNING id`,
-        [userId, body.title, body.content || '', url]
-      );
-      const noteId = note.rows[0].id;
-
-      await client.query(
-        `INSERT INTO sources (note_id, user_id, source_kind, authors, title, container, publisher, volume, issue,
-                              pages, published_date, published_precision, url, doi, isbn, metadata_status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
-        [noteId, userId, body.source_kind, JSON.stringify(authors), body.title, body.container ?? null,
-          body.publisher ?? null, body.volume ?? null, body.issue ?? null, body.pages ?? null,
-          body.published_date ?? null, body.published_precision ?? null, url, body.doi ?? null,
-          body.isbn ?? null, status]
-      );
-
-      if (chapterIds.length > 0) {
-        await client.query(
-          `INSERT INTO source_chapters (source_note_id, chapter_id)
-           SELECT $1, unnest($2::uuid[])`,
-          [noteId, chapterIds]
-        );
-      }
-      await client.query('COMMIT');
-
+      const noteId = await createSource(fastify.db, userId, {
+        ...body,
+        // Typed in by the user, so complete entries are already verified.
+        metadata_status: hasAuthorAndDate(body.authors, body.published_date) ? 'verified' : 'incomplete'
+      });
       const created = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1 AND s.user_id = $2`, [noteId, userId]);
       return reply.code(201).send({ data: created.rows[0] });
     } catch (err) {
-      releaseErr = await rollbackQuietly(client);
-      if (err.code === '23505' && err.constraint === 'sources_user_url_idx') {
-        return sourceExists(reply, userId, url);
-      }
+      if (err instanceof SourceError) return reply.code(err.statusCode).send(err.body);
       throw err;
-    } finally {
-      client.release(releaseErr);
     }
   });
 
-  async function sourceExists(reply, userId, url) {
-    const existing = await fastify.db.query(
-      `SELECT s.note_id, n.deleted_at IS NOT NULL AS in_trash
-       FROM sources s JOIN notes n ON n.id = s.note_id
-       WHERE s.user_id = $1 AND s.url = $2`,
-      [userId, url]
-    );
-    const row = existing.rows[0] || {};
-    return conflict(reply, 'source_exists',
-      row.in_trash ? 'A source with this URL is in the trash' : 'A source with this URL already exists',
-      { note_id: row.note_id || null, in_trash: !!row.in_trash });
-  }
 
   // Metadata edits. Any edit — including an empty body, which is the
   // "Verify" button — marks the metadata verified and clears LLM flags.
@@ -571,7 +464,10 @@ async function researchRoutes(fastify) {
       );
       if (result.rows.length === 0) return notFound(reply, 'Source');
     } catch (err) {
-      if (err.code === '23505' && err.constraint === 'sources_user_url_idx') return sourceExists(reply, userId, url);
+      if (err.code === '23505' && err.constraint === 'sources_user_url_idx') {
+        const dup = await sourceExistsError(fastify.db, userId, url);
+        return reply.code(dup.statusCode).send(dup.body);
+      }
       throw err;
     }
     const updated = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1 AND s.user_id = $2`, [request.params.id, userId]);
