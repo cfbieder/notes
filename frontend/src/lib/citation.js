@@ -12,6 +12,14 @@ export const SOURCE_KINDS = [
   { value: 'other', label: 'Other' }
 ];
 
+// CR039 §16 #3 — the fixed highlight legend.
+export const HIGHLIGHT_LEGEND = [
+  { color: 'yellow', label: 'Evidence' },
+  { color: 'red', label: 'Counter-argument' },
+  { color: 'green', label: 'Quote-worthy' },
+  { color: 'blue', label: 'Follow-up' }
+];
+
 export const STATUS_LABELS = {
   verified: 'Verified',
   incomplete: 'Incomplete',

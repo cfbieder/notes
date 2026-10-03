@@ -998,3 +998,43 @@ moved from the end-of-life Node 20 first.
   extension in headless Chromium: a PDF tab saved into a chapter and its title filled by AI,
   then an article saved with a genuine MHTML snapshot. The A2 suite reran, 25/25.
 
+### Phase C (in progress; started 2026-10-03 by owner decision §16 #15)
+
+**Slice 1: data model and API** (commits `82b3174`, `f86b402`).
+- **Migration `023_highlights.sql`:** `highlights` (text-quote selector, or page + rects for
+  Phase D; anchor status; legend colour validated in the route; comment; tsvector) and
+  `highlight_chapters`.
+- **[highlights.js](backend/src/routes/highlights.js):** create, list, update and delete.
+  `PUT /sources/:id/highlights/anchors` takes browser-reported statuses: ids are
+  de-duplicated, unchanged rows are not written, and the quote is never rewritten.
+  `GET /chapters/:id/highlights` groups by source.
+- **Chapter membership is now manual ∪ highlight-derived (D4)** everywhere: chips (each with
+  a `manual` flag; only manual ones can be unassigned), counts, filters, the chapter-delete
+  409, and the export. It comes from one owner-checked `MEMBERS` subquery.
+- **Security review:** nothing blocking. Its four Low items were applied: owner checks inside
+  `MEMBERS`, same-owner counts, de-duplicated batch ids, and `position_end`-only changes.
+- **Tests:** 30 assertions in `cr039-highlights.test.js`, including a real second user.
+
+**Slice 2: highlighting in the Reader.**
+- **[anchoring.js](frontend/src/lib/anchoring.js):** pure §6.2 matching on
+  whitespace-normalized rendered text. It tries exact-with-context, then exact nearest the
+  hint, then `diff-match-patch` fuzzy (head + tail for quotes over 32 chars, snapped to
+  word boundaries), otherwise orphaned.
+- **[highlightDom.js](frontend/src/lib/highlightDom.js):** maps normalized offsets to DOM
+  nodes, turns a selection into offsets, and wraps marks from the end of the document
+  backwards so earlier positions stay valid without rebuilding the map.
+- **The Reader:**
+  - Select text to open a popover: legend meaning, chapter (defaults to the last used),
+    and a comment.
+  - A sidebar with edit and delete (`ConfirmModal`), orphaned highlights at the bottom with
+    an "unanchored" badge, and approximate matches flagged "approx.".
+  - Clicking a mark reveals it in the sidebar.
+  - Changed statuses are reported in one batch per render.
+- **PDF sources** are not text-highlightable yet; their page highlights are Phase D.
+- **Verified:** 7 anchoring cases (exact, moved, duplicate, light edit, long quote edited,
+  removed, whitespace). An 11-step headless-Chromium run: select across a `<strong>`
+  boundary, popover, mark, sidebar, chapter via highlight, survives reload, a light edit
+  becomes **fuzzy** and the status reaches the server, a removed passage becomes
+  **orphaned** but stays listed and exported, delete. The run also found and fixed a fuzzy
+  mark ending mid-word.
+

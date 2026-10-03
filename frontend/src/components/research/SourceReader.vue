@@ -1,11 +1,12 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import MarkdownIt from 'markdown-it';
 import { BookOpen, Pencil, CheckCircle2, X, ExternalLink, ArrowLeft, FileText, Sparkles, Archive } from 'lucide-vue-next';
 import { getAccessToken } from '../../api/client.js';
 import { useResearchStore } from '../../stores/research.js';
 import { useToastsStore } from '../../stores/toasts.js';
 import SourceFormModal from './SourceFormModal.vue';
+import HighlightedBody from './HighlightedBody.vue';
+import HighlightSidebar from './HighlightSidebar.vue';
 import { SOURCE_KINDS, STATUS_LABELS, formatAuthors, formatPublished } from '../../lib/citation.js';
 
 // CR039 A1 — Reader view for a source note: citation card + read-only body.
@@ -19,8 +20,72 @@ const research = useResearchStore();
 const toasts = useToastsStore();
 
 // html:false — the body is rendered text only, so no raw HTML reaches v-html.
-const md = new MarkdownIt({ html: false, linkify: true, typographer: true, breaks: true });
-const renderedBody = computed(() => md.render(props.content || ''));
+// Phase C — highlights. Text highlights only on web/Markdown sources; PDF
+// sources get page-anchored highlights in Phase D.
+const highlights = ref([]);
+const bodyRef = ref(null);
+const isPdf = computed(() => !!source.value?.pdf_attachment_id);
+const LAST_CHAPTER_KEY = 'noted.lastHighlightChapter';
+const defaultChapterId = computed(() => {
+  let last = '';
+  try { last = localStorage.getItem(LAST_CHAPTER_KEY) || ''; } catch { /* storage unavailable */ }
+  if (research.chapters.some(c => c.id === last)) return last;
+  return source.value?.chapters?.find(c => c.manual)?.id || '';
+});
+
+async function loadHighlights() {
+  try {
+    highlights.value = await research.listHighlights(props.noteId);
+  } catch (err) {
+    toasts.addToast({ message: err.message || 'Could not load highlights', type: 'error' });
+  }
+}
+
+async function createHighlight(data) {
+  try {
+    const h = await research.createHighlight(props.noteId, data);
+    highlights.value = [...highlights.value, h];
+    if (data.chapter_ids[0]) {
+      try { localStorage.setItem(LAST_CHAPTER_KEY, data.chapter_ids[0]); } catch { /* ignore */ }
+    }
+    source.value = await research.getSource(props.noteId); // chapter chips follow highlights
+  } catch (err) {
+    toasts.addToast({ message: err.message || 'Could not save the highlight', type: 'error' });
+  }
+}
+
+async function updateHighlight(id, data) {
+  try {
+    const h = await research.updateHighlight(id, data);
+    highlights.value = highlights.value.map(x => (x.id === id ? h : x));
+    source.value = await research.getSource(props.noteId);
+  } catch (err) {
+    toasts.addToast({ message: err.message || 'Could not update the highlight', type: 'error' });
+  }
+}
+
+async function deleteHighlight(id) {
+  try {
+    await research.deleteHighlight(id);
+    highlights.value = highlights.value.filter(x => x.id !== id);
+    source.value = await research.getSource(props.noteId);
+  } catch (err) {
+    toasts.addToast({ message: err.message || 'Could not delete the highlight', type: 'error' });
+  }
+}
+
+// The browser re-anchored: record new statuses locally and on the server.
+async function onAnchored(updates) {
+  const byId = new Map(updates.map(u => [u.id, u]));
+  highlights.value = highlights.value.map(h => (byId.has(h.id)
+    ? { ...h, anchor_status: byId.get(h.id).anchor_status, position_start: byId.get(h.id).position_start ?? h.position_start }
+    : h));
+  try { await research.reportAnchors(props.noteId, updates); } catch { /* best effort; re-anchored next time */ }
+}
+
+function reveal(id) {
+  bodyRef.value?.reveal(id);
+}
 
 const source = ref(null);
 const aiBusy = ref(false);
@@ -148,7 +213,8 @@ async function assign() {
 async function unassign(chapterId) {
   try {
     await research.unassignChapter(props.noteId, chapterId);
-    source.value = { ...source.value, chapters: source.value.chapters.filter(c => c.id !== chapterId) };
+    // Reload: the chapter may stay because a highlight still points at it.
+    source.value = await research.getSource(props.noteId);
   } catch (err) {
     toasts.addToast({ message: err.message || 'Could not remove the chapter', type: 'error' });
   }
@@ -162,7 +228,7 @@ function onSaved(updated) {
 onMounted(async () => {
   await research.ensureLoaded().catch(() => {});
 });
-watch(() => props.noteId, async () => { await load(); schedulePoll(); }, { immediate: true });
+watch(() => props.noteId, async () => { await Promise.all([load(), loadHighlights()]); schedulePoll(); }, { immediate: true });
 </script>
 
 <template>
@@ -211,7 +277,8 @@ watch(() => props.noteId, async () => { await load(); schedulePoll(); }, { immed
       <div class="cc-chapters">
         <span v-for="c in source.chapters" :key="c.id" class="cc-chip">
           {{ c.label }} · {{ c.title }}
-          <button class="cc-chip-x" :title="`Remove from chapter ${c.label}`" :aria-label="`Remove from chapter ${c.label}`" @click="unassign(c.id)"><X :size="12" /></button>
+          <button v-if="c.manual !== false" class="cc-chip-x" :title="`Remove from chapter ${c.label}`" :aria-label="`Remove from chapter ${c.label}`" @click="unassign(c.id)"><X :size="12" /></button>
+          <span v-else class="cc-chip-via" title="In this chapter because of its highlights">via highlights</span>
         </span>
         <!-- Select + explicit Add: an action-on-change select fires while arrowing through it. -->
         <template v-if="unassignedChapters.length">
@@ -226,7 +293,31 @@ watch(() => props.noteId, async () => { await load(); schedulePoll(); }, { immed
       </div>
     </section>
 
-    <article v-if="content" class="source-body" v-html="renderedBody" />
+    <div v-if="content" class="reader-grid" :class="{ 'with-side': !isPdf }">
+      <div>
+        <p v-if="isPdf" class="source-note">Highlighting PDF sources by page arrives with the PDF viewer (Phase D).</p>
+        <HighlightedBody
+          ref="bodyRef"
+          :content="content"
+          :highlights="highlights"
+          :chapters="research.chapters"
+          :defaultChapterId="defaultChapterId"
+          :enabled="!isPdf"
+          @create="createHighlight"
+          @anchored="onAnchored"
+          @select-highlight="reveal"
+        />
+      </div>
+      <HighlightSidebar
+        v-if="!isPdf"
+        class="reader-side"
+        :highlights="highlights"
+        :chapters="research.chapters"
+        @update="updateHighlight"
+        @delete="deleteHighlight"
+        @reveal="reveal"
+      />
+    </div>
     <p v-else class="source-empty">No captured text for this source.</p>
 
     <SourceFormModal v-if="editing && source" :source="source" @saved="onSaved" @cancel="editing = false" />
@@ -270,6 +361,7 @@ watch(() => props.noteId, async () => { await load(); schedulePoll(); }, { immed
   background: var(--rail-active); color: var(--text-primary);
   border-radius: 999px; padding: 2px 4px 2px 10px; font-size: 12px;
 }
+.cc-chip-via { font-size: 10px; color: var(--text-muted); padding-right: 6px; }
 .cc-chip-x { background: none; border: none; color: var(--text-secondary); cursor: pointer; display: inline-flex; padding: 6px; margin: -4px 0; }
 .cc-btn:disabled { opacity: 0.5; cursor: default; }
 @media (pointer: coarse) { .cc-btn, .cc-add { min-height: 36px; } }
@@ -278,8 +370,13 @@ watch(() => props.noteId, async () => { await load(); schedulePoll(); }, { immed
   border: 1px dashed var(--border-strong); border-radius: 999px; padding: 2px 8px; font-size: 12px;
 }
 .cc-hint { font-size: 12px; color: var(--text-muted); }
-.source-body { max-width: 820px; color: var(--text-primary); line-height: 1.65; font-size: 15px; }
-.source-body :deep(a) { color: var(--accent-primary); }
-.source-body :deep(blockquote) { border-left: 3px solid var(--border-strong); margin: 0; padding-left: 12px; color: var(--text-secondary); }
+.reader-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.reader-grid.with-side { grid-template-columns: minmax(0, 820px) 280px; }
+.reader-side { position: sticky; top: 0; align-self: start; max-height: calc(100vh - 140px); overflow-y: auto; }
+.source-note { color: var(--text-muted); font-size: 12px; margin: 0 0 8px; }
+@media (max-width: 1100px) {
+  .reader-grid.with-side { grid-template-columns: minmax(0, 1fr); }
+  .reader-side { position: static; max-height: none; }
+}
 .source-empty { color: var(--text-muted); font-size: 13px; }
 </style>

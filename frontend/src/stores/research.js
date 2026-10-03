@@ -103,6 +103,29 @@ export const useResearchStore = defineStore('research', () => {
     return (await api.post(`/sources/${id}/extract-metadata`, {})).data;
   }
 
+  // Phase C — highlights.
+  async function listHighlights(sourceId) {
+    return (await api.get(`/sources/${sourceId}/highlights`)).data;
+  }
+  async function createHighlight(sourceId, data) {
+    const res = await api.post(`/sources/${sourceId}/highlights`, data);
+    await fetchChapters();
+    return res.data;
+  }
+  async function updateHighlight(id, data) {
+    const res = await api.put(`/highlights/${id}`, data);
+    await fetchChapters();
+    return res.data;
+  }
+  async function deleteHighlight(id) {
+    await api.delete(`/highlights/${id}`);
+    await fetchChapters();
+  }
+  async function reportAnchors(sourceId, updates) {
+    if (!updates.length) return;
+    await api.put(`/sources/${sourceId}/highlights/anchors`, { updates });
+  }
+
   async function getSource(id) {
     return (await api.get(`/sources/${id}`)).data;
   }
@@ -137,6 +160,7 @@ export const useResearchStore = defineStore('research', () => {
     books, chapters, loaded, activeBook, hasBook,
     ensureLoaded, fetchBooks, fetchChapters, createBook, updateBook, deleteBook,
     createChapter, updateChapter, deleteChapter, reorderChapters,
-    fetchSources, fetchMetadata, uploadPdfSource, extractMetadata, getSource, createSource, updateSource, assignChapter, unassignChapter, fetchReferences
+    fetchSources, fetchMetadata, uploadPdfSource, extractMetadata, getSource,
+    listHighlights, createHighlight, updateHighlight, deleteHighlight, reportAnchors, createSource, updateSource, assignChapter, unassignChapter, fetchReferences
   };
 });
