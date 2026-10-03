@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Plus, BookOpen } from 'lucide-vue-next';
+import { Plus, BookOpen, RefreshCw } from 'lucide-vue-next';
 import { useResearchStore } from '../stores/research.js';
 import SourceFormModal from '../components/research/SourceFormModal.vue';
 import ReferenceExport from '../components/research/ReferenceExport.vue';
@@ -117,8 +117,25 @@ function onCreated(source) {
   router.push(`/notes/${source.note_id}`);
 }
 
-onMounted(() => research.ensureLoaded().catch(() => {}));
-onBeforeUnmount(() => clearTimeout(searchTimer));
+// Sources also arrive from outside this tab (the browser extension), so
+// Refresh — and returning to the tab — reloads the list and the chapter counts.
+function refresh() {
+  load();
+  research.fetchChapters().catch(() => {});
+  if (tab.value === 'passages') loadPassages();
+}
+function onVisible() {
+  if (document.visibilityState === 'visible') refresh();
+}
+
+onMounted(() => {
+  research.ensureLoaded().catch(() => {});
+  document.addEventListener('visibilitychange', onVisible);
+});
+onBeforeUnmount(() => {
+  clearTimeout(searchTimer);
+  document.removeEventListener('visibilitychange', onVisible);
+});
 watch(() => [route.params.id, route.query.view], load, { immediate: true });
 watch(kind, load);
 // Switching the active book: a chapter of the old book no longer belongs here.
@@ -141,6 +158,9 @@ watch(() => research.activeBook?.id, (id, prev) => {
         </p>
       </div>
       <div class="rv-actions">
+        <button class="rv-refresh" title="Refresh" aria-label="Refresh" :disabled="loading" @click="refresh">
+          <RefreshCw :size="14" />
+        </button>
         <ReferenceExport v-if="exportTarget" :key="exportTarget.id" v-bind="exportTarget" />
         <button class="rv-new" @click="creating = true">
           <Plus :size="14" /> New source
@@ -257,6 +277,12 @@ watch(() => research.activeBook?.id, (id, prev) => {
   background: var(--accent-primary); color: #fff; border: none; border-radius: 6px;
   padding: 7px 12px; font-size: 13px; cursor: pointer; white-space: nowrap;
 }
+.rv-refresh {
+  display: inline-flex; align-items: center; background: transparent; color: var(--text-secondary);
+  border: 1px solid var(--border-strong); border-radius: 6px; padding: 6px 9px; cursor: pointer;
+}
+.rv-refresh:hover:not(:disabled) { color: var(--text-primary); background: var(--hover-bg); }
+.rv-refresh:disabled { opacity: 0.5; cursor: default; }
 .rv-tabs { display: flex; gap: 4px; margin-top: 14px; border-bottom: 1px solid var(--border-subtle); }
 .rv-tabs button { background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); padding: 6px 12px; font-size: 13px; cursor: pointer; }
 .rv-tabs button.on { color: var(--text-primary); border-bottom-color: var(--accent-primary); }
