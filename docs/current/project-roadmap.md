@@ -63,7 +63,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR032](docs/cr/cr-032-drop-is-inbox-flag.md) | Drop `notes.is_inbox` flag; derive Inbox from default notebook (`notebook_id IS NULL OR is_default = TRUE`) and exclude `note_type='idea'` — **Completed** |
 | [CR036](docs/cr/cr-036-export-note-as-pdf.md) | Export Note as PDF (Markdown + HTML) — relabel the print flow as "Export as PDF"; reuse the existing print-window pipeline (no new deps) — **Completed** |
 | [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) | Multi-Note Editor Tabs (desktop) — tab strip over a persisted open-note list; active tab derived from route; no per-tab buffers — **Completed** |
-| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — `source` note type with citation metadata, books/chapters, per-chapter Chicago reference export, later web + PDF highlights. **In progress — Phase A1 shipped v0.18.0** (server core, read-only guards + trigger, manual sources, Research rail/panel/views, Reader view); **Phase B shipped v0.19.0** (Chicago reference export: Copy for Word + .md, per chapter and per book); **A2 shipped v0.20.0** (clipper "Save as research source" with citation metadata extraction, extension v0.4.0); **A3 shipped v0.21.0–v0.22.0** (Fetch details, PDF sources, AI-filled metadata, clipper PDF tabs + snapshots, extension v0.5.0). Next: C (web highlights), after its priority re-check; C/D/E re-prioritized when reached (D with CR025, E after CR001) |
+| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — **In progress.** Shipped: A1 (v0.18.0), B (v0.19.0), A2 (v0.20.0), A3 (v0.21.0–v0.22.0), C slices 1–2 + Fetch text (v0.23.0). Next: C slice 3 (Passages tab, `include=passages` export), slice 4 (highlight search, clipper live-page highlighting); then D (PDF highlights, with CR025) and E (after CR001) |
 
 **Deferred from CR039** (out of scope for v1; each a later CR if wanted):
 - `.docx` reference export — add if a publisher asks for a file (Copy for Word covers drafting)
@@ -107,6 +107,16 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ---
 
 ## Recently Completed
+
+### Released v0.23.0 (2026-10-03)
+
+- **[CR039](docs/cr/cr-039-research-sources-highlights.md) Phase C slices 1–2 — Highlights.** Migration `023_highlights.sql` adds `highlights` and `highlight_chapters`; the routes are in `backend/src/routes/highlights.js`. Chapter membership is now manual ∪ highlight-derived, through an owner-checked `MEMBERS` subquery. In the Reader:
+  - Select text to get a popover with legend meaning, chapter and comment, plus a sidebar.
+  - **Anchoring runs in the browser:** exact match, then fuzzy, otherwise orphaned. Orphaned highlights are kept and exported.
+  - Statuses are reported back in one batch.
+  - The security review found nothing blocking (4 Lows applied).
+  - Verified by 30 + 113 API assertions and an 11-step headless run, including fuzzy-after-edit and orphan-after-removal.
+- **Fetch text** (owner request). `POST /sources/:id/fetch-text` captures a source's readable article from its URL (SSRF-guarded fetch → Readability → Turndown, media dropped); it confirms before replacing existing text. The Reader never loads remote images and shows alt text instead.
 
 ### Released v0.22.2 (2026-10-03)
 
