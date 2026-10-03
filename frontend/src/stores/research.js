@@ -98,6 +98,11 @@ export const useResearchStore = defineStore('research', () => {
     return res.data;
   }
 
+  // A3 §9 — fill a source's empty citation fields with AI (synchronous).
+  async function extractMetadata(id) {
+    return (await api.post(`/sources/${id}/extract-metadata`, {})).data;
+  }
+
   async function getSource(id) {
     return (await api.get(`/sources/${id}`)).data;
   }
@@ -132,6 +137,6 @@ export const useResearchStore = defineStore('research', () => {
     books, chapters, loaded, activeBook, hasBook,
     ensureLoaded, fetchBooks, fetchChapters, createBook, updateBook, deleteBook,
     createChapter, updateChapter, deleteChapter, reorderChapters,
-    fetchSources, fetchMetadata, uploadPdfSource, getSource, createSource, updateSource, assignChapter, unassignChapter, fetchReferences
+    fetchSources, fetchMetadata, uploadPdfSource, extractMetadata, getSource, createSource, updateSource, assignChapter, unassignChapter, fetchReferences
   };
 });

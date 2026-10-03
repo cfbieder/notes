@@ -213,7 +213,33 @@ function isTaskRoutingEnabled() {
 function bridgingModelForTask(taskName) {
   if (taskName === 'noted_ai_assist_deep') return DEEP_MODEL;
   if (taskName === 'noted_ai_assist_quick') return QUICK_MODEL;
+  if (taskName === 'noted_source_metadata') return QUICK_MODEL; // CR039 A3
   return null;
+}
+
+// Tasks only route via /task once the gateway has them registered — a task
+// requested by handoff (e.g. noted_source_metadata, CR039 A3) works from day
+// one on the bridging model and moves to /task when it appears. Read from
+// GET /task/routes, cached 10 min; if the list can't be read, assume
+// registered (today's behaviour), so existing tasks never lose /task.
+const ROUTES_TTL_MS = 10 * 60 * 1000;
+let routesCache = { names: null, at: 0 };
+async function isTaskRegistered(taskName) {
+  if (!routesCache.names || Date.now() - routesCache.at > ROUTES_TTL_MS) {
+    try {
+      const res = await fetch(`${GATEWAY_URL}/task/routes`, { headers: authHeaders(), signal: AbortSignal.timeout(5000) });
+      if (!res.ok) return true;
+      const body = await res.json();
+      const tasks = Array.isArray(body.tasks) ? body.tasks : Object.keys(body.tasks || {});
+      routesCache = {
+        names: new Set(tasks.map(t => (typeof t === 'string' ? t : t.task || t.name)).filter(Boolean)),
+        at: Date.now()
+      };
+    } catch {
+      return true;
+    }
+  }
+  return routesCache.names.has(taskName);
 }
 
 // LLM_PROTOCOLS.md §3 — a /task response reports what it gave up to answer.
@@ -244,7 +270,7 @@ async function gatewayGenerateText({ prompt, model, taskName, system, maxTokens,
   if (!ENABLED) return null;
   if (!prompt || typeof prompt !== 'string') return null;
 
-  const useTask = TASK_ENABLED && taskName;
+  const useTask = TASK_ENABLED && taskName && await isTaskRegistered(taskName);
   const effectiveTimeout = timeoutMs || GENERATE_TIMEOUT_MS;
 
   // Compose an AbortSignal that fires on either the caller's signal or our

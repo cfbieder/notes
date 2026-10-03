@@ -932,3 +932,40 @@ moved from the end-of-life Node 20 first.
   verified in the Alpine image. Headless Chromium uploaded that paper through the form
   and opened it through Open PDF (full file, no token in the URL).
 
+**Slice 3: AI-filled metadata (§9).** Built 2026-10-03.
+- **[metadataExtractor.js](backend/src/services/metadataExtractor.js)** sends the opening
+  4,000 characters of a source's text to `generateText` as task `noted_source_metadata`
+  (quick tier, temperature 0). That goes to the user's CR038 provider, or to the gateway.
+  The document text is fenced, and the model is told to ignore instructions inside it.
+- **Every safeguard is enforced in code, not trusted to the model:**
+  - The reply is parsed and validated field by field.
+  - Only **empty** fields are filled. A title is replaceable only if it came from the
+    filename, and the kind only if it was the default. The URL is never filled.
+  - A DOI must be **well-formed** (`10.xxxx/…`) and an ISBN a valid 10/13-digit number,
+    **and** each must appear verbatim in the text.
+  - When people are named, organization "authors" are dropped as affiliations.
+  - Filled fields go into `metadata_llm_fields`. The status becomes `llm`, or stays
+    `incomplete` if the author or date is still missing. The reply and model are kept in
+    `metadata_raw.llm`, and a failure is kept in `metadata_raw.llm_error` (§9: failure is
+    visible).
+  - When a PDF's note title was only its filename, it follows the new title, unless the
+    user has renamed it since.
+- **When it runs:**
+  - After a PDF upload (asynchronously, once the text layer is read).
+  - After OCR, for scans.
+  - On demand: `POST /sources/:id/extract-metadata` (10/min), the **Fill with AI** button,
+    which works on any source.
+  - It fills directly rather than returning a diff to accept: with the empty-fields-only
+    rule plus flags, nothing the user wrote can be overwritten.
+- **Gateway task:** handed off to ocr-llm on 2026-10-03 (thread `noted-source-metadata-task`,
+  their commit `e510680`). Until it is registered, `llmService` checks
+  `GET /task/routes` (cached 10 min) and uses `/llm/generate` with the bridging quick model.
+  If the list can't be read, behaviour stays as before, so existing tasks keep `/task`.
+- **UI:** the card says "AI is reading the PDF…" and refreshes itself, then shows "Filled by
+  AI — check: …" until **Verify**, or the AI error.
+- **Verified:** 22 pure assertions in `tests/cr039-metadata-extractor.test.js` (in
+  `test:ci`). Live runs against the real gateway (`phi4:14b`, about 15 s) on the arXiv
+  paper and on a typed-in source. The first live run caught **two safeguard gaps**,
+  affiliations accepted as authors and an arXiv id accepted as a DOI; both are fixed and
+  now covered by regression tests. 5 headless-Chromium checks.
+

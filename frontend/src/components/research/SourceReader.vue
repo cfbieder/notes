@@ -1,7 +1,7 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import MarkdownIt from 'markdown-it';
-import { BookOpen, Pencil, CheckCircle2, X, ExternalLink, ArrowLeft, FileText } from 'lucide-vue-next';
+import { BookOpen, Pencil, CheckCircle2, X, ExternalLink, ArrowLeft, FileText, Sparkles } from 'lucide-vue-next';
 import { getAccessToken } from '../../api/client.js';
 import { useResearchStore } from '../../stores/research.js';
 import { useToastsStore } from '../../stores/toasts.js';
@@ -23,6 +23,44 @@ const md = new MarkdownIt({ html: false, linkify: true, typographer: true, break
 const renderedBody = computed(() => md.render(props.content || ''));
 
 const source = ref(null);
+const aiBusy = ref(false);
+
+// A3 §9 — which fields the AI filled (flagged until Verify), and whether a
+// just-uploaded PDF is still being read: the upload answers before the AI does.
+const FIELD_LABELS = {
+  title: 'title', authors: 'authors', container: 'publication', publisher: 'publisher', volume: 'volume',
+  issue: 'issue', pages: 'pages', published_date: 'date', doi: 'DOI', isbn: 'ISBN', source_kind: 'kind'
+};
+const aiFields = computed(() => (source.value?.metadata_llm_fields || []).map(f => FIELD_LABELS[f] || f));
+const aiError = computed(() => source.value?.metadata_raw?.llm_error || '');
+const aiReading = computed(() => {
+  const s = source.value;
+  if (!s?.pdf_attachment_id || s.metadata_status === 'verified') return false;
+  const raw = s.metadata_raw || {};
+  const ageMs = Date.now() - new Date(s.created_at).getTime();
+  return !raw.llm && !raw.llm_error && ageMs < 3 * 60 * 1000;
+});
+let pollTimer = null;
+function schedulePoll() {
+  clearTimeout(pollTimer);
+  if (aiReading.value) pollTimer = setTimeout(async () => { await load(); schedulePoll(); }, 4000);
+}
+onBeforeUnmount(() => clearTimeout(pollTimer));
+
+async function fillWithAi() {
+  aiBusy.value = true;
+  try {
+    const res = await research.extractMetadata(props.noteId);
+    source.value = res.source;
+    if (res.error) toasts.addToast({ message: `AI couldn't fill the citation: ${res.error}`, type: 'error' });
+    else if (!res.filled.length) toasts.addToast({ message: 'AI found nothing new to fill', type: 'info' });
+    else toasts.addToast({ message: `AI filled ${res.filled.length} field${res.filled.length === 1 ? '' : 's'} — check them, then Verify`, type: 'success' });
+  } catch (err) {
+    toasts.addToast({ message: err.message || 'AI request failed', type: 'error' });
+  } finally {
+    aiBusy.value = false;
+  }
+}
 const loadError = ref('');
 const editing = ref(false);
 const addChapterId = ref('');
@@ -106,7 +144,7 @@ function onSaved(updated) {
 onMounted(async () => {
   await research.ensureLoaded().catch(() => {});
 });
-watch(() => props.noteId, load, { immediate: true });
+watch(() => props.noteId, async () => { await load(); schedulePoll(); }, { immediate: true });
 </script>
 
 <template>
@@ -124,6 +162,10 @@ watch(() => props.noteId, load, { immediate: true });
         <span class="cc-kind">{{ kindLabel }}</span>
         <span class="cc-status" :class="`st-${source.metadata_status}`">{{ STATUS_LABELS[source.metadata_status] }}</span>
         <span class="cc-spacer" />
+        <button v-if="source.metadata_status !== 'verified' && !aiReading" class="cc-btn" :disabled="aiBusy"
+                title="Ask the AI to fill the empty citation fields from the source's text" @click="fillWithAi">
+          <Sparkles :size="14" /> {{ aiBusy ? 'Reading…' : 'Fill with AI' }}
+        </button>
         <button v-if="source.metadata_status !== 'verified'" class="cc-btn" title="Confirm this citation is correct" @click="verify">
           <CheckCircle2 :size="14" /> Verify
         </button>
@@ -136,6 +178,11 @@ watch(() => props.noteId, load, { immediate: true });
       </div>
       <div class="cc-title">{{ source.title }}</div>
       <div v-if="byline" class="cc-byline">{{ byline }}</div>
+      <p v-if="aiReading" class="cc-ai" role="status"><Sparkles :size="12" /> AI is reading the PDF to fill in the citation…</p>
+      <p v-else-if="aiFields.length && source.metadata_status !== 'verified'" class="cc-ai">
+        <Sparkles :size="12" /> Filled by AI — check: {{ aiFields.join(', ') }}
+      </p>
+      <p v-else-if="aiError && source.metadata_status !== 'verified'" class="cc-ai cc-ai-err">AI couldn't fill the citation: {{ aiError }}</p>
       <a v-if="source.url" class="cc-url" :href="source.url" target="_blank" rel="noopener noreferrer">
         {{ source.url }} <ExternalLink :size="12" />
       </a>
@@ -193,6 +240,8 @@ watch(() => props.noteId, load, { immediate: true });
 .cc-btn:hover { background: var(--hover-bg); }
 .cc-title { margin-top: 8px; font-size: 16px; font-weight: 600; color: var(--text-primary); }
 .cc-byline { margin-top: 2px; font-size: 13px; color: var(--text-secondary); }
+.cc-ai { display: flex; align-items: center; gap: 5px; margin: 6px 0 0; font-size: 12px; color: var(--status-warning); }
+.cc-ai-err { color: var(--status-error); }
 .cc-url { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; color: var(--accent-primary); word-break: break-all; }
 .cc-chapters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
 .cc-chip {

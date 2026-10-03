@@ -15,6 +15,7 @@ const path = require('path');
 const fsp = require('fs/promises');
 const llmService = require('../services/llmService');
 const { extractPdf, looksLikePdf } = require('../services/pdfText');
+const { fillSourceWithAi } = require('../services/metadataExtractor');
 
 const METADATA_STATUSES = ['auto', 'llm', 'verified', 'incomplete'];
 
@@ -486,7 +487,13 @@ async function researchRoutes(fastify) {
         content,
         chapter_ids: chapterIds,
         metadata_status: 'incomplete', // the info dict never carries a publication date
-        metadata_raw: { pdf: { pages: pdf.pages, info: pdf.info, has_text: hasText } },
+        // Where title/kind came from: AI may replace a filename title or the
+        // default kind, never one the user typed or the PDF itself supplied.
+        metadata_raw: { pdf: {
+          pages: pdf.pages, info: pdf.info, has_text: hasText, filename,
+          title_from: field('title') ? 'form' : pdf.info.title ? 'info' : 'filename',
+          kind_from: SOURCE_KINDS.includes(field('source_kind')) ? 'form' : 'default'
+        } },
         attach: async (client, id) => {
           const now = new Date();
           const year = String(now.getFullYear());
@@ -516,6 +523,7 @@ async function researchRoutes(fastify) {
               : header + '_No text layer, and OCR found no text._';
             await setSourceBody(fastify.db, noteId, body);
             if (text) await fastify.db.query('UPDATE attachments SET ocr_text = $1 WHERE id = $2', [text, attachmentId]);
+            if (text && text.trim()) await fillSourceWithAi(fastify.db, userId, noteId);
           })
           .catch(async (err) => {
             request.log.warn({ err, noteId }, 'pdf source ocr failed');
@@ -523,13 +531,38 @@ async function researchRoutes(fastify) {
           });
       }
 
+      // §9: AI fills the empty citation fields after the response; the Reader
+      // shows them flagged once they land. Failures are recorded, not thrown.
+      const aiPending = hasText && llmService.isEnabled();
+      if (aiPending) {
+        fillSourceWithAi(fastify.db, userId, noteId)
+          .catch(err => request.log.warn({ err, noteId }, 'pdf source metadata failed'));
+      }
       const created = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1 AND s.user_id = $2`, [noteId, userId]);
-      return reply.code(201).send({ data: { ...created.rows[0], ocr_pending: ocrPending } });
+      return reply.code(201).send({ data: { ...created.rows[0], ocr_pending: ocrPending, ai_pending: aiPending } });
     } catch (err) {
       if (writtenPath) await fsp.unlink(writtenPath).catch(() => {});
       if (err instanceof SourceError) return reply.code(err.statusCode).send(err.body);
       throw err;
     }
+  });
+
+  // §9 — "Fill with AI" on any source: the model reads the source's own text
+  // and fills only empty fields (flagged until verified). Synchronous so the
+  // card can refresh; a slow model answers within the 60 s generate deadline.
+  fastify.post('/sources/:id/extract-metadata', {
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    schema: { params: uuidParam('id') }
+  }, async (request, reply) => {
+    const userId = request.user.id;
+    const own = await fastify.db.query('SELECT 1 FROM sources WHERE note_id = $1 AND user_id = $2', [request.params.id, userId]);
+    if (own.rows.length === 0) return notFound(reply, 'Source');
+    if (!llmService.isEnabled()) {
+      return reply.code(503).send({ error: 'ai_disabled', message: 'AI is not enabled on this server', statusCode: 503 });
+    }
+    const result = await fillSourceWithAi(fastify.db, userId, request.params.id);
+    const updated = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1 AND s.user_id = $2`, [request.params.id, userId]);
+    return { data: { source: updated.rows[0], filled: result.filled, error: result.error } };
   });
 
   fastify.get('/sources/:id', { schema: { params: uuidParam('id') } }, async (request, reply) => {
