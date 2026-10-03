@@ -349,6 +349,7 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **API:** `POST /api/v1/clips` creates the note (with `source_url` tracked via migration 008). Screenshot clips also create an attachment, which automatically flows through the existing OCR pipeline (§5.7) so screenshotted text is searchable.
 - **Destination:** Notebook picker, comma-separated tag input (tags upserted on the fly), and a "send to inbox" toggle. Selecting no notebook defaults to inbox.
 - **Context menu:** Right-click a selection → "Clip selection to Noted" posts a selection clip directly without opening the popup.
+- **Save as research source (CR039 A2, extension v0.4.0):** when the server has research routes (`GET /books` ≠ 404), the popup offers **Save as research source**, on by default when a book is active. `clipper/metadata.js` is injected into the page to read citation metadata, in priority order: `citation_*` → JSON-LD (Article/NewsArticle/ScholarlyArticle/Book/Report, incl. `@graph`) → `og:`/`article:` → Dublin Core / `meta author` / canonical → `document.title` + hostname. The popup shows kind, authors, date and publication for editing, plus the active book's chapters (last-used preselected). Notebook and screenshot mode are disabled in source mode. A duplicate URL shows **Open existing source** / **Open Trash**. No new extension permissions.
 - **Translate** is **not** part of the clipper anymore (removed in v0.3.0). It lives on the main app as a per-note toolbar action — see §5.6.1 below.
 - **CORS:** Backend allows `chrome-extension://<id>` origins in addition to the configured web origin.
 - **Tests:** `backend/tests/phase7-clips.test.js` covers all four modes, validation errors, auth, and search integration.
@@ -453,7 +454,7 @@ Per-note format flag (`markdown` | `html`) so users can keep richly-formatted do
 - **v1 limitations (deferred):** No wikilinks/backlinks/graph/AI Assist for HTML notes (the wikilink parser is markdown-only; AI Assist prompts assume markdown). HTML tags pollute `content_tsv` slightly — acceptable tradeoff for v1. No format conversion (markdown ↔ html) on existing notes. No WYSIWYG editor.
 - **Code:** `backend/migrations/018_note_format.sql`, `backend/src/routes/import.js`, `backend/src/routes/notes.js` (format field), `backend/tests/phase13-html-notes.test.js` (23 assertions), `frontend/src/lib/htmlSanitize.js`, `frontend/src/components/ui/ImportNoteModal.vue`, `frontend/src/views/NotesView.vue` (read-mode branch), `frontend/src/components/editor/CodeMirrorEditor.vue` (format prop). Dependency: `dompurify`.
 
-### 5.19 Research Sources & Chapters (CR039, Phases A1 + B implemented)
+### 5.19 Research Sources & Chapters (CR039, Phases A1 + B + A2 implemented)
 
 A research layer for a book manuscript: citable **sources** organized by **book chapters**. Phase A1 is the server core plus manual entry; reference export (B), clipper capture (A2), PDF sources + AI metadata (A3) and highlights (C–E) follow — see [CR039](docs/cr/cr-039-research-sources-highlights.md).
 
@@ -463,7 +464,7 @@ A research layer for a book manuscript: citable **sources** organized by **book 
 - **Duplicates:** URLs are normalized (`src/utils/sourceUrl.js`: lowercase host, no fragment, no `utm_*`/click-id params, no trailing slash) and unique per user; a duplicate returns `409 source_exists` with `{ note_id, in_trash }`.
 - **Reference export (Phase B):** `backend/src/services/citationFormatter.js` renders Chicago (18th ed.) bibliography entries per chapter ("Sources and Further Reading") or for a whole book (one section per chapter, outline order), as HTML + Markdown + plain text in one response. Missing required fields appear as bold placeholders such as **[author?]**. The Research view's **Copy for Word** puts italic-preserving HTML on the clipboard; **.md** downloads Markdown.
 - **UI:** the **Research** rail item (⌘9) appears only once a book exists — create one in Settings → Research, which also manages chapters (add, rename, reorder with up/down, delete). The Research panel lists All sources / Needs attention / Unassigned and the active book's chapters with counts. `/research/sources` and `/research/chapters/:id` show a filterable source table with a **New source** form. A source opens at `/notes/:id` in a Reader view (`SourceReader`): citation card with Verify / Edit and chapter chips above the rendered, read-only body — on desktop and mobile.
-- **Code:** `backend/migrations/021_research_sources.sql`, `022_source_attachment_same_note.sql`, `backend/src/routes/research.js`, `backend/src/utils/sourceUrl.js`, `backend/src/utils/sourceGuard.js`, guards in `backend/src/routes/notes.js` and `backend/src/services/driveImporter.js`, `backend/src/services/citationFormatter.js`, `backend/tests/cr039-research.test.js` (75 assertions incl. a real second user for isolation), `backend/tests/cr039-citation-formatter.test.js` (23); `frontend/src/stores/research.js`, `frontend/src/lib/citation.js`, `frontend/src/views/ResearchView.vue`, `frontend/src/components/research/SourceReader.vue`, `SourceFormModal.vue`, `ReferenceExport.vue`, `frontend/src/components/sidebar/panels/ResearchPanel.vue`, `frontend/src/components/settings/ResearchSettings.vue`.
+- **Code:** `backend/migrations/021_research_sources.sql`, `022_source_attachment_same_note.sql`, `backend/src/routes/research.js`, `backend/src/services/sourceService.js` (source creation shared with `POST /clips`), `backend/src/utils/sourceUrl.js`, `backend/src/utils/sourceGuard.js`, guards in `backend/src/routes/notes.js` and `backend/src/services/driveImporter.js`, `backend/src/services/citationFormatter.js`, `backend/tests/cr039-research.test.js` (86 assertions incl. a real second user for isolation and the clipper `as_source` path), `backend/tests/cr039-citation-formatter.test.js` (23); `frontend/src/stores/research.js`, `frontend/src/lib/citation.js`, `frontend/src/views/ResearchView.vue`, `frontend/src/components/research/SourceReader.vue`, `SourceFormModal.vue`, `ReferenceExport.vue`, `frontend/src/components/sidebar/panels/ResearchPanel.vue`, `frontend/src/components/settings/ResearchSettings.vue`.
 
 ---
 
@@ -843,6 +844,10 @@ POST   /api/v1/clips                Body: { url, title?, content?, mode, noteboo
                                     mode ∈ { article, selection, screenshot, link }
                                     Creates a note with source_url set. In screenshot mode,
                                     also attaches the image and queues OCR automatically.
+                                    CR039 A2: { as_source: true, metadata, metadata_raw?, chapter_ids? }
+                                    creates a research source instead (shared sourceService):
+                                    body = clipped text, status auto|incomplete, 409 source_exists
+                                    on a duplicate URL, 422 for screenshot mode.
 ```
 
 ### AI Assist (Phase 8.12 + 8.12.1)

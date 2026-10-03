@@ -1,6 +1,6 @@
 # CR039 — Research Sources, Highlights & Chapter References
 
-**Status:** In progress — **Phases A1 and B shipped** (see Outcome; versions in the CR index); A2 next, then A3.
+**Status:** In progress — **Phases A1 and B shipped**, **A2 built** (see Outcome; versions in the CR index); A3 next.
 Phases C, D and E are a design of record; each gets a priority re-check before it is built (§15c).
 **Severity:** Feature (large; phased, first usable release = A1 + B)
 **Origin:** User proposal, 2026-10-02 — reviewed against the code the same day (see §15)
@@ -430,7 +430,7 @@ saving**. Missing author or date marks the source `incomplete`.
 ### 8.2 Popup changes
 - "Save as source" toggle, on by default when a book is active
 - Chapter multi-picker (active book's chapters, plus last-used)
-- "Archive snapshot" checkbox, on by default for `web` kind
+- "Archive snapshot" checkbox, on by default for `web` kind *(arrives with A3, together with the `pageCapture` optional permission)*
 
 ### 8.3 Permissions
 The manifest today requests only `activeTab`, `scripting`, `storage`, `contextMenus`
@@ -817,4 +817,43 @@ placeholders, escaping, sorting, sections; in `test:ci`); 5 more API assertions 
 heading, bold placeholders) and the downloaded `.md` for a chapter and a whole book.
 **Not automated:** pasting into Microsoft Word itself. That needs a manual check against the
 Phase B acceptance criterion.
+
+### Phase A2 (built 2026-10-03; version in the [CR index](docs/cr/README.md))
+
+Clipper web capture, extension v0.4.0. **No new extension permissions:** metadata is read
+with the existing `activeTab` + `scripting` grant.
+- **Backend:** `POST /clips` with `as_source: true` creates a source through the new
+  [sourceService.js](backend/src/services/sourceService.js). `POST /sources` now calls the
+  same function, so the clipper and manual entry share one transactional path. The body is
+  the clipped text (link mode: empty), with no "Clipped from" header, since the citation card
+  shows provenance. The canonical URL comes from the metadata, and the raw tab URL stays in
+  `notes.source_url`. Complete metadata gets `auto` status, otherwise `incomplete`.
+  `metadata_raw` is stored, tags are applied, and screenshot mode returns 422.
+- **Extension:** [metadata.js](clipper/metadata.js) is injected into the page and implements
+  the §8.1 priority order. Person names are split into family/given; a single word or an
+  obvious organization stays a literal name. URL-valued `article:author` is ignored. Dates
+  are normalized to YYYY[-MM[-DD]]. The kind is inferred: a journal title or
+  ScholarlyArticle means journal; a book title means book chapter; Book or an ISBN means
+  book; Report means report; an `og:type` of video means video.
+- **Popup:** a **Save as research source** toggle, shown only when `GET /books` works
+  (feature detection: an older server keeps plain clips, and nothing is silently dropped). It
+  is on by default when a book is active. Kind, authors, date and publication are editable.
+  The active book's chapters are listed with the last-used ones preselected. In source mode
+  the notebook and inbox fields are hidden and screenshot mode is disabled. A duplicate shows
+  **Open existing source** / **Open Trash**.
+- **Deferred to A3:** "Archive snapshot" (MHTML via the optional `pageCapture` permission)
+  and PDF tabs.
+
+**Verified:** 11 more API assertions in `cr039-research.test.js` (86 total): the extracted
+metadata stored with `auto` status, `metadata_raw` kept, chapter and tags applied, the body
+equal to the clipped text, duplicate 409, screenshot 422, no metadata → `incomplete`, a
+foreign chapter → 404, and plain clips unchanged. Also 25 headless-Chromium checks:
+- **metadata.js** against fixture pages for each source type (Highwire, JSON-LD with
+  `@graph`, Open Graph only, a bare page).
+- **The real unpacked extension:** its popup saving a fixture page as a source in a chosen
+  chapter, the duplicate flow and its link, last-used chapter memory, and toggling back to a
+  plain clip.
+
+The browser harness lives outside the repo: the clipper has no test runner, so §14's fixture
+pages were exercised with Playwright rather than committed.
 
