@@ -387,6 +387,19 @@ async function run() {
   assert((await fetch(`${BASE}/attachments/${up.data.data.pdf_attachment_id}`, { headers: { Authorization: `Bearer ${otherToken}` } })).status === 404,
     'another user cannot download the PDF');
 
+  console.log('\nFetch text (guards, no network):');
+  assert((await api(token, `/sources/${pdfId}/fetch-text`, { method: 'POST', body: {} })).status === 422, 'PDF source → 422');
+  const bare = await api(token, '/sources', { method: 'POST', body: { source_kind: 'web', title: `bare ${RUN}` } });
+  noteIds.push(bare.data?.data?.note_id);
+  const noUrl = await api(token, `/sources/${bare.data.data.note_id}/fetch-text`, { method: 'POST', body: {} });
+  assert(noUrl.status === 400 && /URL/.test(noUrl.data.message), 'no URL anywhere → 400 asking for one');
+  const badUrl = await api(token, `/sources/${bare.data.data.note_id}/fetch-text`, { method: 'POST', body: { url: 'ftp://x' } });
+  assert(badUrl.status === 400, 'non-http URL → 400');
+  const exists = await api(token, `/sources/${clipId}/fetch-text`, { method: 'POST', body: {} });
+  assert(exists.status === 409 && exists.data.error === 'body_exists' && exists.data.data.chars > 0, 'existing text without confirm → 409 body_exists');
+  assert((await api(otherToken, `/sources/${clipId}/fetch-text`, { method: 'POST', body: { confirm: true } })).status === 404,
+    'cannot fetch text into another user\'s source');
+
   console.log('\nSnapshots:');
   const mhtml = Buffer.from('From: <Saved by Blink>\r\nSnapshot-Content-Location: https://example.com/a\r\nSubject: A page\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related;\r\n\ttype="text/html";\r\n\tboundary="----b"\r\n\r\n------b\r\nContent-Type: text/html\r\n\r\n<html><body>Hi</body></html>\r\n------b--\r\n');
   async function uploadSnap(tok, id, buf, name = 'page.mhtml') {

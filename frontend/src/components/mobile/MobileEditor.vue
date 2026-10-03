@@ -343,6 +343,7 @@ function onRemoveReference(attachmentId) {
         :key="notesStore.currentNote.id"
         :noteId="notesStore.currentNote.id"
         :content="editorContent"
+        @body-replaced="(c) => { editorContent = c; notesStore.currentNote.content = c; }"
       />
       <CodeMirrorEditor
         v-else

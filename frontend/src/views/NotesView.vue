@@ -826,6 +826,7 @@ async function handleRefreshOffline() {
             :key="notesStore.currentNote.id"
             :noteId="notesStore.currentNote.id"
             :content="editorContent"
+            @body-replaced="(c) => { editorContent = c; notesStore.currentNote.content = c; }"
           />
           <template v-else-if="isHtmlNote && !htmlEditMode">
             <div class="html-note-toolbar">

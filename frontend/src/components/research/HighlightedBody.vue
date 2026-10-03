@@ -19,6 +19,12 @@ const emit = defineEmits(['create', 'anchored', 'select-highlight']);
 
 // html:false — rendered text only; no raw HTML reaches the DOM.
 const md = new MarkdownIt({ html: false, linkify: true, typographer: true, breaks: true });
+// Sources come from arbitrary sites: never load their remote images (a tracking
+// pixel / IP leak per page). Show the alt text instead; quotes are text anyway.
+md.renderer.rules.image = (tokens, idx) => {
+  const alt = tokens[idx].content;
+  return alt ? `<span class="img-alt">[image: ${md.utils.escapeHtml(alt)}]</span>` : '';
+};
 const bodyEl = ref(null);
 let textMap = null;
 
@@ -156,6 +162,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
 .source-body { max-width: 820px; color: var(--text-primary); line-height: 1.65; font-size: 15px; }
 .source-body :deep(a) { color: var(--accent-primary); }
 .source-body :deep(blockquote) { border-left: 3px solid var(--border-strong); margin: 0; padding-left: 12px; color: var(--text-secondary); }
+.source-body :deep(.img-alt) { color: var(--text-muted); font-size: 12px; }
 .source-body :deep(mark.hl) { color: inherit; border-radius: 2px; cursor: pointer; padding: 0 1px; }
 :deep(.hl-yellow) { background: rgba(250, 204, 21, 0.38); }
 :deep(.hl-red) { background: rgba(248, 113, 113, 0.38); }

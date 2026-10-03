@@ -126,6 +126,11 @@ export const useResearchStore = defineStore('research', () => {
     await api.put(`/sources/${sourceId}/highlights/anchors`, { updates });
   }
 
+  // Capture the page's readable article as the source's text.
+  async function fetchText(id, body = {}) {
+    return (await api.post(`/sources/${id}/fetch-text`, body)).data;
+  }
+
   async function getSource(id) {
     return (await api.get(`/sources/${id}`)).data;
   }
@@ -160,7 +165,7 @@ export const useResearchStore = defineStore('research', () => {
     books, chapters, loaded, activeBook, hasBook,
     ensureLoaded, fetchBooks, fetchChapters, createBook, updateBook, deleteBook,
     createChapter, updateChapter, deleteChapter, reorderChapters,
-    fetchSources, fetchMetadata, uploadPdfSource, extractMetadata, getSource,
+    fetchSources, fetchMetadata, uploadPdfSource, extractMetadata, fetchText, getSource,
     listHighlights, createHighlight, updateHighlight, deleteHighlight, reportAnchors, createSource, updateSource, assignChapter, unassignChapter, fetchReferences
   };
 });

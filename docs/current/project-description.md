@@ -829,6 +829,8 @@ POST   /api/v1/sources/from-pdf              A3: multipart PDF (+ title?, source
 POST   /api/v1/sources/:id/extract-metadata  A3: AI fills the source's empty citation fields from its own text (10/min);
                                              { source, filled[], error } — flagged in metadata_llm_fields until verified
 POST   /api/v1/sources/:id/snapshot          A3: multipart MHTML archive of the page (replaces any earlier one; 415 if not MHTML)
+POST   /api/v1/sources/:id/fetch-text        { url?, confirm? } → captures the page's readable article (Readability → Turndown,
+                                             media dropped) as the source text; 409 body_exists until confirmed; 422 for PDFs
 POST   /api/v1/sources/fetch-metadata        A3: { url } → citation metadata read from a public page (not stored;
                                              SSRF-guarded fetch, 30/min) — backs "Fetch details" on the New source form
 GET    /api/v1/chapters/:id/references       Phase B: { html, markdown, text, count, incomplete } (Chicago)

@@ -62,6 +62,19 @@ async function run() {
   const bare = extractFromHtml('<html><head><title>Just a page</title></head></html>', 'https://www.example.net/a');
   assert(bare.container === 'example.net' && bare.authors.length === 0, 'fallback: title + hostname without www');
 
+  console.log('\nArticle text (Fetch text):');
+  const { articleFromHtml, ArticleError } = require('../src/services/pageArticle');
+  const para = '<p>' + 'Large models learn general structure from data at scale. '.repeat(12) + '</p>';
+  const art = articleFromHtml(`<html><head><title>T</title></head><body><nav>Menu Home About</nav>
+    <article><h1>Scaling</h1>${para}<img src="https://tracker.example/pixel.gif"><p>See <a href="/docs">the docs</a>.</p>${para}</article>
+    <footer>Copyright</footer><script>window.pwned=1</script></body></html>`, 'https://site.example.org/a/b');
+  assert(art.markdown.includes('Large models learn general structure') && !art.markdown.includes('Menu Home'), 'readable article extracted, chrome dropped');
+  assert(!art.markdown.includes('pixel.gif') && !art.markdown.includes('!['), 'images removed (no tracking pixels in the Reader)');
+  assert(art.markdown.includes('https://site.example.org/docs'), 'relative links resolved against the page URL');
+  let none = null;
+  try { articleFromHtml('<html><body><p>Hi</p></body></html>', 'https://x.example/'); } catch (e) { none = e; }
+  assert(none instanceof ArticleError, 'a page without an article → clear error');
+
   console.log(`\n=== ${passed} passed, ${failed} failed ===\n`);
   process.exit(failed > 0 ? 1 : 0);
 }

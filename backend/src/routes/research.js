@@ -10,6 +10,7 @@ const {
 } = require('../services/sourceService');
 const { renderReferences } = require('../services/citationFormatter');
 const { citationFromUrl } = require('../services/pageCitation');
+const { articleFromUrl, ArticleError } = require('../services/pageArticle');
 const { PageFetchError } = require('../utils/pageFetch');
 const path = require('path');
 const fsp = require('fs/promises');
@@ -658,6 +659,75 @@ async function researchRoutes(fastify) {
     const result = await fillSourceWithAi(fastify.db, userId, request.params.id);
     const updated = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1 AND s.user_id = $2`, [request.params.id, userId]);
     return { data: { source: updated.rows[0], filled: result.filled, error: result.error } };
+  });
+
+  // "Fetch text" — capture the readable article of the source's page as its
+  // body. Replacing existing text needs confirm=true (highlights re-anchor).
+  // A URL given here is stored when the source has none (duplicate-checked).
+  fastify.post('/sources/:id/fetch-text', {
+    config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+    schema: {
+      params: uuidParam('id'),
+      body: {
+        type: 'object',
+        properties: { url: { type: 'string', maxLength: 2000 }, confirm: { type: 'boolean' } }
+      }
+    }
+  }, async (request, reply) => {
+    const userId = request.user.id;
+    const noteId = request.params.id;
+    const body = request.body || {};
+    const r = await fastify.db.query(
+      `SELECT s.url, s.pdf_attachment_id, n.content,
+              (SELECT COUNT(*)::int FROM highlights h WHERE h.source_note_id = s.note_id AND h.user_id = s.user_id) AS highlight_count
+       FROM sources s JOIN notes n ON n.id = s.note_id AND n.deleted_at IS NULL
+       WHERE s.note_id = $1 AND s.user_id = $2`,
+      [noteId, userId]
+    );
+    const src = r.rows[0];
+    if (!src) return notFound(reply, 'Source');
+    if (src.pdf_attachment_id) {
+      return reply.code(422).send({ error: 'pdf_source', message: 'A PDF source takes its text from the PDF', statusCode: 422 });
+    }
+    let url = src.url;
+    if (!url) {
+      try {
+        url = normalizeSourceUrl(body.url);
+      } catch (err) {
+        return badRequest(reply, err.message);
+      }
+    }
+    if (!url) return badRequest(reply, 'Add the source\'s URL first');
+    if ((src.content || '').trim() && body.confirm !== true) {
+      return conflict(reply, 'body_exists', 'This source already has text; confirm to replace it',
+        { chars: src.content.length, highlight_count: src.highlight_count });
+    }
+
+    let article;
+    try {
+      article = await articleFromUrl(url);
+    } catch (err) {
+      if (err instanceof PageFetchError || err instanceof ArticleError) {
+        return reply.code(422).send({ error: 'fetch_failed', message: err.message, statusCode: 422 });
+      }
+      request.log.warn({ err }, 'fetch-text failed');
+      return reply.code(422).send({ error: 'fetch_failed', message: 'Could not read the page', statusCode: 422 });
+    }
+
+    if (!src.url) {
+      try {
+        await fastify.db.query('UPDATE sources SET url = $1 WHERE note_id = $2 AND user_id = $3', [url, noteId, userId]);
+      } catch (err) {
+        if (err.code === '23505' && err.constraint === 'sources_user_url_idx') {
+          const dup = await sourceExistsError(fastify.db, userId, url);
+          return reply.code(dup.statusCode).send(dup.body);
+        }
+        throw err;
+      }
+    }
+    await setSourceBody(fastify.db, noteId, article.markdown);
+    const updated = await fastify.db.query(`${SOURCE_SELECT} WHERE s.note_id = $1 AND s.user_id = $2`, [noteId, userId]);
+    return { data: { source: updated.rows[0], content: article.markdown } };
   });
 
   fastify.get('/sources/:id', { schema: { params: uuidParam('id') } }, async (request, reply) => {

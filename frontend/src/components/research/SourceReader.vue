@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { BookOpen, Pencil, CheckCircle2, X, ExternalLink, ArrowLeft, FileText, Sparkles, Archive } from 'lucide-vue-next';
+import { BookOpen, Pencil, CheckCircle2, X, ExternalLink, ArrowLeft, FileText, Sparkles, Archive, DownloadCloud } from 'lucide-vue-next';
+import ConfirmModal from '../ui/ConfirmModal.vue';
 import { getAccessToken } from '../../api/client.js';
 import { useResearchStore } from '../../stores/research.js';
 import { useToastsStore } from '../../stores/toasts.js';
@@ -15,6 +16,9 @@ const props = defineProps({
   noteId: { type: String, required: true },
   content: { type: String, default: '' }
 });
+// The body changes only server-side; the parent editor must take the new text
+// too, or its next title autosave would send the old body and be refused (422).
+const emit = defineEmits(['body-replaced']);
 
 const research = useResearchStore();
 const toasts = useToastsStore();
@@ -172,6 +176,47 @@ async function openPdf() {
   }
 }
 
+// "Fetch text" — capture the page's article as this source's text. Asks for a
+// URL when the source has none (prefilled when the title is a link), and asks
+// before replacing existing text, since highlights then re-anchor.
+const fetchingText = ref(false);
+const askUrl = ref(null); // string while the URL prompt is open
+const confirmReplace = ref(null); // { chars, highlight_count }
+const looksLikeUrl = (v) => /^https?:\/\/\S+$/i.test((v || '').trim());
+
+function startFetchText() {
+  if (!source.value.url) {
+    askUrl.value = looksLikeUrl(source.value.title) ? source.value.title.trim() : '';
+    return;
+  }
+  runFetchText({});
+}
+
+async function runFetchText(body) {
+  fetchingText.value = true;
+  try {
+    const res = await research.fetchText(props.noteId, body);
+    source.value = res.source;
+    askUrl.value = null;
+    emit('body-replaced', res.content);
+    toasts.addToast({ message: `Captured ${res.content.length.toLocaleString()} characters of text`, type: 'success' });
+  } catch (err) {
+    if (err.status === 409 && err.body?.error === 'body_exists') {
+      confirmReplace.value = { ...err.body.data, body };
+    } else {
+      toasts.addToast({ message: err.message || 'Could not fetch the text', type: 'error' });
+    }
+  } finally {
+    fetchingText.value = false;
+  }
+}
+
+function confirmFetch() {
+  const body = { ...confirmReplace.value.body, confirm: true };
+  confirmReplace.value = null;
+  runFetchText(body);
+}
+
 // A3 — the archived page snapshot (MHTML) is for preservation: download only.
 async function downloadSnapshot() {
   try {
@@ -253,6 +298,10 @@ watch(() => props.noteId, async () => { await Promise.all([load(), loadHighlight
         <button v-if="source.metadata_status !== 'verified'" class="cc-btn" title="Confirm this citation is correct" @click="verify">
           <CheckCircle2 :size="14" /> Verify
         </button>
+        <button v-if="!source.pdf_attachment_id" class="cc-btn" :disabled="fetchingText"
+                title="Capture the page's article as this source's text" @click="startFetchText">
+          <DownloadCloud :size="14" /> {{ fetchingText ? 'Fetching…' : content ? 'Re-fetch text' : 'Fetch text' }}
+        </button>
         <button v-if="source.snapshot_attachment_id" class="cc-btn" title="Download the archived copy of the page (MHTML)" @click="downloadSnapshot">
           <Archive :size="14" /> Snapshot
         </button>
@@ -265,6 +314,11 @@ watch(() => props.noteId, async () => { await Promise.all([load(), loadHighlight
       </div>
       <div class="cc-title">{{ source.title }}</div>
       <div v-if="byline" class="cc-byline">{{ byline }}</div>
+      <form v-if="askUrl !== null" class="cc-url-ask" @submit.prevent="runFetchText({ url: askUrl })" @keydown.esc="askUrl = null">
+        <input v-model="askUrl" type="url" class="cc-url-input" placeholder="https:// page to capture" aria-label="Page URL" required />
+        <button type="submit" class="cc-btn" :disabled="fetchingText || !askUrl.trim()">{{ fetchingText ? 'Fetching…' : 'Fetch' }}</button>
+        <button type="button" class="cc-btn" @click="askUrl = null">Cancel</button>
+      </form>
       <p v-if="aiReading" class="cc-ai" role="status"><Sparkles :size="12" /> AI is reading the PDF to fill in the citation…</p>
       <p v-else-if="aiFields.length && source.metadata_status !== 'verified'" class="cc-ai">
         <Sparkles :size="12" /> Filled by AI — check: {{ aiFields.join(', ') }}
@@ -320,6 +374,14 @@ watch(() => props.noteId, async () => { await Promise.all([load(), loadHighlight
     </div>
     <p v-else class="source-empty">No captured text for this source.</p>
 
+    <ConfirmModal
+      v-if="confirmReplace"
+      title="Replace the source text?"
+      :message="`This replaces the ${confirmReplace.chars.toLocaleString()} characters already captured with a fresh copy of the page.${confirmReplace.highlight_count ? ` Its ${confirmReplace.highlight_count} highlight(s) will be re-matched; any whose passage is gone stay listed as unanchored.` : ''}`"
+      confirmText="Replace"
+      @confirm="confirmFetch"
+      @cancel="confirmReplace = null"
+    />
     <SourceFormModal v-if="editing && source" :source="source" @saved="onSaved" @cancel="editing = false" />
   </div>
 </template>
@@ -361,6 +423,8 @@ watch(() => props.noteId, async () => { await Promise.all([load(), loadHighlight
   background: var(--rail-active); color: var(--text-primary);
   border-radius: 999px; padding: 2px 4px 2px 10px; font-size: 12px;
 }
+.cc-url-ask { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.cc-url-input { flex: 1 1 240px; background: var(--bg-main); color: var(--text-primary); border: 1px solid var(--border-strong); border-radius: 6px; padding: 5px 8px; font-size: 13px; }
 .cc-chip-via { font-size: 10px; color: var(--text-muted); padding-right: 6px; }
 .cc-chip-x { background: none; border: none; color: var(--text-secondary); cursor: pointer; display: inline-flex; padding: 6px; margin: -4px 0; }
 .cc-btn:disabled { opacity: 0.5; cursor: default; }

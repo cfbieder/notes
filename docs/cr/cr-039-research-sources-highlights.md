@@ -1038,3 +1038,32 @@ moved from the end-of-life Node 20 first.
   **orphaned** but stays listed and exported, delete. The run also found and fixed a fuzzy
   mark ending mid-word.
 
+**Owner request (2026-10-03): Fetch text.** A source created by hand, or with its URL in the
+title, could get its citation from Fetch details but never its text: the body is read-only
+and `replace-body` had no UI.
+- **Route:** `POST /sources/:id/fetch-text` (20/min) fetches the page through the guarded
+  `pageFetch` (public addresses only, pinned connections, size and time limits).
+  [pageArticle.js](backend/src/services/pageArticle.js) extracts the article with **Mozilla
+  Readability → Turndown**, the clipper's own pipeline, using npm packages on the server.
+  The text goes in through `setSourceBody`.
+- **Guards:**
+  - PDF sources → 422.
+  - No URL → 400. A URL given in the request is stored on the source, duplicate-checked.
+  - Existing text → **409 `body_exists`**, until the user confirms; highlights then
+    re-anchor.
+  - A page with under 200 characters of article → "no readable article".
+- **Remote images never load.** Turndown drops media. That needed `addRule`, because the
+  built-in image rule outranks `remove()`; a unit test caught it. The Reader also renders
+  any Markdown image as its alt text, which covers clipped sources too: a remote image per
+  page would be a tracking pixel and IP leak.
+- **UI:** **Fetch text / Re-fetch text** on the citation card. It asks for a URL when there
+  is none, prefilled when the title is a link. Replacing text goes through `ConfirmModal`,
+  stating the highlight count. The editor takes the new text, so a later title autosave
+  never sends the stale body (which would get a 422).
+- **Limits:** paywalled or JavaScript-built pages yield only what a plain fetch sees; the
+  clipper reads what your signed-in browser shows.
+- **Verified:** pure tests (extraction, images dropped, relative links resolved, a
+  non-article refused); API guard tests (PDF, no URL, bad URL, `body_exists`, cross-user);
+  live on the owner's MIT Technology Review URL (about 15.6k characters captured); and
+  6 headless-Chromium checks, including a rename autosaving after the fetch.
+
