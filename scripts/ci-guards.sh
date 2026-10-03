@@ -99,6 +99,14 @@ for v in $(grep -oE '^[A-Z_][A-Z0-9_]*=' backend/.env.prod.example | tr -d = | g
 done
 ok "every documented prod setting is mapped in prod compose"
 
+# --- 8. One citation extractor, two copies -------------------------------------------
+# The clipper runs clipper/metadata.js in the page; the server runs the same file for
+# "Fetch details" (CR039 A3). The backend Docker build cannot see clipper/, so it keeps a
+# copy — which must stay byte-identical, or the two paths extract different citations.
+cmp -s clipper/metadata.js backend/src/services/citationMetadata.js \
+  || fail "backend/src/services/citationMetadata.js differs from clipper/metadata.js — copy it over"
+ok "citation extractor copies identical"
+
 # --- What these guards CANNOT see (the blind spot is where the next bug lands) -----------
 # * Missing `user_id` scoping in a query — the isolation model is enforced in application
 #   SQL with no RLS backstop, and no grep can tell a correctly-scoped query from a wrong

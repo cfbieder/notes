@@ -8,6 +8,8 @@ const {
   SOURCE_KINDS, metadataProperties, SourceError, createSource, sourceExistsError, hasAuthorAndDate, rollbackQuietly
 } = require('../services/sourceService');
 const { renderReferences } = require('../services/citationFormatter');
+const { citationFromUrl } = require('../services/pageCitation');
+const { PageFetchError } = require('../utils/pageFetch');
 
 const METADATA_STATUSES = ['auto', 'llm', 'verified', 'incomplete'];
 
@@ -380,6 +382,30 @@ async function researchRoutes(fastify) {
       params
     );
     return { data: result.rows, meta: { total: count.rows[0].total, limit, offset } };
+  });
+
+  // A3 (§16 #14) — "Fetch details": read citation metadata from a public page so
+  // the New source form can prefill. Nothing is stored; the user reviews and
+  // saves through POST /sources. Rate-limited: each call is an outbound fetch.
+  fastify.post('/sources/fetch-metadata', {
+    config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+    schema: {
+      body: {
+        type: 'object',
+        required: ['url'],
+        properties: { url: { type: 'string', minLength: 1, maxLength: 2000 } }
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      return { data: await citationFromUrl(request.body.url.trim()) };
+    } catch (err) {
+      if (err instanceof PageFetchError) {
+        return reply.code(422).send({ error: 'fetch_failed', message: err.message, statusCode: 422 });
+      }
+      request.log.warn({ err }, 'fetch-metadata failed');
+      return reply.code(422).send({ error: 'fetch_failed', message: 'Could not read details from that page', statusCode: 422 });
+    }
   });
 
   fastify.get('/sources/:id', { schema: { params: uuidParam('id') } }, async (request, reply) => {

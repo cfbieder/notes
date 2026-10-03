@@ -5,6 +5,7 @@ import { useResearchStore } from '../../stores/research.js';
 import {
   SOURCE_KINDS, parseAuthorsInput, authorsToInput, parsePublishedInput, publishedToInput
 } from '../../lib/citation.js';
+import { DownloadCloud } from 'lucide-vue-next';
 
 // CR039 A1 — create a source by hand, or edit an existing source's citation
 // metadata. Editing never touches the body (read-only after capture).
@@ -46,6 +47,50 @@ const showBookFields = computed(() => ['book', 'book_chapter'].includes(form.val
 function nullIfBlank(v) {
   const t = (v || '').trim();
   return t ? t : null;
+}
+
+// A3 (§16 #14) — "Fetch details": the server reads the page's citation metadata
+// with the clipper's extractor. Only empty fields are filled, so nothing the
+// user typed is overwritten; a URL typed into Title counts as empty.
+const fetching = ref(false);
+const fetchNote = ref('');
+const looksLikeUrl = (v) => /^https?:\/\/\S+$/i.test((v || '').trim());
+const titleIsUrl = computed(() => !form.value.url.trim() && looksLikeUrl(form.value.title));
+
+function moveTitleToUrl() {
+  form.value.url = form.value.title.trim();
+  form.value.title = '';
+  fetchDetails();
+}
+
+async function fetchDetails() {
+  const url = form.value.url.trim();
+  if (!url) return;
+  fetching.value = true;
+  fetchNote.value = '';
+  error.value = '';
+  try {
+    const m = await research.fetchMetadata(url);
+    const f = form.value;
+    const fill = (key, value) => { if (value && !String(f[key] || '').trim()) f[key] = value; };
+    if (!f.title.trim() || looksLikeUrl(f.title)) f.title = m.title || f.title;
+    fill('authors', authorsToInput(m.authors));
+    fill('container', m.container);
+    fill('publisher', m.publisher);
+    fill('published', m.published);
+    fill('volume', m.volume);
+    fill('issue', m.issue);
+    fill('pages', m.pages);
+    fill('doi', m.doi);
+    fill('isbn', m.isbn);
+    if (!isEdit.value && m.source_kind) f.source_kind = m.source_kind;
+    if (m.url) f.url = m.url;
+    fetchNote.value = 'Filled from the page — check the fields before saving.';
+  } catch (err) {
+    error.value = err.message || 'Could not read details from that page.';
+  } finally {
+    fetching.value = false;
+  }
 }
 
 async function save() {
@@ -141,7 +186,10 @@ function openExisting() {
           </label>
           <label class="sf-field sf-grow">
             <span>Title</span>
-            <input ref="titleInput" v-model="form.title" type="text" required maxlength="1000" placeholder="The Bitter Lesson" />
+            <input ref="titleInput" v-model="form.title" type="text" required maxlength="1000" placeholder="The Bitter Lesson, or paste a URL" />
+            <button v-if="titleIsUrl" type="button" class="sf-link sf-title-hint" @click="moveTitleToUrl">
+              That's a link — use it as the URL and fetch details
+            </button>
           </label>
         </div>
 
@@ -181,7 +229,14 @@ function openExisting() {
 
         <label class="sf-field">
           <span>URL</span>
-          <input v-model="form.url" type="url" maxlength="2000" placeholder="https://" />
+          <div class="sf-url">
+            <input v-model="form.url" type="url" maxlength="2000" placeholder="https://" @keydown.enter.prevent="fetchDetails" />
+            <button type="button" class="sf-btn" :disabled="!form.url.trim() || fetching"
+                    title="Read title, authors, date and publication from the page" @click="fetchDetails">
+              <DownloadCloud :size="14" /> {{ fetching ? 'Fetching…' : 'Fetch details' }}
+            </button>
+          </div>
+          <small v-if="fetchNote" class="sf-note" role="status">{{ fetchNote }}</small>
         </label>
 
         <template v-if="!isEdit">
@@ -267,6 +322,11 @@ function openExisting() {
   border: 1px solid var(--border-subtle); border-radius: 999px;
   padding: 3px 10px; font-size: 12px; color: var(--text-primary); cursor: pointer;
 }
+.sf-url { display: flex; gap: 6px; }
+.sf-url input { flex: 1; min-width: 0; }
+.sf-url .sf-btn { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.sf-note { color: var(--status-success); font-size: 12px; }
+.sf-title-hint { align-self: flex-start; padding: 0; margin-top: 2px; }
 .sf-error { margin: 0; color: var(--status-error); font-size: 12px; }
 .sf-link { background: none; border: none; color: var(--accent-primary); cursor: pointer; text-decoration: underline; font-size: 12px; }
 .sf-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }

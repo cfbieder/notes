@@ -81,6 +81,11 @@ export const useResearchStore = defineStore('research', () => {
     return res;
   }
 
+  // A3 — read citation metadata from a public page (nothing is stored).
+  async function fetchMetadata(url) {
+    return (await api.post('/sources/fetch-metadata', { url })).data;
+  }
+
   async function getSource(id) {
     return (await api.get(`/sources/${id}`)).data;
   }
@@ -115,6 +120,6 @@ export const useResearchStore = defineStore('research', () => {
     books, chapters, loaded, activeBook, hasBook,
     ensureLoaded, fetchBooks, fetchChapters, createBook, updateBook, deleteBook,
     createChapter, updateChapter, deleteChapter, reorderChapters,
-    fetchSources, getSource, createSource, updateSource, assignChapter, unassignChapter, fetchReferences
+    fetchSources, fetchMetadata, getSource, createSource, updateSource, assignChapter, unassignChapter, fetchReferences
   };
 });

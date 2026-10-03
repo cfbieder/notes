@@ -871,3 +871,29 @@ was skipped by decision. Requests from QA: URL autofill on the New source form (
 going into A3), and a clearer clipper login error (extension v0.4.1 now names the
 address it tried).
 
+### Phase A3 (in progress)
+
+**Slice 1: Fetch details (§16 #14).** Built 2026-10-03.
+- **Route:** `POST /sources/fetch-metadata { url }` returns the extracted metadata and
+  stores nothing. It is rate-limited to 30 requests a minute.
+- **Fetching** ([pageFetch.js](backend/src/utils/pageFetch.js)): every hop, including each
+  redirect, is resolved and must be a **public** address (no private-host opt-in here). The
+  socket is pinned to the checked address. Limits: `http`/`https` only, no credentials in
+  the URL, 10 s, 2 MB, 3 redirects, HTML only. A PDF URL is answered "upload it as a PDF
+  source".
+- **Extraction** ([pageCitation.js](backend/src/services/pageCitation.js)): runs the
+  **clipper's own extractor** on a `linkedom` DOM (page scripts never run).
+  `backend/src/services/citationMetadata.js` is a byte-identical copy of
+  `clipper/metadata.js`, enforced by CI guard 8, because the backend's Docker build cannot
+  see `clipper/`.
+- **Form:** a **Fetch details** button next to URL. It fills empty fields only, so a refetch
+  never overwrites what the user typed. A URL pasted into Title offers "use it as the URL
+  and fetch details".
+- **Verified:** `tests/cr039-page-citation.test.js`, 15 assertions with no network:
+  loopback, metadata, private and Tailscale addresses refused, mixed-record rebinding
+  refused, credentials refused, scheme refused, extraction, page scripts never run. Live
+  checks against real pages (MIT Technology Review, arXiv, incompleteideas.net, a redirect,
+  a PDF). 7 headless-Chromium checks of the form flow. The live check caught a Node 20
+  socket-pinning bug: happy-eyeballs asks the lookup for `all: true` addresses. The unit
+  tests could not have caught it.
+
