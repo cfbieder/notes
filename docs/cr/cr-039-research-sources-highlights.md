@@ -732,14 +732,13 @@ each took the recommended option.
 | 10 | Join-table isolation | **Route checks plus an isolation test per join table**, following `note_tags`; no composite FKs. |
 | 11 | Converting an existing plain clip | **Unsupported in v1.** Re-clip as a source; tracked as deferred on the roadmap. |
 | 12 | Research rail visibility | **Shown only once a book exists.** Creating a book is the opt-in. |
+| 13 | Where anchoring runs (Phase C) | **The browser only** (owner, 2026-10-03, recommended). The Reader matches each highlight against the text it actually rendered and saves changed statuses (anchored / fuzzy / orphaned) back. The server only stores quotes. `replace-body` and clipper highlights therefore can't report "placed" straight away; statuses update the next time the source is opened. A shared server-side matcher (option c, the `metadata.js` two-copies pattern) can be added later without a schema change. |
+| 15 | §15c priority re-check for Phase C | **Start C now** (owner, 2026-10-03). This overrode the recommendation to use A/B for a week or two first. C is built next; D and E keep their own re-checks. |
 | 14 | Autofill the New source form from a pasted URL (owner, during QA 2026-10-03) | **A3: a "Fetch details" button.** The server fetches the URL through the existing `ssrfGuard` (public hosts only, 2 MB, 10 s) and runs the clipper's extraction order; the form prefills for review. The form also offers this when a URL is pasted into Title. The clipper stays the way to capture a page you have open. |
 
 ### Open
 
-13. **Where anchoring runs (decide before Phase C):** (a) client only — `replace-body` and
-    live-page highlights store selectors, and the reader re-anchors on open and posts statuses
-    back; (b) the server anchors against a plain-text projection of the Markdown; (c) a vendored
-    module duplicated in both apps with a pinned-output test. *Technical reviewer recommends (a).*
+*(Resolved 2026-10-03 — see #13 in the table above.)*
 
 ## Outcome
 

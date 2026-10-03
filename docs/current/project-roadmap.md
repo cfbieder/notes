@@ -39,8 +39,8 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | CR | Title |
 |----|-------|
 | [CR009](docs/cr/cr-009-signed-attachment-urls.md) | Replace Attachment Query-String JWT with Signed URLs |
-| — | Unmapped prod settings — **Known issue, no CR yet** (found 2026-10-03). `MAX_FILE_SIZE`, `LLM_GENERATION_MODEL`, `LLM_CONTEXT_WINDOW` and `LLM_GENERATE_TIMEOUT_MS` are read by the code and documented in `.env.prod.example`, but not set in `docker-compose.prod.yml`, so setting them in `.env.prod` does nothing (prod runs on code defaults). `RATE_LIMIT_*` are documented but read by nothing. They are allowlisted in CI guard 7 (shrink, never grow). Fix: map each with a default equal to the code default, and drop the dead ones |
-| — | `tag_ids` ownership on `POST`/`PUT /notes` — **Known issue, no CR yet** (found in the CR039 A1 security review, 2026-10-02). Tag ids are inserted into `note_tags` without checking they belong to the caller, and `GET /notes/:id` joins `tags` without a user filter, so a known foreign tag UUID can be attached and its name and color read. UUIDs are unguessable, so practical risk is low. Fix: `INSERT … SELECT … FROM tags WHERE user_id = $1 AND id = ANY($2)` |
+| — | Unmapped prod setting `MAX_FILE_SIZE` — **Known issue, owner decision pending** (narrowed in v0.22.1: the `LLM_*` settings are now mapped with code-equal defaults, and the dead `RATE_LIMIT_*` lines were removed). `.env.prod` says 10 MB, but the container never sees it: the upload routes run on their 25 MB default and the Drive poller on its own 10 MB one. Mapping it would cut prod uploads to 10 MB, so pick the intended limit first, then map it and drop it from CI guard 7's allowlist |
+| — | `tag_ids` ownership on `POST`/`PUT /notes` — **Fixed v0.22.1.** Foreign tag ids are now ignored (create, update and offline check-in), and the reads join only the owner's tags. Covered by cross-user tests in `cr039-research.test.js` |
 | [CR020](docs/cr/cr-020-encrypted-password-vault.md) | Encrypted Password & Key Vault (client-side, zero-knowledge) — **Completed** |
 | [CR021](docs/cr/cr-021-biometric-vault-unlock.md) | Biometric Vault Unlock (WebAuthn PRF) — **Completed** |
 | [CR029](docs/cr/cr-029-vault-card-bank-entry-types.md) | Vault: Credit Card & Bank Account entry types — **Completed** |
@@ -107,6 +107,12 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ---
 
 ## Recently Completed
+
+### Released v0.22.1 (2026-10-03)
+
+- **Security — AI metadata injection guard** (CR039; finding from ocr-llm's probe in handoff `noted-source-metadata-task`). A page can plant a DOI or title **and** the instruction to use it, which passes the verbatim check. Any AI-proposed value within 200 characters of instruction-like text is now dropped, leaving that field empty for the user. Their exact attack is covered by a regression test.
+- **Security — tag ownership.** `POST`/`PUT /notes` and offline check-in attach only the caller's own tags; foreign tag ids are ignored. Found in the CR039 security review.
+- **Config.** `LLM_GENERATION_MODEL`, `LLM_CONTEXT_WINDOW` and `LLM_GENERATE_TIMEOUT_MS` are mapped in prod compose with defaults equal to the code's, so behaviour is unchanged. The unused `RATE_LIMIT_*` lines were removed from the templates. `MAX_FILE_SIZE` stays an open decision (see Known issues).
 
 ### Released v0.22.0 (2026-10-03)
 

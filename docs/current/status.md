@@ -7,11 +7,12 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.22.0 · **Live:** `https://noted.example.com`
+**Current version:** v0.22.1 · **Live:** `https://noted.example.com`
 (containers `noted-db`, `noted-api`, `noted-web`).
 
 ## Recently shipped
 See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlines:
+- v0.22.1 — security patch: AI citation metadata refuses values planted beside an injected instruction (from ocr-llm's probe); notes attach only your own tags. Plus prod `LLM_*` settings mapped
 - v0.22.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **Phase A3**: PDF sources (upload, text layer, Open PDF), AI-filled citations ("Fill with AI", flagged until verified), clipper v0.5.0 (PDF tabs + page snapshots). Reload the extension
 - v0.21.0 — **Node 22 LTS** runtime (Node 20 was end-of-life; needed for the PDF.js security fix); [CR039](docs/cr/cr-039-research-sources-highlights.md) A3 **Fetch details** (paste a URL in New source and the citation fills in); owner-QA fixes (local AI provider setting mapped on prod, provider form validation and styling, clearer clipper login error)
 - v0.20.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **Phase A2**: the web clipper (extension v0.4.0) can **save a page as a research source**, with citation metadata read from the page, editable before saving, a chapter picker, and duplicate detection. Reload the extension to pick it up
@@ -29,7 +30,7 @@ See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlin
 
 ## In progress / next
 - [CR038](docs/cr/cr-038-pluggable-ai-providers.md) — Pluggable AI providers (**in progress**): still open: `translateText` and `/system/stats` are gateway-only, `generateTextStream` is not cancellable, and no path has been verified against a real cloud key. Phases 2 (OCR) and 3 (transcription) not started
-- [CR039](docs/cr/cr-039-research-sources-highlights.md) — Research sources (**in progress**): A1, B, A2 and A3 shipped. Next: **Phase C** (web highlights), after its §15c priority re-check and the §16 #13 anchoring decision. Waiting on ocr-llm to register `noted_source_metadata` (a bridging model is used meanwhile)
+- [CR039](docs/cr/cr-039-research-sources-highlights.md) — Research sources (**in progress**): A1, B, A2 and A3 shipped. **Phase C (web highlights) is next**: both decisions are made (start now; anchoring runs in the browser). The ocr-llm handoff `noted-source-metadata-task` is answered and the task is live; it closes after the first real PDF upload on prod fills a citation
 - [CR026](docs/cr/cr-026-activity-rail-navigation.md) — Activity rail + contextual panel navigation (**in progress**)
 - [CR025](docs/cr/cr-025-pdf-document-management.md) — PDF document management (open)
 - **Phase 8 — LLM intelligence:** foundation [CR001](docs/cr/cr-001-pgvector-embeddings.md)
