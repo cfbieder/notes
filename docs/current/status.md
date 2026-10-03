@@ -7,11 +7,12 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.19.0 · **Live:** `https://noted.example.com`
+**Current version:** v0.20.0 · **Live:** `https://noted.example.com`
 (containers `noted-db`, `noted-api`, `noted-web`).
 
 ## Recently shipped
 See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlines:
+- v0.20.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **Phase A2**: the web clipper (extension v0.4.0) can **save a page as a research source**, with citation metadata read from the page, editable before saving, a chapter picker, and duplicate detection. Reload the extension to pick it up
 - v0.19.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **Phase B**: per-chapter and whole-book Chicago reference export — **Copy for Word** (italics survive the paste) and **.md** download, with bold `[field?]` placeholders for missing citation data. With A1, this is the research layer's first usable release
 - v0.18.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **Phase A1**: research sources, books and chapters — a Research rail item (once a book exists), a source library and chapter views, a read-only Reader view for sources, and Settings → Research. Plus a dependency fix: `npm audit` clean in both apps (`bcrypt` 6 removes the critical `tar` advisory)
 - v0.17.1 — fix: [CR038](docs/cr/cr-038-pluggable-ai-providers.md) `AI_KEYS_ENC_KEY` now reaches the prod container, so saving a Claude / OpenAI / local provider key works on production; new CI guard 7 fails the build when any prod secret is left unmapped in `docker-compose.prod.yml`. Plus [CR039](docs/cr/cr-039-research-sources-highlights.md) (research sources, highlights & chapter references) drafted, reviewed and approved for Phase A1
@@ -26,7 +27,7 @@ See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlin
 
 ## In progress / next
 - [CR038](docs/cr/cr-038-pluggable-ai-providers.md) — Pluggable AI providers (**in progress**): still open: `translateText` and `/system/stats` are gateway-only, `generateTextStream` is not cancellable, and no path has been verified against a real cloud key. Phases 2 (OCR) and 3 (transcription) not started
-- [CR039](docs/cr/cr-039-research-sources-highlights.md) — Research sources (**in progress**): A1 + B shipped (first usable release); next is **Phase A2**, clipper web capture with citation metadata, then A3 (PDF + AI metadata)
+- [CR039](docs/cr/cr-039-research-sources-highlights.md) — Research sources (**in progress**): A1, B and A2 shipped; next is **Phase A3**: PDF sources, AI-filled metadata (ocr-llm handoff), page snapshots
 - [CR026](docs/cr/cr-026-activity-rail-navigation.md) — Activity rail + contextual panel navigation (**in progress**)
 - [CR025](docs/cr/cr-025-pdf-document-management.md) — PDF document management (open)
 - **Phase 8 — LLM intelligence:** foundation [CR001](docs/cr/cr-001-pgvector-embeddings.md)

@@ -62,7 +62,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR032](docs/cr/cr-032-drop-is-inbox-flag.md) | Drop `notes.is_inbox` flag; derive Inbox from default notebook (`notebook_id IS NULL OR is_default = TRUE`) and exclude `note_type='idea'` — **Completed** |
 | [CR036](docs/cr/cr-036-export-note-as-pdf.md) | Export Note as PDF (Markdown + HTML) — relabel the print flow as "Export as PDF"; reuse the existing print-window pipeline (no new deps) — **Completed** |
 | [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) | Multi-Note Editor Tabs (desktop) — tab strip over a persisted open-note list; active tab derived from route; no per-tab buffers — **Completed** |
-| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — `source` note type with citation metadata, books/chapters, per-chapter Chicago reference export, later web + PDF highlights. **In progress — Phase A1 shipped v0.18.0** (server core, read-only guards + trigger, manual sources, Research rail/panel/views, Reader view); **Phase B shipped v0.19.0** (Chicago reference export: Copy for Word + .md, per chapter and per book); **A2 built** (clipper "Save as research source" with citation metadata extraction, extension v0.4.0). Next: A3 (PDF sources, AI metadata, snapshot); C/D/E re-prioritized when reached (D with CR025, E after CR001) |
+| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — `source` note type with citation metadata, books/chapters, per-chapter Chicago reference export, later web + PDF highlights. **In progress — Phase A1 shipped v0.18.0** (server core, read-only guards + trigger, manual sources, Research rail/panel/views, Reader view); **Phase B shipped v0.19.0** (Chicago reference export: Copy for Word + .md, per chapter and per book); **A2 shipped v0.20.0** (clipper "Save as research source" with citation metadata extraction, extension v0.4.0). Next: A3 (PDF sources, AI metadata, snapshot); C/D/E re-prioritized when reached (D with CR025, E after CR001) |
 
 **Deferred from CR039** (out of scope for v1; each a later CR if wanted):
 - `.docx` reference export — add if a publisher asks for a file (Copy for Word covers drafting)
@@ -106,6 +106,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ---
 
 ## Recently Completed
+
+### Released v0.20.0 (2026-10-03)
+
+- **[CR039](docs/cr/cr-039-research-sources-highlights.md) Phase A2 — Clipper capture as a research source** (extension v0.4.0; no new permissions). `POST /clips` with `as_source` creates a source through the new shared `backend/src/services/sourceService.js`, which `POST /sources` now also uses: the clipped text is the body, the canonical URL comes from the metadata, status is `auto`/`incomplete`, a duplicate returns 409, and screenshot mode returns 422. `clipper/metadata.js` extracts citation metadata (`citation_*` → JSON-LD → OG → Dublin Core → fallback). The popup gets an editable "Save as research source" with a chapter picker and the duplicate "Open existing" flow, and feature-detects older servers. Verified by 86 API assertions and 25 headless-Chromium checks (fixture pages + the real unpacked extension). **Reload the extension after deploy.**
 
 ### Released v0.19.0 (2026-10-03)
 

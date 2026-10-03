@@ -1,6 +1,6 @@
 # CR039 — Research Sources, Highlights & Chapter References
 
-**Status:** In progress — **Phases A1 and B shipped**, **A2 built** (see Outcome; versions in the CR index); A3 next.
+**Status:** In progress — **Phases A1, B and A2 shipped** (see Outcome; versions in the CR index); A3 next.
 Phases C, D and E are a design of record; each gets a priority re-check before it is built (§15c).
 **Severity:** Feature (large; phased, first usable release = A1 + B)
 **Origin:** User proposal, 2026-10-02 — reviewed against the code the same day (see §15)
@@ -818,7 +818,7 @@ heading, bold placeholders) and the downloaded `.md` for a chapter and a whole b
 **Not automated:** pasting into Microsoft Word itself. That needs a manual check against the
 Phase B acceptance criterion.
 
-### Phase A2 (built 2026-10-03; version in the [CR index](docs/cr/README.md))
+### Phase A2 (shipped 2026-10-03; version in the [CR index](docs/cr/README.md))
 
 Clipper web capture, extension v0.4.0. **No new extension permissions:** metadata is read
 with the existing `activeTab` + `scripting` grant.
