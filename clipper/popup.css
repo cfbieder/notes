@@ -156,3 +156,18 @@ button:disabled { opacity: 0.5; cursor: wait; }
   text-decoration: underline; cursor: pointer; font-size: 12px;
 }
 .note { color: var(--text-muted); font-size: 12px; margin: 0 0 10px; }
+
+/* CR039 Phase C — Highlight selection */
+.hl-section { margin-bottom: 6px; }
+.hl-head { display: block; color: var(--text-muted); font-size: 11px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.hl-quote { margin: 0 0 8px; padding: 6px 8px; border-left: 3px solid var(--accent); background: var(--bg-card); font-size: 12px; max-height: 90px; overflow: auto; }
+.hl-colors { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 8px; }
+.hl-color { border: 1px solid transparent; border-radius: 6px; padding: 4px; font-size: 11px; color: var(--text); cursor: pointer; }
+.hl-color.on { border-color: var(--text); font-weight: 600; }
+.hl-yellow { background: rgba(250, 204, 21, 0.35); }
+.hl-red { background: rgba(248, 113, 113, 0.35); }
+.hl-green { background: rgba(74, 222, 128, 0.3); }
+.hl-blue { background: rgba(96, 165, 250, 0.35); }
+.hl-sep { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+#hlStatus.error { color: var(--danger); }
+#hlStatus.success { color: var(--success); }

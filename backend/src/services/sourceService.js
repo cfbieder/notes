@@ -169,7 +169,27 @@ async function setSourceBody(db, noteId, content) {
   }
 }
 
+// Chapter membership (CR039 D4): a source belongs to the chapters assigned by
+// hand plus the chapters of any of its highlights. A subquery, not a view, so
+// every caller still joins chapters/sources with its own user filter (§5.3).
+// Rows may repeat a (source, chapter) pair once per route ('manual'/'highlight').
+// Each arm also requires the chapter and the source/highlight to share an owner,
+// so a cross-user link row could never surface even if a future writer skipped
+// its parent checks (security review, 2026-10-03).
+const MEMBERS = `(
+  SELECT sc.source_note_id, sc.chapter_id, 'manual' AS via
+  FROM source_chapters sc
+  JOIN sources s2 ON s2.note_id = sc.source_note_id
+  JOIN chapters c2 ON c2.id = sc.chapter_id AND c2.user_id = s2.user_id
+  UNION
+  SELECT h.source_note_id, hc.chapter_id, 'highlight' AS via
+  FROM highlight_chapters hc
+  JOIN highlights h ON h.id = hc.highlight_id
+  JOIN chapters c2 ON c2.id = hc.chapter_id AND c2.user_id = h.user_id
+)`;
+
 module.exports = {
+  MEMBERS,
   setSourceBody,
   SOURCE_KINDS, metadataProperties, SourceError, createSource, sourceExistsError, hasAuthorAndDate, rollbackQuietly
 };

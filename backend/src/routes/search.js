@@ -1,3 +1,5 @@
+const { MEMBERS } = require('../services/sourceService');
+
 async function searchRoutes(fastify) {
   fastify.addHook('onRequest', fastify.authenticate);
 
@@ -14,13 +16,16 @@ async function searchRoutes(fastify) {
           auto_update: { type: 'string', enum: ['true'] },
           from: { type: 'string', format: 'date' },
           to: { type: 'string', format: 'date' },
+          // CR039 §10.4: is:source and ch:<label> (active book's chapter label)
+          note_type: { type: 'string', enum: ['note', 'idea', 'source'] },
+          chapter: { type: 'string', minLength: 1, maxLength: 50 },
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
           offset: { type: 'integer', minimum: 0, default: 0 }
         }
       }
     }
   }, async (request) => {
-    const { q, notebook_id, tag_id, from_drive, auto_update, from, to, limit = 20, offset = 0 } = request.query;
+    const { q, notebook_id, tag_id, from_drive, auto_update, from, to, note_type, chapter, limit = 20, offset = 0 } = request.query;
 
     const hasTextQuery = q && q.trim().length > 0;
 
@@ -63,6 +68,22 @@ async function searchRoutes(fastify) {
       joinClause += ' JOIN note_tags nt ON nt.note_id = n.id';
       conditions.push(`nt.tag_id = $${idx++}`);
       params.push(tag_id);
+    }
+
+    if (note_type) {
+      conditions.push(`n.note_type = $${idx++}`);
+      params.push(note_type);
+    }
+
+    // ch:<label> — sources in that chapter of the user's active book, assigned by
+    // hand or via a highlight (MEMBERS is owner-checked per arm).
+    if (chapter) {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM ${MEMBERS} m
+        JOIN chapters c ON c.id = m.chapter_id AND c.user_id = $1
+        JOIN books b ON b.id = c.book_id AND b.user_id = $1 AND b.is_active
+        WHERE m.source_note_id = n.id AND lower(c.label) = lower($${idx++}))`);
+      params.push(chapter);
     }
 
     if (from) {
@@ -126,6 +147,47 @@ async function searchRoutes(fastify) {
       data: result.rows,
       meta: { total: countResult.rows[0].total, query: q || '', limit, offset }
     };
+  });
+
+  // CR039 §10.4 — highlights as their own result type: quotes and comments
+  // matching the query, newest-ranked first, trashed sources excluded. Returned
+  // as plain fields (no ts_headline HTML): the client renders them as text.
+  fastify.get('/highlights', {
+    schema: {
+      querystring: {
+        type: 'object',
+        required: ['q'],
+        properties: {
+          q: { type: 'string', minLength: 1, maxLength: 500 },
+          chapter: { type: 'string', minLength: 1, maxLength: 50 },
+          limit: { type: 'integer', minimum: 1, maximum: 50, default: 10 }
+        }
+      }
+    }
+  }, async (request) => {
+    const { q, chapter, limit = 10 } = request.query;
+    const params = [request.user.id, q];
+    let chapterJoin = '';
+    if (chapter) {
+      params.push(chapter);
+      chapterJoin = `JOIN highlight_chapters hc ON hc.highlight_id = h.id
+        JOIN chapters c ON c.id = hc.chapter_id AND c.user_id = $1 AND lower(c.label) = lower($3)
+        JOIN books b ON b.id = c.book_id AND b.user_id = $1 AND b.is_active`;
+    }
+    params.push(limit);
+    const r = await fastify.db.query(
+      `SELECT DISTINCT ON (rank, h.id) h.id, h.source_note_id, h.exact, h.comment, h.color, h.anchor_status,
+              s.title AS source_title, ts_rank(h.search_tsv, websearch_to_tsquery('english', $2)) AS rank
+       FROM highlights h
+       JOIN sources s ON s.note_id = h.source_note_id AND s.user_id = $1
+       JOIN notes n ON n.id = s.note_id AND n.deleted_at IS NULL
+       ${chapterJoin}
+       WHERE h.user_id = $1 AND h.search_tsv @@ websearch_to_tsquery('english', $2)
+       ORDER BY rank DESC, h.id
+       LIMIT $${params.length}`,
+      params
+    );
+    return { data: r.rows.map(({ rank, ...h }) => h), meta: { query: q } };
   });
 }
 

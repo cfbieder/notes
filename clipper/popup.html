@@ -18,6 +18,31 @@
     </div>
 
     <div id="main" class="hidden">
+      <!-- CR039 Phase C — shown when text is selected on a page (research servers only). -->
+      <section id="hlSection" class="hl-section hidden" aria-label="Highlight the selection">
+        <span class="hl-head">Highlight the selection</span>
+        <blockquote id="hlQuote" class="hl-quote"></blockquote>
+        <div id="hlColors" class="hl-colors" role="radiogroup" aria-label="Meaning">
+          <button type="button" data-color="yellow" class="hl-color hl-yellow on">Evidence</button>
+          <button type="button" data-color="red" class="hl-color hl-red">Counter-argument</button>
+          <button type="button" data-color="green" class="hl-color hl-green">Quote-worthy</button>
+          <button type="button" data-color="blue" class="hl-color hl-blue">Follow-up</button>
+        </div>
+        <label class="field">
+          <span>Chapter</span>
+          <select id="hlChapter"><option value="">No chapter</option></select>
+        </label>
+        <label class="field">
+          <span>Comment</span>
+          <textarea id="hlComment" rows="2"></textarea>
+        </label>
+        <div class="actions">
+          <button id="hlBtn" class="primary">Highlight</button>
+          <span id="hlStatus"></span>
+        </div>
+        <hr class="hl-sep" />
+      </section>
+
       <label class="field">
         <span>Mode</span>
         <select id="mode">

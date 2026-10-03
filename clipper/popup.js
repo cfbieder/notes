@@ -26,7 +26,14 @@ const els = {
   openExisting: document.getElementById('openExisting'),
   pdfNote: document.getElementById('pdfNote'),
   snapshotRow: document.getElementById('snapshotRow'),
-  srcSnapshot: document.getElementById('srcSnapshot')
+  srcSnapshot: document.getElementById('srcSnapshot'),
+  hlSection: document.getElementById('hlSection'),
+  hlQuote: document.getElementById('hlQuote'),
+  hlColors: document.getElementById('hlColors'),
+  hlChapter: document.getElementById('hlChapter'),
+  hlComment: document.getElementById('hlComment'),
+  hlBtn: document.getElementById('hlBtn'),
+  hlStatus: document.getElementById('hlStatus')
 };
 
 // CR039 A2 state: what the page's metadata said, and the research context.
@@ -126,6 +133,115 @@ async function extractPageData(tabId, mode) {
   });
   return result;
 }
+
+// --- CR039 Phase C: highlight the selection on the live page -----------------
+// The quote is kept as a text-quote selector (exact + ~32 chars of context).
+// Live page text differs from the stored Readability text, so the Reader
+// re-anchors it when the source is next opened (exact, else fuzzy, else kept
+// as unanchored — §16 #13).
+let selection = null;
+let hlColor = 'yellow';
+
+async function readSelection(tabId) {
+  try {
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+        const norm = (s) => s.replace(/\s+/g, ' ');
+        const exact = norm(sel.toString()).trim();
+        if (!exact) return null;
+        const r = sel.getRangeAt(0);
+        const before = document.createRange();
+        before.setStart(document.body, 0);
+        before.setEnd(r.startContainer, r.startOffset);
+        const after = document.createRange();
+        after.setStart(r.endContainer, r.endOffset);
+        after.setEnd(document.body, document.body.childNodes.length);
+        return {
+          exact: exact.slice(0, 5000),
+          prefix: norm(before.toString()).slice(-32),
+          suffix: norm(after.toString()).slice(0, 32)
+        };
+      }
+    });
+    return result;
+  } catch (_) {
+    return null; // restricted page or PDF viewer
+  }
+}
+
+function setHlStatus(text, kind = '') {
+  els.hlStatus.textContent = text;
+  els.hlStatus.className = kind;
+}
+
+async function initHighlight(tab) {
+  if (!research.supported || pdfMode || !tab?.id) return;
+  selection = await readSelection(tab.id);
+  if (!selection) return;
+  els.hlQuote.textContent = `“${selection.exact.length > 300 ? selection.exact.slice(0, 300) + '…' : selection.exact}”`;
+  for (const c of research.chapters) {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = `${c.label} · ${c.title}`;
+    els.hlChapter.appendChild(opt);
+  }
+  const { lastChapterIds = [] } = await chrome.storage.local.get('lastChapterIds');
+  if (lastChapterIds[0] && research.chapters.some(c => c.id === lastChapterIds[0])) els.hlChapter.value = lastChapterIds[0];
+  els.hlSection.classList.remove('hidden');
+}
+
+els.hlColors.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-color]');
+  if (!btn) return;
+  hlColor = btn.dataset.color;
+  els.hlColors.querySelectorAll('[data-color]').forEach(b => b.classList.toggle('on', b === btn));
+});
+
+els.hlBtn.addEventListener('click', async () => {
+  els.hlBtn.disabled = true;
+  setHlStatus('Saving…');
+  try {
+    const tab = await getActiveTab();
+    // The page's source, or clip it as one first.
+    const found = await send({ type: 'findSource', url: tab.url });
+    if (!found?.ok) throw new Error(found?.error || 'Could not look up the page');
+    let sourceId = found.data?.note_id;
+    if (!sourceId) {
+      setHlStatus('Clipping the page as a source…');
+      const page = await extractPageData(tab.id, 'article');
+      const payload = {
+        url: tab.url,
+        title: els.title.value || tab.title,
+        mode: page?.error ? 'link' : 'article',
+        content: page?.contentMarkdown || '',
+        as_source: true,
+        ...sourcePayload()
+      };
+      const clipped = await send({ type: 'clip', payload });
+      if (!clipped?.ok) throw new Error(clipped?.error || 'Clipping the page failed');
+      sourceId = clipped.data?.note?.id;
+    }
+    const chapterIds = els.hlChapter.value ? [els.hlChapter.value] : [];
+    const res = await send({
+      type: 'createHighlight',
+      sourceId,
+      body: {
+        anchor_type: 'text_quote', ...selection, color: hlColor,
+        comment: els.hlComment.value.trim() || null, chapter_ids: chapterIds
+      }
+    });
+    if (!res?.ok) throw new Error(res?.error || 'Highlight failed');
+    if (chapterIds.length) await chrome.storage.local.set({ lastChapterIds: chapterIds });
+    setHlStatus('Highlighted ✓ — placed in the text when you open the source', 'success');
+    setTimeout(() => window.close(), 1500);
+  } catch (err) {
+    setHlStatus(err.message || String(err), 'error');
+    els.hlBtn.disabled = false;
+  }
+});
 
 // --- CR039 A2: research sources -------------------------------------------
 
@@ -286,6 +402,7 @@ async function loadSettingsAndInit() {
   els.title.value = tab?.title || '';
 
   await initResearch(tab);
+  await initHighlight(tab);
 
   // Load notebooks.
   const nb = await send({ type: 'listNotebooks' });

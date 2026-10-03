@@ -6,7 +6,7 @@
 const { normalizeSourceUrl } = require('../utils/sourceUrl');
 const {
   SOURCE_KINDS, metadataProperties, SourceError, createSource, sourceExistsError, hasAuthorAndDate, rollbackQuietly,
-  setSourceBody
+  setSourceBody, MEMBERS
 } = require('../services/sourceService');
 const { renderReferences } = require('../services/citationFormatter');
 const { citationFromUrl } = require('../services/pageCitation');
@@ -43,24 +43,7 @@ function badRequest(reply, message) {
   return reply.code(400).send({ error: 'Bad Request', message, statusCode: 400 });
 }
 
-// Chapter membership (CR039 D4): a source belongs to the chapters assigned by
-// hand plus the chapters of any of its highlights. A subquery, not a view, so
-// every caller still joins chapters/sources with its own user filter (§5.3).
-// Rows may repeat a (source, chapter) pair once per route ('manual'/'highlight').
-// Each arm also requires the chapter and the source/highlight to share an owner,
-// so a cross-user link row could never surface even if a future writer skipped
-// its parent checks (security review, 2026-10-03).
-const MEMBERS = `(
-  SELECT sc.source_note_id, sc.chapter_id, 'manual' AS via
-  FROM source_chapters sc
-  JOIN sources s2 ON s2.note_id = sc.source_note_id
-  JOIN chapters c2 ON c2.id = sc.chapter_id AND c2.user_id = s2.user_id
-  UNION
-  SELECT h.source_note_id, hc.chapter_id, 'highlight' AS via
-  FROM highlight_chapters hc
-  JOIN highlights h ON h.id = hc.highlight_id
-  JOIN chapters c2 ON c2.id = hc.chapter_id AND c2.user_id = h.user_id
-)`;
+// Chapter membership (CR039 D4) — the shared MEMBERS subquery lives in sourceService.
 
 // Source row + its chapters, excluding trashed notes. Shared by list and get.
 // Each chapter says whether it was assigned by hand (`manual`), which is the
@@ -392,13 +375,16 @@ async function researchRoutes(fastify) {
           q: { type: 'string', maxLength: 200 },
           needs_attention: { type: 'string', enum: ['true', 'false'] },
           unassigned: { type: 'string', enum: ['true', 'false'] },
+          // The clipper's "Highlight selection" finds a page's source by URL:
+          // the normalized canonical URL, or the raw tab URL it was clipped from.
+          url: { type: 'string', maxLength: 2000 },
           limit: { type: 'integer', minimum: 1, maximum: 500, default: 200 },
           offset: { type: 'integer', minimum: 0, default: 0 }
         }
       }
     }
   }, async (request) => {
-    const { chapter_id, kind, status, q, needs_attention, unassigned, limit = 200, offset = 0 } = request.query;
+    const { chapter_id, kind, status, q, needs_attention, unassigned, url, limit = 200, offset = 0 } = request.query;
     const conditions = ['s.user_id = $1', 'n.deleted_at IS NULL'];
     const params = [request.user.id];
     let i = 2;
@@ -411,6 +397,13 @@ async function researchRoutes(fastify) {
       conditions.push(`NOT EXISTS (SELECT 1 FROM ${MEMBERS} m WHERE m.source_note_id = s.note_id)`);
     }
     if (kind) { conditions.push(`s.source_kind = $${i++}`); params.push(kind); }
+    if (url) {
+      let normalized = null;
+      try { normalized = normalizeSourceUrl(url); } catch { /* not http(s): match the raw URL only */ }
+      conditions.push(`(s.url = $${i} OR n.source_url = $${i + 1})`);
+      params.push(normalized, url);
+      i += 2;
+    }
     if (status) { conditions.push(`s.metadata_status = $${i++}`); params.push(status); }
     if (needs_attention === 'true') conditions.push(`s.metadata_status <> 'verified'`);
     if (q) {

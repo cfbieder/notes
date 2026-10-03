@@ -220,6 +220,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         case 'snapshot':
           sendResponse({ ok: true, data: await snapshotTab(msg) });
           break;
+        case 'findSource': {
+          const res = await authFetch(`/sources?url=${encodeURIComponent(msg.url)}&limit=1`);
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.message || `Lookup failed (${res.status})`);
+          sendResponse({ ok: true, data: body.data?.[0] || null });
+          break;
+        }
+        case 'createHighlight': {
+          const res = await authFetch(`/sources/${msg.sourceId}/highlights`, { method: 'POST', body: JSON.stringify(msg.body) });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.message || `Highlight failed (${res.status})`);
+          sendResponse({ ok: true, data: body.data });
+          break;
+        }
         case 'researchInfo':
           sendResponse({ ok: true, data: await researchInfo() });
           break;

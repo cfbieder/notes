@@ -203,6 +203,11 @@ async function run() {
          clipNote.data.data.content === 'Clipped article body.' && clipNote.data.data.source_url === clipUrl,
     'source note: notebook-less, body = clipped text, raw tab URL kept');
   assert(clipNote.data.data.tags.some(t => t.name === 'cr039-clip'), 'tags applied');
+  const byUrl = await api(token, `/sources?url=${encodeURIComponent(clipUrl)}`);
+  assert(byUrl.data.data.length === 1 && byUrl.data.data[0].note_id === clipId, 'GET /sources?url= finds a source by its raw tab URL');
+  const byCanon = await api(token, `/sources?url=${encodeURIComponent(`https://NEWS.example.com/a/${RUN}/#x`)}`);
+  assert(byCanon.data.data.length === 1, '…and by a cosmetically different URL (normalized)');
+  assert((await api(otherToken, `/sources?url=${encodeURIComponent(clipUrl)}`)).data.data.length === 0, '…never another user\'s source');
   const dupClip = await api(token, '/clips', {
     method: 'POST', body: { url: `https://NEWS.example.com/a/${RUN}/#top`, mode: 'link', as_source: true }
   });

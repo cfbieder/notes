@@ -349,7 +349,7 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **API:** `POST /api/v1/clips` creates the note (with `source_url` tracked via migration 008). Screenshot clips also create an attachment, which automatically flows through the existing OCR pipeline (§5.7) so screenshotted text is searchable.
 - **Destination:** Notebook picker, comma-separated tag input (tags upserted on the fly), and a "send to inbox" toggle. Selecting no notebook defaults to inbox.
 - **Context menu:** Right-click a selection → "Clip selection to Noted" posts a selection clip directly without opening the popup.
-- **Save as research source (CR039 A2, extension v0.4.0):** when the server has research routes (`GET /books` ≠ 404), the popup offers **Save as research source**, on by default when a book is active. `clipper/metadata.js` is injected into the page to read citation metadata, in priority order: `citation_*` → JSON-LD (Article/NewsArticle/ScholarlyArticle/Book/Report, incl. `@graph`) → `og:`/`article:` → Dublin Core / `meta author` / canonical → `document.title` + hostname. The popup shows kind, authors, date and publication for editing, plus the active book's chapters (last-used preselected). Notebook and screenshot mode are disabled in source mode. A duplicate URL shows **Open existing source** / **Open Trash**. **v0.5.0 (CR039 A3):** a PDF tab is saved as a PDF source (the extension downloads the file and posts it to `/sources/from-pdf`), and web sources can archive an MHTML **snapshot** (`/sources/:id/snapshot`). Both use *optional* permissions (a per-site host origin, `pageCapture`) requested on the click that needs them.
+- **Save as research source (CR039 A2, extension v0.4.0):** when the server has research routes (`GET /books` ≠ 404), the popup offers **Save as research source**, on by default when a book is active. `clipper/metadata.js` is injected into the page to read citation metadata, in priority order: `citation_*` → JSON-LD (Article/NewsArticle/ScholarlyArticle/Book/Report, incl. `@graph`) → `og:`/`article:` → Dublin Core / `meta author` / canonical → `document.title` + hostname. The popup shows kind, authors, date and publication for editing, plus the active book's chapters (last-used preselected). Notebook and screenshot mode are disabled in source mode. A duplicate URL shows **Open existing source** / **Open Trash**. **v0.5.0 (CR039 A3):** a PDF tab is saved as a PDF source (the extension downloads the file and posts it to `/sources/from-pdf`), and web sources can archive an MHTML **snapshot** (`/sources/:id/snapshot`). Both use *optional* permissions (a per-site host origin, `pageCapture`) requested on the click that needs them. **v0.6.0 (CR039 C):** **Highlight selection** saves the text selected on the page as a highlight (meaning, chapter, comment) on that URL's source, clipping the page as a source first if needed. The Reader places it in the stored text.
 - **Translate** is **not** part of the clipper anymore (removed in v0.3.0). It lives on the main app as a per-note toolbar action — see §5.6.1 below.
 - **CORS:** Backend allows `chrome-extension://<id>` origins in addition to the configured web origin.
 - **Tests:** `backend/tests/phase7-clips.test.js` covers all four modes, validation errors, auth, and search integration.
@@ -829,6 +829,7 @@ PUT    /api/v1/books/:id/chapters/reorder    { chapter_ids } — must be the ful
 DELETE /api/v1/chapters/:id[?force=true]     409 chapter_has_assignments unless forced
 
 GET    /api/v1/sources                       ?chapter_id ?kind ?status ?q ?needs_attention=true ?unassigned=true
+                                             ?url= (normalized URL or raw source_url; the clipper's lookup)
 POST   /api/v1/sources                       Manual entry: metadata + optional content + chapter_ids (one
                                              transaction; 409 source_exists { note_id, in_trash })
 GET    /api/v1/sources/:id                   Citation + chapters
@@ -862,6 +863,8 @@ GET    /api/v1/books/:id/references          Same, one section per chapter in ou
 GET    /api/v1/search               Query: q, notebook_id, tag_id, from, to, from_drive, auto_update
                                     Matches on notes.content_tsv OR attachments.ocr_tsv
                                     Filters deleted_at IS NULL
+                                    CR039 C: note_type (is:source), chapter (ch:<label>, active book)
+GET    /api/v1/search/highlights    Query: q, chapter?, limit? — highlight quotes and comments (CR039 C)
 ```
 
 ### Web Clipper (Phase 7)

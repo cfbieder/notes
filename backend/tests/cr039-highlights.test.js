@@ -127,11 +127,27 @@ async function run() {
   assert((await api(token, `/sources/${src.note_id}/highlights`, { method: 'POST', body: { anchor_type: 'text_quote', exact: 'x', chapter_ids: [theirCh.id] } })).status === 404,
     'cannot create a highlight in another user\'s chapter');
 
+  console.log('\nSearch (§10.4):');
+  const srcHit = await api(token, `/search?q=computation&note_type=source`);
+  assert(srcHit.data.data.some(n => n.id === src.note_id) && srcHit.data.data.every(n => n.note_type === 'source'), 'is:source → note_type=source limits search to sources');
+  const chHit = await api(token, `/search?chapter=2`);
+  assert(chHit.data.data.some(n => n.id === src.note_id), 'ch:2 finds the source assigned to chapter 2 of the active book');
+  assert(!(await api(token, `/search?chapter=1`)).data.data.some(n => n.id === src.note_id), 'ch:1 no longer matches after the highlight moved');
+  const hlQuote = await api(token, `/search/highlights?q=${encodeURIComponent('general methods')}`);
+  assert(hlQuote.status === 200 && hlQuote.data.data.some(h => h.id === h1.data.data.id && h.source_title === `HL Source ${RUN}`), 'highlight search matches the quote, with the source title');
+  await api(token, `/highlights/${h2.data.data.id}`, { method: 'PUT', body: { comment: 'Moore law angle' } });
+  const hlComment = await api(token, `/search/highlights?q=Moore`);
+  assert(hlComment.data.data.some(h => h.id === h2.data.data.id), 'highlight search matches the comment');
+  assert((await api(token, `/search/highlights?q=general&chapter=2`)).data.data.length === 1, 'highlight search narrowed by chapter');
+  assert((await api(other, `/search/highlights?q=general`)).data.data.length === 0, 'another user\'s highlights never appear in search');
+  assert((await api(other, `/search?q=computation&note_type=source`)).data.data.every(n => n.id !== src.note_id), 'another user\'s sources never appear');
+
   console.log('\nDelete + trash:');
   assert((await api(token, `/chapters/${ch2.id}`, { method: 'DELETE' })).status === 409, 'deleting a chapter with highlight assignments → 409');
   assert((await api(token, `/highlights/${h2.data.data.id}`, { method: 'DELETE' })).status === 204, 'DELETE highlight → 204 (hard delete)');
   await api(token, `/notes/${src.note_id}`, { method: 'DELETE' });
   assert((await api(token, `/chapters/${ch2.id}/highlights`)).data.data.length === 0, 'a trashed source\'s highlights drop out of chapter lists');
+  assert((await api(token, `/search/highlights?q=general`)).data.data.every(h => h.source_note_id !== src.note_id), 'and out of highlight search');
   assert((await api(token, `/sources/${src.note_id}/highlights`, { method: 'POST', body: { anchor_type: 'text_quote', exact: 'x' } })).status === 404,
     'cannot highlight a trashed source');
 

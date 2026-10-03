@@ -1,6 +1,6 @@
 # CR039 — Research Sources, Highlights & Chapter References
 
-**Status:** In progress — **Phases A1, B, A2 and A3 shipped; Phase C slices 1–2 (highlights) and Fetch text shipped** (see Outcome; versions in the CR index). Next: C slice 3 (Passages tab + `include=passages` export), then slice 4 (highlight search, clipper live-page highlighting). Next: C (web highlights), pending its §15c priority re-check and the §16 #13 anchoring decision.
+**Status:** In progress — **Phases A1, B, A2 and A3 shipped; Phase C slices 1–2 (highlights) and Fetch text shipped** (see Outcome; versions in the CR index). Slices 3 (Passages tab and export) and 4 (highlight search, clipper v0.6.0 live-page highlighting) are built, awaiting release; that completes Phase C. Next: D (PDF highlights, with CR025).
 Phases C, D and E are a design of record; each gets a priority re-check before it is built (§15c).
 **Severity:** Feature (large; phased, first usable release = A1 + B)
 **Origin:** User proposal, 2026-10-02 — reviewed against the code the same day (see §15)
@@ -998,7 +998,7 @@ moved from the end-of-life Node 20 first.
   extension in headless Chromium: a PDF tab saved into a chapter and its title filled by AI,
   then an article saved with a genuine MHTML snapshot. The A2 suite reran, 25/25.
 
-### Phase C (in progress; started 2026-10-03 by owner decision §16 #15; slices 1–2 shipped)
+### Phase C (started 2026-10-03 by owner decision §16 #15; slices 1–2 shipped, 3–4 built)
 
 **Slice 1: data model and API** (commits `82b3174`, `f86b402`).
 - **Migration `023_highlights.sql`:** `highlights` (text-quote selector, or page + rects for
@@ -1086,4 +1086,31 @@ and `replace-body` had no UI.
   passages-only, Markdown line, escaping); 5 API assertions (include modes, a bad value,
   book export, cross-user 404); 4 headless-Chromium checks (the tab, scroll-to-highlight
   past 40 paragraphs, Copy for Word with Key Passages, the toast).
+
+**Slice 4: Highlight search and live-page highlighting.** Built 2026-10-03.
+- **Search (§10.4):**
+  - `/search` takes `note_type` and `chapter`. The search box parses `is:source` and
+    `ch:<label>`; the chapter resolves against the active book and uses the same `MEMBERS`
+    membership as the chapter view (manual or via highlights).
+  - `GET /search/highlights?q=&chapter=&limit=` searches quotes and comments. Its results
+    show as their own **Highlights** section above the note results, and a click opens the
+    source at `?hl=<id>`. Quotes and comments are rendered as text only.
+  - Fix found on the way: the note-result snippet was set with `v-html`. It is now escaped,
+    except for the `<mark>` tags search adds.
+- **Clipper v0.6.0 (§8.6), with two deviations from the spec:**
+  - **Popup, not a floating button.** Select text on the page, open the clipper, and
+    **Highlight selection** shows the quote with a meaning, chapter and comment. Injecting a
+    button into every page would need a content script on all sites, for little gain.
+  - **Placed by the Reader, not the server** (§16 #13). The popup reads the exact text plus
+    ~32 characters of context from the live page, so the quote anchors in the stored text even
+    though Readability's output differs from the DOM. The status reads "placed in the text
+    when you open the source".
+  - The existing source is found with a new `GET /sources?url=` filter (normalized URL, or the
+    raw `source_url`). If none exists, the page is clipped as a source first, in article
+    mode, with its citation.
+- **Verified:** 12 API assertions (filters, highlight search, the cross-user scope, the `url`
+  filter); headless Chromium with the real web app (filter chips, opening a highlight, the
+  snippet not executing injected HTML); and 7 checks with the real extension (quote shown, page
+  clipped then highlighted, meaning/comment/chapter/context stored, a second highlight reusing
+  the source, the Reader placing the live-page quote, statuses reported back as anchored).
 

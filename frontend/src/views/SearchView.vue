@@ -5,7 +5,8 @@ import { useSearchStore } from '../stores/search.js';
 import AppSidebar from '../components/sidebar/AppSidebar.vue';
 import MobileLayout from '../components/mobile/MobileLayout.vue';
 import { useMobile } from '../composables/useMobile.js';
-import { Search, FileText, RefreshCw, X } from 'lucide-vue-next';
+import { Search, FileText, RefreshCw, X, BookOpen } from 'lucide-vue-next';
+import SearchHighlights from '../components/research/SearchHighlights.vue';
 
 const { isMobile } = useMobile();
 
@@ -39,14 +40,24 @@ function openNote(id) {
   router.push(`/notes/${id}`);
 }
 
-// HTML notes have markup in their snippets that the backend's ts_headline
-// preserves verbatim alongside the <mark>…</mark> highlight wrappers. Strip
-// every tag except <mark> so we render readable text without injecting raw
-// markup via v-html. Markdown notes are passed through unchanged.
+// ts_headline returns the note's raw text plus <mark>…</mark> wrappers. Notes
+// can hold text from arbitrary web pages (clipper, research sources), so a
+// literal "<img onerror=…>" in a note must never reach v-html as markup:
+// HTML notes drop their tags, then EVERYTHING is escaped and only the <mark>
+// wrappers are restored.
 function snippetFor(result) {
   if (!result?.snippet) return '';
-  if (result.format !== 'html') return result.snippet;
-  return result.snippet.replace(/<(?!\/?mark\b)[^>]+>/gi, '');
+  let s = result.snippet;
+  if (result.format === 'html') s = s.replace(/<(?!\/?mark\b)[^>]+>/gi, '');
+  return s
+    .replace(/<mark>/gi, '\u0001').replace(/<\/mark>/gi, '\u0002')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    .replace(/\u0001/g, '<mark>').replace(/\u0002/g, '</mark>');
+}
+
+// CR039 — highlight matches open the source scrolled to the highlight.
+function openHighlight(h) {
+  router.push({ path: `/notes/${h.source_note_id}`, query: { hl: h.id } });
 }
 </script>
 
@@ -56,7 +67,7 @@ function snippetFor(result) {
       <div class="search-header">
         <div class="search-input-row">
           <Search :size="18" />
-          <input v-model="query" class="search-input" placeholder="Search... (from:drive, is:auto-update)" @input="onInput" autofocus />
+          <input v-model="query" class="search-input" placeholder="Search... (from:drive, is:auto-update, is:source, ch:3)" @input="onInput" autofocus />
         </div>
         <div class="search-meta-row">
           <div class="search-filters">
@@ -73,13 +84,15 @@ function snippetFor(result) {
         </div>
       </div>
       <div v-if="searchStore.loading" class="loading">Searching...</div>
-      <div v-else-if="query && searchStore.results.length === 0" class="empty">
+      <div v-else-if="query && searchStore.results.length === 0 && searchStore.highlightResults.length === 0" class="empty">
         <Search :size="32" /><p>No results for "{{ query }}"</p>
       </div>
-      <div v-else class="search-results">
+      <SearchHighlights v-if="!searchStore.loading && searchStore.highlightResults.length" :results="searchStore.highlightResults" @open="openHighlight" />
+      <div v-if="!searchStore.loading && searchStore.results.length" class="search-results">
         <button v-for="result in searchStore.results" :key="result.id" class="result-card" @click="openNote(result.id)">
           <div class="result-header">
             <span v-if="result.note_type === 'idea'" class="idea-chip" title="Idea">💡</span>
+            <BookOpen v-else-if="result.note_type === 'source'" :size="16" />
             <FileText v-else :size="16" />
             <span class="result-title">{{ result.title }}</span>
           </div>
@@ -133,12 +146,14 @@ function snippetFor(result) {
 
       <div v-if="searchStore.loading" class="loading">Searching...</div>
 
-      <div v-else-if="query && searchStore.results.length === 0" class="empty">
+      <div v-else-if="query && searchStore.results.length === 0 && searchStore.highlightResults.length === 0" class="empty">
         <Search :size="32" />
         <p>No results for "{{ query }}"</p>
       </div>
 
-      <div v-else class="search-results">
+      <SearchHighlights v-if="!searchStore.loading && searchStore.highlightResults.length" :results="searchStore.highlightResults" @open="openHighlight" />
+
+      <div v-if="!searchStore.loading && searchStore.results.length" class="search-results">
         <button
           v-for="result in searchStore.results"
           :key="result.id"
@@ -147,6 +162,7 @@ function snippetFor(result) {
         >
           <div class="result-header">
             <span v-if="result.note_type === 'idea'" class="idea-chip" title="Idea">💡</span>
+            <BookOpen v-else-if="result.note_type === 'source'" :size="16" />
             <FileText v-else :size="16" />
             <span class="result-title">{{ result.title }}</span>
             <span v-if="result.auto_update" class="auto-update-chip" title="Auto-update enabled">
