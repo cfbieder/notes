@@ -63,7 +63,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR032](docs/cr/cr-032-drop-is-inbox-flag.md) | Drop `notes.is_inbox` flag; derive Inbox from default notebook (`notebook_id IS NULL OR is_default = TRUE`) and exclude `note_type='idea'` — **Completed** |
 | [CR036](docs/cr/cr-036-export-note-as-pdf.md) | Export Note as PDF (Markdown + HTML) — relabel the print flow as "Export as PDF"; reuse the existing print-window pipeline (no new deps) — **Completed** |
 | [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) | Multi-Note Editor Tabs (desktop) — tab strip over a persisted open-note list; active tab derived from route; no per-tab buffers — **Completed** |
-| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — `source` note type with citation metadata, books/chapters, per-chapter Chicago reference export, later web + PDF highlights. **In progress — Phase A1 shipped v0.18.0** (server core, read-only guards + trigger, manual sources, Research rail/panel/views, Reader view); **Phase B shipped v0.19.0** (Chicago reference export: Copy for Word + .md, per chapter and per book); **A2 shipped v0.20.0** (clipper "Save as research source" with citation metadata extraction, extension v0.4.0); **A3 built** (Fetch details [shipped v0.21.0], PDF sources, AI-filled metadata, clipper PDF tabs + snapshots, extension v0.5.0). Next: C (web highlights), after its priority re-check; C/D/E re-prioritized when reached (D with CR025, E after CR001) |
+| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — `source` note type with citation metadata, books/chapters, per-chapter Chicago reference export, later web + PDF highlights. **In progress — Phase A1 shipped v0.18.0** (server core, read-only guards + trigger, manual sources, Research rail/panel/views, Reader view); **Phase B shipped v0.19.0** (Chicago reference export: Copy for Word + .md, per chapter and per book); **A2 shipped v0.20.0** (clipper "Save as research source" with citation metadata extraction, extension v0.4.0); **A3 shipped v0.21.0–v0.22.0** (Fetch details, PDF sources, AI-filled metadata, clipper PDF tabs + snapshots, extension v0.5.0). Next: C (web highlights), after its priority re-check; C/D/E re-prioritized when reached (D with CR025, E after CR001) |
 
 **Deferred from CR039** (out of scope for v1; each a later CR if wanted):
 - `.docx` reference export — add if a publisher asks for a file (Copy for Word covers drafting)
@@ -107,6 +107,15 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ---
 
 ## Recently Completed
+
+### Released v0.22.0 (2026-10-03)
+
+- **[CR039](docs/cr/cr-039-research-sources-highlights.md) Phase A3 — PDF sources, AI-filled citations, clipper v0.5.0.**
+  - **PDF sources:** "Upload a PDF instead…" on New source. Headless PDF.js 6.2.108 reads the text layer (scanned PDFs fall back to OCR). The PDF is stored on the source note in the same transaction. **Open PDF** fetches with the auth header and has no `?token=` URL.
+  - **AI-filled citations:** they run after a PDF upload and from **Fill with AI**, through task `noted_source_metadata`. Only empty fields are filled, and each is flagged until verified. A DOI or ISBN must be well-formed and appear in the text. The ocr-llm handoff has been filed; until the task is registered, the bridging quick model is used.
+  - **Clipper v0.5.0:** saves PDF tabs as PDF sources and archives an MHTML snapshot of web pages, using optional per-click permissions.
+  - **Popup fix:** `.hidden` lost to later display rules in `popup.css`, so hidden elements stayed visible (A2's older-server feature detection was affected too).
+  - **Testing:** 106 API assertions, 22 extractor assertions, live gateway runs, and real-extension headless checks. **Reload the extension after deploy.**
 
 ### Released v0.21.0 (2026-10-03)
 

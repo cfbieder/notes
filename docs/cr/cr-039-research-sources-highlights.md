@@ -1,6 +1,6 @@
 # CR039 — Research Sources, Highlights & Chapter References
 
-**Status:** In progress — **Phases A1, B and A2 shipped; A3 built** (see Outcome; versions in the CR index). Next: C (web highlights), pending its §15c priority re-check and the §16 #13 anchoring decision.
+**Status:** In progress — **Phases A1, B, A2 and A3 shipped** (see Outcome; versions in the CR index). Next: C (web highlights), pending its §15c priority re-check and the §16 #13 anchoring decision.
 Phases C, D and E are a design of record; each gets a priority re-check before it is built (§15c).
 **Severity:** Feature (large; phased, first usable release = A1 + B)
 **Origin:** User proposal, 2026-10-02 — reviewed against the code the same day (see §15)
@@ -871,7 +871,7 @@ was skipped by decision. Requests from QA: URL autofill on the New source form (
 going into A3), and a clearer clipper login error (extension v0.4.1 now names the
 address it tried).
 
-### Phase A3 (built 2026-10-03; slice 1 shipped in v0.21.0, the rest pending release)
+### Phase A3 (shipped 2026-10-03; versions in the [CR index](docs/cr/README.md))
 
 **Slice 1: Fetch details (§16 #14).** Built 2026-10-03.
 - **Route:** `POST /sources/fetch-metadata { url }` returns the extracted metadata and
