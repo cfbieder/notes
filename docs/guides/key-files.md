@@ -38,6 +38,19 @@ authoritative description of each subsystem lives in
 | `backend/src/services/llmService.js` | LLM gateway client (OCR now, embeddings/generation later) |
 | `backend/tests/phase7-clips.test.js` | Web clipper API integration tests |
 | `clipper/` | Chrome MV3 web-clipper extension (manifest, background, popup, options, vendor libs) |
+| `backend/src/routes/aiProviders.js`, `backend/src/services/ai/` | Pluggable AI providers — Claude / OpenAI / local endpoint, encrypted keys (CR038) |
+| `backend/src/routes/research.js` | Research API — books, chapters, sources, reference export, fetch-text (CR039) |
+| `backend/src/routes/highlights.js` | Highlights API — create/edit/delete, browser-reported anchor statuses, chapter highlights (CR039) |
+| `backend/src/services/sourceService.js` | Source creation (shared with `POST /clips`) and the `MEMBERS` chapter-membership subquery (CR039) |
+| `backend/src/services/citationFormatter.js` | Chicago bibliography + Key Passages renderer (HTML / Markdown / text) (CR039) |
+| `backend/src/services/pageArticle.js`, `backend/src/utils/pageFetch.js` | Fetch text: SSRF-guarded page fetch → Readability → Turndown (CR039) |
+| `backend/src/services/citationMetadata.js`, `clipper/metadata.js` | Citation extractor, two copies kept identical by CI guard 8 (CR039) |
+| `frontend/src/views/ResearchView.vue`, `frontend/src/stores/research.js` | Research library, chapter view (Sources / Passages), store (CR039) |
+| `frontend/src/components/research/SourceReader.vue` | Reader view for a source: citation card, text or PDF view, highlight sidebar (CR039) |
+| `frontend/src/components/research/PdfViewer.vue` | PDF.js viewer with page-anchored highlights — shared with CR025 (CR039 D) |
+| `frontend/src/components/research/HighlightedBody.vue`, `HighlightPopover.vue`, `HighlightSidebar.vue` | Text highlights, the shared new-highlight popover, the sidebar (CR039) |
+| `frontend/src/lib/anchoring.js`, `frontend/src/lib/highlightDom.js` | Browser-side quote anchoring (exact → fuzzy → orphaned) and DOM marking (CR039) |
+| `frontend/src/components/research/SearchHighlights.vue` | Highlight results section on the search page (CR039) |
 | `frontend/src/stores/toasts.js` | Global toast notification store |
 | `frontend/src/components/ui/ToastContainer.vue` | Toast notification renderer (bottom-right stack) |
 | `frontend/src/components/ui/ReminderPicker.vue` | Reusable reminder datetime picker with presets |

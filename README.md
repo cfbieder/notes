@@ -16,8 +16,10 @@ OCR, translation, and text generation on top — all running on your own hardwar
 - **Progressive Web App** with offline capture
 - **Google Drive integration** (optional)
 - **AI features** (optional) — OCR, translation, and text generation via a
-  self-hosted LLM gateway. Fully gated behind `LLM_ENABLED`; the app runs fine
-  without it.
+  self-hosted LLM gateway, or text generation via a Claude / OpenAI / local
+  endpoint configured in Settings. The app runs fine without any of it.
+- **Research layer** (optional) — citable sources organized by book chapter,
+  Chicago reference export, text and PDF highlights, clipper capture
 - **Web clipper** browser extension (in [clipper/](clipper/))
 
 ## Tech stack

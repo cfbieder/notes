@@ -5,7 +5,7 @@ Operational runbook for Noted. Conventions and the dev quickstart live in
 
 ## Production environment
 
-- **URL:** `https://noted.example.com`
+- **URL:** `https://noted.example.com` (placeholder — public repo; the real Tailscale host is `CORS_ORIGIN` in `backend/.env.prod`)
 - **Containers:** `noted-db`, `noted-api`, `noted-web`
 - **Env file:** `backend/.env.prod` (not committed — copy from `.env.prod.example`)
 
@@ -31,3 +31,5 @@ docker compose -f docker-compose.prod.yml logs -f
 - Healthchecks must use `127.0.0.1`, not `localhost` (Alpine resolves to IPv6).
 - Frontend Dockerfile must `rm .env` before build — Vite `.env` files override Docker `ENV`.
 - `VITE_ENV_LABEL` must be **unset** in production builds (any truthy string triggers dev mode).
+- Workers must ship as `.js`: nginx's `mime.types` has no `.mjs` entry, so a module worker is served `application/octet-stream` and refused. Import workers with Vite's `?worker` (as the PDF.js worker in `PdfViewer.vue` is), never `?url` on a `.mjs` file.
+- Keep large on-demand chunks (PDF.js) out of the PWA precache — `globIgnores` in `frontend/vite.config.js` — or every install, phones included, downloads them.

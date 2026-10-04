@@ -147,11 +147,11 @@ POST   /documents/:id/ocr                             Manually trigger OCR on a 
 
 **Search integration:** extend `backend/src/routes/search.js` to `UNION` `documents` rows alongside `notes` and `attachments.ocr_tsv` matches, returning a `type` discriminator (`note | document`) so the frontend can route clicks. Add a `&type=document` filter parameter.
 
-**Signed-URL dependency (CR009):** PDF.js's worker fetches the PDF bytes via a plain URL — it can't reliably set an `Authorization` header. Rather than reuse the JWT-via-`?token=` shim from `attachments.js` (which leaks tokens into history, proxy logs, and screenshots — see §7 security note in `NOTED_CURRENT_STATE.md`), CR025 ships on top of short-lived signed URLs.
+**Signed-URL dependency (CR009):** PDF.js's worker fetches the PDF bytes via a plain URL — it can't reliably set an `Authorization` header. Rather than reuse the JWT-via-`?token=` shim from `attachments.js` (which leaks tokens into history, proxy logs, and screenshots — see [CR009](docs/cr/cr-009-signed-attachment-urls.md)), CR025 ships on top of short-lived signed URLs.
 
 If **CR009 has shipped** at the time CR025 starts: both `/documents/:id/file` and `/attachments/:id` use the existing mechanism unchanged. If **CR009 has not shipped**, CR025 folds the signed-URL work into its first commits (the change is small and self-contained — opaque short-lived token, distinct from the JWT, validated by the file-stream endpoints). Either way, CR025 ships with signed URLs; the JWT-via-`?token=` shim is never extended to the new endpoint.
 
-**Shared viewer with CR039 (resolved 2026-10-03):** [CR039](docs/cr/cr-039-research-sources-highlights.md) (research sources and highlights) builds the PDF.js viewer first, in its Phase D. Per its §16 #16, the viewer fetches the file with the `Authorization` header and hands PDF.js the bytes (`getDocument({ data })`), so no credential goes in a URL. When CR025 adds signed URLs, only the fetch changes; the viewer's interface stays the same.
+**Shared viewer with CR039 (resolved 2026-10-03):** [CR039](docs/cr/cr-039-research-sources-highlights.md) (research sources and highlights) builds the PDF.js viewer first, in its Phase D. Per its §16 #16, the viewer fetches the file with the `Authorization` header and hands PDF.js the bytes (`getDocument({ data })`), so no credential goes in a URL. When CR025 adds signed URLs, only the fetch changes; the viewer's interface stays the same. Scanned PDFs are text-layer-only in CR039 (its §16 #17); CR025's own "Run OCR?" flow is unaffected.
 
 **Filename sanitization on disk:** the on-disk filename is sanitized before write (mirrors [attachments.js:81-87](backend/src/routes/attachments.js#L81-L87)): strip non-alphanumerics, slice basename to 100 chars, prefix with `Date.now()`. The unmodified original is preserved in `documents.filename` for download `Content-Disposition`. The `{document_id}` segment already prevents disk collisions; sanitization closes the path-traversal / weird-filename edge case.
 
@@ -194,7 +194,9 @@ Three-pane desktop layout (mirrors `/notes` ergonomics):
 - **Title collisions:** a partial unique index on `(user_id, notebook_id, lower(title)) WHERE deleted_at IS NULL` enforces uniqueness for live rows. On **upload**, the backend auto-suffixes `(2)`, `(3)`, … to satisfy the constraint (matches OS file-manager behaviour). On **rename or move-between-notebooks** (`PUT /documents/:id`), a conflict returns `409 Conflict` with a clear message — the user picks a different title or moves to a different notebook. This guarantees `[[doc:Title]]` resolves to exactly one document per notebook scope.
 - **"Needs OCR" affordance:** documents with `text_source = 'none'` render a subtle badge in the list and a banner in the viewer ("This PDF has no extractable text. **Run OCR?**"). Clicking opens a confirmation dialog; if `page_count > 20`, the dialog includes a warning ("This is a {N}-page document. OCR may take several minutes and use the local LLM gateway."). Confirm → `POST /documents/:id/ocr`. The badge clears when `text_source` flips to `'ocr'`.
 
-### Viewer: `frontend/src/components/library/PdfViewer.vue`
+### Viewer: `frontend/src/components/research/PdfViewer.vue`
+
+*Built by CR039 Phase D; CR025 reuses it — move or re-export it if a `library/` folder is created.*
 - Uses `pdfjs-dist` (PDF.js). Ships as a worker for rendering.
 - Page navigation, zoom, in-document text search.
 - Honours the active theme — light viewer on Sapphire/Light, mild colour-inversion on Dark (PDF.js exposes a built-in setting; if it's insufficient, a CSS filter on the canvas suffices for v1).

@@ -1,7 +1,7 @@
 # CR039 — Research Sources, Highlights & Chapter References
 
-**Status:** In progress — **Phases A1, B, A2 and A3 shipped; Phase C (web highlights, Passages, highlight search, clipper live-page highlighting) Phase D (PDF highlights) and Fetch text shipped** (see Outcome; versions in the CR index). Next: E (AI over sources, after CR001).
-Phases C, D and E are a design of record; each gets a priority re-check before it is built (§15c).
+**Status:** In progress — **Phases A1, B, A2 and A3 shipped; Phase C (web highlights, Passages, highlight search, clipper live-page highlighting), Phase D (PDF highlights) and Fetch text shipped** (see Outcome; versions in the CR index). Next: E (AI over sources, after CR001).
+Phase E is a design of record; it gets a priority re-check before it is built (§15c).
 **Severity:** Feature (large; phased, first usable release = A1 + B)
 **Origin:** User proposal, 2026-10-02 — reviewed against the code the same day (see §15)
 **Depends on:** web clipper (project-description §5.10), attachments + OCR (§5.7),
@@ -386,7 +386,7 @@ GET /books/:id/references      same shape; one section per chapter, in sort_orde
 ```
 As built in Phase B, one JSON response carries all three renderings, so the client can copy
 (HTML + plain text) or download (Markdown) without a second request or a `?token=` link.
-`include=passages` and `scope=highlighted` arrive with highlights in Phase C.
+`include=sources|passages|both` shipped in Phase C (see Outcome). `scope=highlighted` (export only the sources a chapter's highlights point at) was not built; it is on the roadmap's deferred list.
 
 ### 7.5 Clips (extended)
 `POST /clips` gains `as_source: true`, `metadata: {...}`, `chapter_ids: []`. With
@@ -598,8 +598,8 @@ Key Passages
 ## 12. Phases & Acceptance
 
 Build order (§15c): CR038's `AI_KEYS_ENC_KEY` production fix → **A1 → B** (first usable
-release) → **A2 → A3**. C, D and E are designs of record, re-prioritized when reached: C after
-real use of A/B, D together with CR025 and the CR009 auth reconciliation, E after CR001.
+release) → **A2 → A3**, then **C** and **D** (built 2026-10-03 by owner decision). E is a design
+of record, re-prioritized when reached (after CR001).
 
 | Phase | Contents | Size | Done when |
 |---|---|---|---|
@@ -608,32 +608,34 @@ real use of A/B, D together with CR025 and the CR009 auth reconciliation, E afte
 | **A2: Clipper web capture** | §8.1 metadata extraction; "Save as source" + chapter picker; URL normalizer; duplicate-URL handling in the popup (Open / Restore); version-skew feature detection | M | Clip 10 real web sources (news, arXiv, blog); ≥8 have correct author/date with no edits; a duplicate is caught; an older server degrades to a plain clip with "Save as source" hidden |
 | **A3: PDF sources, LLM metadata, snapshot** | `/sources/from-pdf`; backend `pdfjs-dist` text layer with OCR fallback; shared `storeAttachment` helper; §9 LLM extraction + bridging-model line + ocr-llm handoff (filed when A3 starts); `optional_host_permissions` PDF fetch; MHTML snapshot via optional `pageCapture` | M | A PDF report clips with correct metadata, or with failure visible in Needs attention; LLM-filled fields are flagged; a snapshot is stored and downloadable; no new required clipper permission |
 | **C: Web highlights** | Highlights migration; Reader view `<mark>`; selection popover; sidebar; anchoring (§16 #13) + re-anchoring; clipper live-page highlighting; search integration (§10.4); Passages tab | L | Highlights survive reload; `replace-body` re-anchors ≥90% on a lightly changed article; orphaned highlights still export; `include=passages` works |
-| **D: PDF highlights** | PDF.js viewer (shared with CR025); rect + page-label capture; OCR fallback for scanned PDFs | L | Highlights on a 300-page PDF hold position at any zoom; an exported passage shows the printed page number, not the PDF index |
+| **D: PDF highlights** | PDF.js viewer (shared with CR025); rect + page-label capture; scanned PDFs deferred (§16 #17) | L | Highlights on a 300-page PDF hold position at any zoom; an exported passage shows the printed page number, not the PDF index |
 | **E: AI over sources** | *Requires CR001.* Highlight embeddings; "Ask this chapter's sources" preset in AI Assist; `GET /research/support?claim=…&chapter_id=`, which must earn its place against CR002/CR008 (semantic search, "Ask my notes") | M | Given a draft sentence, returns the top supporting highlights with source and page; AI Assist answers cite only preloaded sources |
 
 Each phase is its own release.
 
 ## 13. Impact checklist
 
-- [ ] **Migration** — new tables per §5, each with `user_id NOT NULL` + FK + index; per-user
+- [x] **Migration** — new tables per §5, each with `user_id NOT NULL` + FK + index; per-user
       uniqueness; `note_type` CHECK widened. Additive and safe to apply before cut-over.
       Numbers taken at implementation time.
-- [ ] **Isolation** — every new route in the authenticated scope; every query filters by
+- [x] **Isolation** — every new route in the authenticated scope; every query filters by
       `user_id`; join-table inserts verify **both** parents are the caller's (§5.2).
       `user_id` isolation test for every new table.
-- [ ] **Secrets/config** — none expected (extraction reuses the existing AI provider config).
-- [ ] **Tests** — `backend/tests/cr039-*.test.js` (§14); pure ones (formatter, anchoring,
+- [x] **Secrets/config** — none expected (extraction reuses the existing AI provider config).
+- [x] **Tests** — `backend/tests/cr039-*.test.js` (§14); pure ones (formatter, anchoring,
       normalization) added to `test:ci`.
-- [ ] **Guards** — the read-only trigger (§5.2) is the backstop; a `scripts/ci-guards.sh` grep
-      for new `UPDATE notes SET content` is optional on top of it.
-- [ ] **Public repo** — test fixtures use public pages only; no personal manuscript content.
-      Research rail hidden until a book exists. New dependencies: `pdfjs-dist` in the backend
-      (A3), `diff-match-patch` or an annotator library (C). New *optional* clipper permissions
+- [x] **Guards** — the read-only trigger (§5.2) is the backstop; a `scripts/ci-guards.sh` grep
+      for new `UPDATE notes SET content` is optional on top of it (not added). CI guard 8 keeps
+      the two citation-extractor copies identical.
+- [x] **Public repo** — test fixtures use public pages only; no personal manuscript content.
+      Research rail hidden until a book exists. Dependencies as built: `pdfjs-dist` (backend A3,
+      frontend D), `diff-match-patch` (frontend C), `@mozilla/readability` + `turndown` (backend,
+      Fetch text). New *optional* clipper permissions
       (`pageCapture`, per-origin host access) that a fork's users will be prompted for. README
-      feature list updated when A1 + B ship.
-- [ ] **Docs** — project-description (data model, API, routes, migration list), roadmap, status.
-- [ ] **Cross-repo** — ocr-llm handoff for the `noted_source_metadata` task, filed when A3
-      starts and not before.
+      feature list updated (2026-10-04, after D).
+- [x] **Docs** — project-description (data model, API, routes, migration list), roadmap, status.
+- [x] **Cross-repo** — ocr-llm handoff for the `noted_source_metadata` task, filed when A3
+      started; closed (task live, routed via `/task`).
 
 ## 14. Testing
 

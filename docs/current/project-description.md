@@ -78,6 +78,7 @@ Single-user now, but auth, data model, and API are architected for multi-user fr
 | Graph view | D3.js (force-directed)                | Industry standard for interactive graph rendering |
 | PWA        | Vite PWA plugin                       | Service worker, manifest, offline shell           |
 | Styling    | CSS custom properties + scoped styles | No heavy UI framework overhead                    |
+| PDF viewer | PDF.js (`pdfjs-dist` 6), lazy-loaded  | Text-layer selection for research highlights (CR039 D) |
 
 ### Backend
 
@@ -105,7 +106,7 @@ Single-user now, but auth, data model, and API are architected for multi-user fr
 | --------------- | -------------------------------------- |
 | Host            | KVM VM (Gigabyte X570 / Ryzen 9 5950X) |
 | Remote access   | Tailscale                              |
-| Process manager | PM2                                    |
+| Process manager | Docker Compose (`noted-db`, `noted-api`, `noted-web`) |
 | Reverse proxy   | Nginx (SSL termination)                |
 | Backups         | pg_dump + cron to backup directory     |
 
@@ -159,9 +160,9 @@ All components run on the same VM. Tailscale handles encrypted access from any d
 
 The desktop sidebar uses an **activity rail** + **contextual panel** pattern (VS Code / Obsidian / Linear style), implemented in [AppSidebar.vue](frontend/src/components/sidebar/AppSidebar.vue) as a thin shell wrapping [ActivityRail.vue](frontend/src/components/sidebar/ActivityRail.vue) and [ContextualPanel.vue](frontend/src/components/sidebar/ContextualPanel.vue).
 
-- **Activity rail (48px, far left):** 8 primary icons — Notes, Tasks, Ideas, Reminders, Search, Graph, AI Assist, Vault — plus a bottom group of Trash + Settings. Route-target icons push routes; overlay icons (Reminders, AI Assist) toggle existing modals/popovers without changing the active rail item. Active item gets a left accent stripe and tinted background; tooltips show the keyboard shortcut.
+- **Activity rail (48px, far left):** 8 primary icons — Notes, Tasks, Ideas, Reminders, Search, Graph, AI Assist, Vault — plus a bottom group of Trash + Settings. Route-target icons push routes; overlay icons (Reminders, AI Assist) toggle existing modals/popovers without changing the active rail item. Active item gets a left accent stripe and tinted background; tooltips show the keyboard shortcut. A ninth item, **Research**, appears once a book exists (CR039).
 - **Contextual panel (240px, right of rail):** content swaps based on `route.meta.rail`. The Notes panel hosts the previous sidebar's full content — Inbox/All filter rows, the Notebooks/stacks tree (with create/rename/drag-drop/context-menu/delete-with-confirm), and the Tags tree. Other panels (Tasks/Search/Graph/Ideas/Vault/Trash/Settings) are stubbed pending richer per-feature filter UI in follow-on slices; the architecture in place means filling them is incremental.
-- **Keyboard shortcuts** ([useRailShortcuts.js](frontend/src/composables/useRailShortcuts.js)): `⌘1`–`⌘8` jump between rail items; `⌘B` toggles the panel collapsed (state persisted to `localStorage` as `noted.ui.railPanelCollapsed`). Shortcuts no-op while typing in an input/textarea/contenteditable so they don't fight the editor.
+- **Keyboard shortcuts** ([useRailShortcuts.js](frontend/src/composables/useRailShortcuts.js)): `⌘1`–`⌘8` jump between rail items (`⌘9` → Research once a book exists); `⌘B` toggles the panel collapsed (state persisted to `localStorage` as `noted.ui.railPanelCollapsed`). Shortcuts no-op while typing in an input/textarea/contenteditable so they don't fight the editor.
 - **Theme tokens** (`--rail-bg`, `--rail-border`, `--rail-active`, `--rail-hover`) live in [theme.css](frontend/src/styles/theme.css) and are defined for Sapphire/Dark/Light so the rail can be tinted distinctly from the panel.
 - **Mobile** continues to render `MobileLayout` instead of the desktop sidebar via `useMobile()`. A bottom-tab-bar adaptation of the rail is a follow-on.
 - **Mobile drawer navigation:** On mobile, tapping the menu button opens `AppSidebar` as an overlay drawer. Picking **All Notes**, a notebook, or a tag from the drawer closes it automatically (route-change watch in [NotesView.vue](frontend/src/views/NotesView.vue)) and renders [MobileNotesList.vue](frontend/src/components/mobile/MobileNotesList.vue) — a header-plus-list view scoped to the chosen scope. Tapping a note opens `MobileEditor`; back returns to the list. As of v0.11.7, `/notes` (the redirect target from `/`) renders the All Notes list on mobile rather than the legacy `MobileHome` dashboard.
@@ -240,7 +241,7 @@ A GTD-inspired frictionless capture system:
 - **Full-text search:** PostgreSQL `tsvector` full-text search across note titles and content.
 - **Attachment OCR search (implemented):** Attachments have an `ocr_text` / `ocr_tsv` column; a note matches if either the note body or any of its attachments' OCR text matches the query. OCR is produced via the local LLM/OCR gateway on upload (see migration `007_attachment_ocr_search.sql`).
 - **Filters:** Search results can be filtered by notebook, tag, date range, or attachment type.
-- **Prefix filters (implemented):** Gmail-style search operators parsed from the query string. `from:drive` filters to Google Drive-imported notes, `is:auto-update` filters to notes with auto-update enabled. Filters can be combined with each other and with text queries. Quick-filter buttons shown below the search input; active filters appear as removable chips.
+- **Prefix filters (implemented):** Gmail-style search operators parsed from the query string. `from:drive` filters to Google Drive-imported notes, `is:auto-update` filters to notes with auto-update enabled, `is:source` to research sources, and `ch:<label>` to sources in that chapter of the active book (CR039). Filters can be combined with each other and with text queries. Quick-filter buttons shown below the search input; active filters appear as removable chips.
 - **Keyboard-first:** Search triggered by `Ctrl+K` (command palette style). Results navigate with arrow keys.
 - **Soft-delete aware:** Search excludes trashed notes (`deleted_at IS NULL`), matching the rest of the app.
 - **Stage 3 — semantic search:** pgvector embeddings for "find notes similar to this concept" queries.
@@ -269,6 +270,10 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 | `is:auto-update` | Notes with auto-update enabled |
 | `from:drive is:auto-update` | Drive notes with auto-update on |
 | `from:drive <text>` | Drive notes matching text query |
+| `is:source` | Research sources only (CR039) |
+| `ch:3` | Sources in chapter 3 of the active book — assigned or via highlights (CR039) |
+
+- **Highlights section (CR039):** highlight quotes and comments matching the query appear above the note results (`GET /search/highlights`); a click opens the source at `?hl=<id>`.
 
 ### 5.6.1 Note Translation (Phase 8.11, implemented)
 
@@ -454,18 +459,23 @@ Per-note format flag (`markdown` | `html`) so users can keep richly-formatted do
 - **v1 limitations (deferred):** No wikilinks/backlinks/graph/AI Assist for HTML notes (the wikilink parser is markdown-only; AI Assist prompts assume markdown). HTML tags pollute `content_tsv` slightly — acceptable tradeoff for v1. No format conversion (markdown ↔ html) on existing notes. No WYSIWYG editor.
 - **Code:** `backend/migrations/018_note_format.sql`, `backend/src/routes/import.js`, `backend/src/routes/notes.js` (format field), `backend/tests/phase13-html-notes.test.js` (23 assertions), `frontend/src/lib/htmlSanitize.js`, `frontend/src/components/ui/ImportNoteModal.vue`, `frontend/src/views/NotesView.vue` (read-mode branch), `frontend/src/components/editor/CodeMirrorEditor.vue` (format prop). Dependency: `dompurify`.
 
-### 5.19 Research Sources, Chapters & Highlights (CR039, Phases A1–A3 + C slices 1–2 implemented)
+### 5.19 Research Sources, Chapters & Highlights (CR039, Phases A1–A3, B, C and D implemented)
 
-A research layer for a book manuscript: citable **sources** organized by **book chapters**. Phase A1 is the server core plus manual entry; reference export (B), clipper capture (A2), PDF sources + AI metadata (A3) and highlights (C–E) follow — see [CR039](docs/cr/cr-039-research-sources-highlights.md).
+A research layer for a book manuscript: citable **sources** organized by **book chapters**. Built in phases: server core and manual entry (A1), reference export (B), clipper capture (A2), PDF sources and AI metadata (A3), web highlights (C) and PDF highlights (D). Next is AI over sources (E, after CR001 — pgvector embeddings). See [CR039](docs/cr/cr-039-research-sources-highlights.md).
 
-- **Model:** a source is a note with `note_type='source'` plus a 1:1 `sources` citation row (kind, authors JSON, title, container, publisher, volume/issue/pages, `published_date` + precision, normalized URL, DOI/ISBN, `metadata_status`). Books and chapters are their own tables; at most one active book per user. Chapter assignment is manual (`source_chapters`).
+- **Model:** a source is a note with `note_type='source'` plus a 1:1 `sources` citation row (kind, authors JSON, title, container, publisher, volume/issue/pages, `published_date` + precision, normalized URL, DOI/ISBN, `metadata_status`). Books and chapters are their own tables; at most one active book per user. Chapter membership is manual (`source_chapters`) or derived from highlights (`highlight_chapters`).
 - **Read-only bodies:** a source's body changes only through `POST /sources/:id/replace-body`. Note routes refuse body/format/notebook/auto-update/type changes with `422 source_body_readonly` (title, pin and tags still edit), and the `guard_source_body` trigger (migration 021) refuses any such UPDATE that reaches the database by another path. Backfill migrations that rewrite `notes.content` must skip sources or opt in with `SET LOCAL noted.allow_source_body = 'on'`.
 - **Visibility:** sources are notebook-less and excluded from the Notes list and Inbox (`GET /notes` adds `note_type <> 'source'` unless `note_type=source` is requested). Global search still finds them.
 - **Duplicates:** URLs are normalized (`src/utils/sourceUrl.js`: lowercase host, no fragment, no `utm_*`/click-id params, no trailing slash) and unique per user; a duplicate returns `409 source_exists` with `{ note_id, in_trash }`.
 - **Highlights (Phase C):** select text in a source's Reader view and pick a legend meaning (Evidence / Counter-argument / Quote-worthy / Follow-up), a chapter and a comment. A highlight is stored as a text-quote selector: exact text, ~32 characters of context each side, and a position hint. **Anchoring runs in the browser** (`frontend/src/lib/anchoring.js`, `highlightDom.js`): exact with context, then exact nearest the hint, then `diff-match-patch` fuzzy, otherwise *orphaned* (kept, listed, exported). Statuses are reported back in one batch. A source belongs to a chapter if it was assigned by hand **or** any of its highlights points there; highlight-derived chapters show "via highlights". **PDF sources (Phase D)** open in a PDF.js viewer (`PdfViewer.vue`, loaded on demand) with **Pages | Text** views: select text on a page to highlight it; the highlight stores the selection's boxes normalized to the page (so it holds at any zoom) and the printed page label (`getPageLabels`), which Passages and the export show. Scanned PDFs (no text layer) can't be highlighted yet. **Fetch text** captures a source's article from its URL (Readability → Turndown on the server). The Reader never loads remote images.
 - **Reference export (Phase B):** `backend/src/services/citationFormatter.js` renders Chicago (18th ed.) bibliography entries per chapter ("Sources and Further Reading") or for a whole book (one section per chapter, outline order), as HTML + Markdown + plain text in one response. Missing required fields appear as bold placeholders such as **[author?]**. The Research view's **Copy for Word** puts italic-preserving HTML on the clipboard; **.md** downloads Markdown.
 - **UI:** the **Research** rail item (⌘9) appears only once a book exists — create one in Settings → Research, which also manages chapters (add, rename, reorder with up/down, delete). The Research panel lists All sources / Needs attention / Unassigned and the active book's chapters with counts. `/research/sources` and `/research/chapters/:id` show a filterable source table with a **New source** form and a **Refresh** button; the table and the panel's chapter counts also reload when the browser tab becomes visible again (sources clipped from another tab show up without a reload). A source opens at `/notes/:id` in a Reader view (`SourceReader`): citation card with Verify / Edit and chapter chips above the rendered, read-only body — on desktop and mobile.
-- **Code:** `backend/migrations/021_research_sources.sql`, `022_source_attachment_same_note.sql`, `backend/src/routes/research.js`, `backend/src/services/sourceService.js` (source creation shared with `POST /clips`), `backend/src/utils/sourceUrl.js`, `backend/src/utils/sourceGuard.js`, guards in `backend/src/routes/notes.js` and `backend/src/services/driveImporter.js`, `backend/src/services/citationFormatter.js`, `backend/tests/cr039-research.test.js` (86 assertions incl. a real second user for isolation and the clipper `as_source` path), `backend/tests/cr039-citation-formatter.test.js` (23); `frontend/src/stores/research.js`, `frontend/src/lib/citation.js`, `frontend/src/views/ResearchView.vue`, `frontend/src/components/research/SourceReader.vue`, `SourceFormModal.vue`, `ReferenceExport.vue`, `frontend/src/components/sidebar/panels/ResearchPanel.vue`, `frontend/src/components/settings/ResearchSettings.vue`.
+- **Code:**
+  - backend: `backend/migrations/021_research_sources.sql`, `022_source_attachment_same_note.sql`, `023_highlights.sql`; `backend/src/routes/research.js` (books, chapters, sources, export, fetch-text), `routes/highlights.js`; `services/sourceService.js` (source creation shared with `POST /clips`; the `MEMBERS` membership subquery), `citationFormatter.js`, `citationMetadata.js`, `metadataExtractor.js`, `pageCitation.js`, `pageArticle.js`, `pdfText.js`; `utils/sourceUrl.js`, `sourceGuard.js`, `pageFetch.js` (SSRF-guarded fetch), `ssrfGuard.js`; guards in `routes/notes.js` and `services/driveImporter.js`.
+  - tests: `backend/tests/cr039-research.test.js` (incl. a real second user for isolation and the clipper `as_source` path), `cr039-highlights.test.js`, `cr039-citation-formatter.test.js`, `cr039-metadata-extractor.test.js`, `cr039-page-citation.test.js`.
+  - frontend: `stores/research.js`, `lib/citation.js`, `lib/anchoring.js`, `lib/highlightDom.js`, `views/ResearchView.vue`; `components/research/SourceReader.vue`, `SourceFormModal.vue`, `ReferenceExport.vue`, `HighlightedBody.vue`, `HighlightPopover.vue`, `HighlightSidebar.vue`, `PdfViewer.vue`, `SearchHighlights.vue`; `components/sidebar/panels/ResearchPanel.vue`, `components/settings/ResearchSettings.vue`.
+  - clipper: `clipper/metadata.js` (kept identical to `citationMetadata.js` by CI guard 8).
+  - dependencies: `pdfjs-dist` (backend text layer; frontend viewer as a lazy chunk, worker bundled via `?worker`, kept out of the PWA precache), `diff-match-patch` (fuzzy anchoring), `@mozilla/readability` + `turndown` (Fetch text).
 
 ---
 
@@ -822,7 +832,7 @@ GET    /api/v1/books                         Books with chapter_count (active fi
 POST   /api/v1/books                         { title } — the user's first book becomes active
 PUT    /api/v1/books/:id                     { title?, is_active? } — activating deactivates the others
 DELETE /api/v1/books/:id                     Cascades its chapters and their assignments
-GET    /api/v1/books/:id/chapters            Ordered; includes source_count (trashed sources excluded)
+GET    /api/v1/books/:id/chapters            Ordered; includes source_count and highlight_count (trashed sources excluded)
 POST   /api/v1/books/:id/chapters            { label, title, part?, sort_order? } — 409 chapter_label_exists
 PUT    /api/v1/chapters/:id                  { label?, title?, part? }
 PUT    /api/v1/books/:id/chapters/reorder    { chapter_ids } — must be the full set; one transaction
@@ -846,8 +856,9 @@ POST   /api/v1/sources/:id/fetch-text        { url?, confirm? } → captures the
                                              media dropped) as the source text; 409 body_exists until confirmed; 422 for PDFs
 POST   /api/v1/sources/fetch-metadata        A3: { url } → citation metadata read from a public page (not stored;
                                              SSRF-guarded fetch, 30/min) — backs "Fetch details" on the New source form
-GET    /api/v1/sources/:id/highlights        Phase C: the source's highlights (+ chapters)
-POST   /api/v1/sources/:id/highlights        { anchor_type, exact, prefix?, suffix?, position_*?, color?, comment?, chapter_ids? }
+GET    /api/v1/sources/:id/highlights        Phase C: the source's highlights (+ chapters) — reading order: page, then first rect's y
+POST   /api/v1/sources/:id/highlights        { anchor_type, exact, prefix?, suffix?, position_*?, page_index?, page_label?, rects?, color?, comment?, chapter_ids? }
+                                             anchor_type 'pdf' requires page_index + ≥1 rect {x,y,w,h} (0–1)
 PUT    /api/v1/highlights/:id                { color?, comment?, chapter_ids? }
 DELETE /api/v1/highlights/:id                hard delete
 PUT    /api/v1/sources/:id/highlights/anchors { updates: [{ id, anchor_status, position_start?, position_end? }] } — browser-reported
@@ -925,7 +936,7 @@ DELETE /api/v1/integrations/drive           Disconnect integration
 - `/` → Redirect to `/notes`
 - `/login` → Login page
 - `/notes` → Note list + editor (three-pane layout: sidebar | list | editor)
-- `/notes/:id` → Opens specific note in editor
+- `/notes/:id` → Opens specific note in editor; a source note opens in the Reader view (`SourceReader`) — PDF sources get **Pages | Text** (PDF.js viewer); `?hl=<id>` reveals a highlight (CR039)
 - `/inbox` → Quick capture inbox view
 - `/tasks` → All tasks view
 - `/tags/:name` → Notes filtered by tag
@@ -935,7 +946,7 @@ DELETE /api/v1/integrations/drive           Disconnect integration
 - `/trash` → Soft-deleted notes (restore / permanent delete)
 - `/settings` → Password change, Google Drive integration, account preferences, Research books & chapters
 - `/research/sources` → Research source library (`?view=attention|unassigned`); `/research` redirects here (CR039)
-- `/research/chapters/:id` → Sources assigned to one chapter (CR039)
+- `/research/chapters/:id` → One chapter: **Sources | Passages** tabs and Export (Copy for Word / .md / passages) (CR039)
 
 ### Component Hierarchy
 
@@ -973,7 +984,7 @@ useUIStore          — sidebar state, active view, editor mode (normal/source),
                       noteListCollapsed / contextPanelsCollapsed (persisted to
                       localStorage), focus-mode toggle, help-modal visibility
 useAIAssistStore    — AI Assist modal isOpen + last prompt (persisted to localStorage)
-useResearchStore    — books, active book's chapters, source CRUD (CR039)
+useResearchStore    — books, active book's chapters, source CRUD, highlights (list/create/update/delete/anchor reports) (CR039)
 ```
 
 ---

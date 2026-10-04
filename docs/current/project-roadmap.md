@@ -63,7 +63,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR032](docs/cr/cr-032-drop-is-inbox-flag.md) | Drop `notes.is_inbox` flag; derive Inbox from default notebook (`notebook_id IS NULL OR is_default = TRUE`) and exclude `note_type='idea'` — **Completed** |
 | [CR036](docs/cr/cr-036-export-note-as-pdf.md) | Export Note as PDF (Markdown + HTML) — relabel the print flow as "Export as PDF"; reuse the existing print-window pipeline (no new deps) — **Completed** |
 | [CR037](docs/cr/cr-037-multi-note-editor-tabs.md) | Multi-Note Editor Tabs (desktop) — tab strip over a persisted open-note list; active tab derived from route; no per-tab buffers — **Completed** |
-| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — **In progress.** Shipped: A1 (v0.18.0), B (v0.19.0), A2 (v0.20.0), A3 (v0.21.0–v0.22.0), C (v0.23.0–v0.24.0), D (v0.25.0). Next: E (AI over sources, after CR001) |
+| [CR039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References — **In progress.** Shipped through Phase D — versions in the [CR index](docs/cr/README.md). Next: E (AI over sources, after CR001) |
 
 **Deferred from CR039** (out of scope for v1; each a later CR if wanted):
 - `.docx` reference export — add if a publisher asks for a file (Copy for Word covers drafting)
@@ -71,6 +71,9 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 - Chapter import from an external outline document (chapters are entered by hand)
 - Promote a CR025 document to a CR039 source
 - User-defined highlight color legend (v1 ships a fixed legend)
+- `scope=highlighted` reference export (only the sources a chapter's highlights point at); `include=passages` covers the main need
+- Page labels on highlight search results (`GET /search/highlights` doesn't return `page_label` yet)
+- `is:source` / `ch:` missing from the Help modal's search-operator list (the search placeholder shows them)
 - Highlighting scanned PDFs (no text layer): draw-a-box with a typed quote, or region OCR via ocr-llm (§16 #17; Phase D covers text-layer PDFs)
 - Convert an existing plain clip into a source (v1: re-clip as a source)
 - Mobile entry point for Research — not needed yet (owner, 2026-10-02); sources still open in the Reader view on mobile
@@ -111,7 +114,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 ### Released v0.25.0 (2026-10-03)
 
-- **[CR039](docs/cr/cr-039-research-sources-highlights.md) Phase D — PDF highlights.** PDF sources open in a PDF.js viewer (`PdfViewer.vue`, shared with [CR025](docs/cr/cr-025-pdf-document-management.md) — PDF document management) with **Pages | Text** views. Select text on a page to highlight it: stored as rects normalized to the page (they hold at any zoom) plus the printed page label, which the sidebar, Passages, search and export show. Pages render lazily (300-page PDFs stay light). Scanned PDFs show a note; highlighting them is deferred. No migration.
+- **[CR039](docs/cr/cr-039-research-sources-highlights.md) Phase D — PDF highlights.** PDF sources open in a PDF.js viewer (`PdfViewer.vue`, shared with [CR025](docs/cr/cr-025-pdf-document-management.md) — PDF document management) with **Pages | Text** views. Select text on a page to highlight it: stored as rects normalized to the page (they hold at any zoom) plus the printed page label, which the sidebar, Passages and export show. Pages render lazily (300-page PDFs stay light). Scanned PDFs show a note; highlighting them is deferred. No migration.
 - **Fix:** a failed highlight save no longer loses the typed comment. The popover now closes only on success, in both the text Reader and the PDF viewer.
 - **Prod details:** the PDF.js worker ships as `.js` (nginx has no `.mjs` type); PDF.js is kept out of the PWA precache.
 
