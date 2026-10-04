@@ -54,11 +54,14 @@ function nullIfBlank(v) {
 // user typed is overwritten; a URL typed into Title counts as empty.
 const fetching = ref(false);
 const fetchNote = ref('');
-const looksLikeUrl = (v) => /^https?:\/\/\S+$/i.test((v || '').trim());
+// A link with or without its scheme ("www.x.com/…", "x.com/path") — a bare
+// "Node.js" stays a title because a scheme-less link needs www. or a path.
+const looksLikeUrl = (v) => /^(https?:\/\/\S+|www\.\S+|[a-z0-9-]+(\.[a-z0-9-]+)+\/\S*)$/i.test((v || '').trim());
+const withScheme = (v) => (/^https?:\/\//i.test(v) ? v : `https://${v}`);
 const titleIsUrl = computed(() => !form.value.url.trim() && looksLikeUrl(form.value.title));
 
 function moveTitleToUrl() {
-  form.value.url = form.value.title.trim();
+  form.value.url = withScheme(form.value.title.trim());
   form.value.title = '';
   fetchDetails();
 }
