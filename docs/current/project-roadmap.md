@@ -112,6 +112,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 ## Recently Completed
 
+### Released v0.25.1 (2026-10-04)
+
+- **Fix ([CR039](docs/cr/cr-039-research-sources-highlights.md) A3 — Fetch details):** a link pasted into a new source's Title without `https://` (e.g. `www.site.com/2023/…`) now gets the "use it as the URL and fetch details" prompt; `https://` is added when it moves to URL.
+
 ### Released v0.25.0 (2026-10-03)
 
 - **[CR039](docs/cr/cr-039-research-sources-highlights.md) Phase D — PDF highlights.** PDF sources open in a PDF.js viewer (`PdfViewer.vue`, shared with [CR025](docs/cr/cr-025-pdf-document-management.md) — PDF document management) with **Pages | Text** views. Select text on a page to highlight it: stored as rects normalized to the page (they hold at any zoom) plus the printed page label, which the sidebar, Passages and export show. Pages render lazily (300-page PDFs stay light). Scanned PDFs show a note; highlighting them is deferred. No migration.

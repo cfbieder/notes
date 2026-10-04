@@ -48,7 +48,7 @@ the next sequential number and starts from [cr-000-template.md](docs/cr/cr-000-t
 | [036](docs/cr/cr-036-export-note-as-pdf.md) | Export Note as PDF (Markdown + HTML) | v0.15.0 | ✓ Completed |
 | [037](docs/cr/cr-037-multi-note-editor-tabs.md) | Multi-Note Editor Tabs (Desktop) | v0.16.0 | ✓ Completed |
 | [038](docs/cr/cr-038-pluggable-ai-providers.md) | Pluggable AI Providers (Claude / OpenAI / Local) | Phase 1 (text): v0.17.0 · prod key-mapping fix: v0.17.1 · private-host setting + form fix: v0.21.0 | In progress |
-| [039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References | Phase A1: v0.18.0 · Phase B: v0.19.0 · Phase A2: v0.20.0 · A3 Fetch details: v0.21.0 · A3 (PDF, AI metadata, clipper v0.5.0): v0.22.0 · AI injection guard: v0.22.1 · C slices 1–2 + Fetch text: v0.23.0 · C slices 3–4 (Passages, highlight search, clipper v0.6.0): v0.24.0 · D (PDF highlights): v0.25.0 | In progress |
+| [039](docs/cr/cr-039-research-sources-highlights.md) | Research Sources, Highlights & Chapter References | Phase A1: v0.18.0 · Phase B: v0.19.0 · Phase A2: v0.20.0 · A3 Fetch details: v0.21.0 · A3 (PDF, AI metadata, clipper v0.5.0): v0.22.0 · AI injection guard: v0.22.1 · C slices 1–2 + Fetch text: v0.23.0 · C slices 3–4 (Passages, highlight search, clipper v0.6.0): v0.24.0 · D (PDF highlights): v0.25.0 · Title-link fix: v0.25.1 | In progress |
 
 > **Note:** CR035 was originally authored as a second "CR030" (duplicate number) and
 > renumbered during the 2026-06-28 migration to the documentation standard.

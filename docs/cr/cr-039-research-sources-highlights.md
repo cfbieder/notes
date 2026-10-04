@@ -890,7 +890,8 @@ address it tried).
   see `clipper/`.
 - **Form:** a **Fetch details** button next to URL. It fills empty fields only, so a refetch
   never overwrites what the user typed. A URL pasted into Title offers "use it as the URL
-  and fetch details".
+  and fetch details" — also for a link without its scheme (`www.x.com/…`, `x.com/path`),
+  which gets `https://` prepended (v0.25.1).
 - **Verified:** `tests/cr039-page-citation.test.js`, 15 assertions with no network:
   loopback, metadata, private and Tailscale addresses refused, mixed-record rebinding
   refused, credentials refused, scheme refused, extraction, page scripts never run. Live

@@ -7,16 +7,16 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.25.0 · **Live:** `https://noted.example.com` (placeholder — public repo;
+**Current version:** v0.25.1 · **Live:** `https://noted.example.com` (placeholder — public repo;
 the real Tailscale host is `CORS_ORIGIN` in `backend/.env.prod`) · containers `noted-db`, `noted-api`, `noted-web`.
 
 ## Recently shipped
 See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlines:
+- v0.25.1 — fix: a link pasted into a new source's Title without `https://` again offers "use it as the URL and fetch details"
 - v0.25.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **Phase D**: PDF sources open in a page viewer where you highlight text; highlights hold at any zoom and carry the printed page number into Passages and the export. Plus: a failed highlight save keeps your comment
 - v0.24.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **Phase C complete**: a chapter's **Passages** tab and a Key Passages section in the export; search finds highlights and filters by `is:source` / `ch:3`; clipper **v0.6.0** highlights text on a live page (reload the extension). Plus a search-snippet escaping fix and a Refresh button on the Research page
 - v0.23.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **highlights**: select text in a source to highlight it with a meaning, chapter and comment; highlights re-anchor after text changes (fuzzy, or kept as unanchored). Plus **Fetch text**, which captures a source's article from its URL
 - v0.22.2 — upload limit set to 25 MB everywhere (`MAX_FILE_SIZE` mapped in prod; Drive imports 10 → 25 MB)
-- v0.22.1 — security patch: AI citation metadata refuses values planted beside an injected instruction (from ocr-llm's probe); notes attach only your own tags. Plus prod `LLM_*` settings mapped
 - Older releases: see the [CR index](docs/cr/README.md) and the roadmap's "Recently Completed".
 
 ## In progress / next
