@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Local PostgreSQL backup via pg_dump inside the noted-db container.
 # Usage: ./backup-db.sh [--prune N]
-#   --prune N  Keep only the last N backups (default: no pruning)
+#   --prune N  Keep only the last N backups (default: 2; --prune 0 disables pruning)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -18,7 +18,7 @@ ok()   { echo -e "${GREEN}[ok]${NC} $*"; }
 die()  { echo -e "${RED}[error]${NC} $*" >&2; exit 1; }
 
 # Parse args
-PRUNE=0
+PRUNE=2   # 2026-10-04: was 0 (unbounded) -- 10 dumps piled up in ~30 h, riding into the unencrypted image leg
 while [[ $# -gt 0 ]]; do
   case $1 in
     --prune) PRUNE="$2"; shift 2 ;;
@@ -30,6 +30,7 @@ done
 docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$" \
   || die "Container '$CONTAINER' is not running"
 
+umask 077   # 2026-10-04: dumps are user data -- owner-only (fleet check encrypted-where-policy-says-encrypted)
 mkdir -p "$BACKUP_DIR"
 
 log "Dumping database from $CONTAINER ..."
