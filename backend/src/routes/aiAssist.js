@@ -23,6 +23,8 @@ function buildPrompt(userPrompt, notes) {
 // When the user toggles "Condense sources first", we run each note through
 // a fast model with a short summarization prompt before assembling the main
 // prompt. Trade speed for fitting more notes in the context window.
+// Routed via /task (noted_ai_assist_quick) when task routing is on; the model
+// name only applies to the /llm/generate bridge.
 const CONDENSE_MODEL = process.env.LLM_CONDENSE_MODEL || 'phi4:14b';
 
 async function condenseNote(note, ctx = {}) {
@@ -35,7 +37,7 @@ ${(note.content || '').trim()}`;
 
   try {
     const res = await llmService.generateText({
-      prompt, model: CONDENSE_MODEL, tier: 'condense', userId: ctx.userId, db: ctx.db
+      prompt, taskName: 'noted_ai_assist_quick', model: CONDENSE_MODEL, tier: 'condense', userId: ctx.userId, db: ctx.db
     });
     if (res && res.text) return { ...note, content: res.text.trim() };
   } catch {

@@ -18,6 +18,8 @@ const llmService = require('./llmService');
 
 const inflight = new Map(); // jobId -> AbortController
 
+// Routed via /task (noted_ai_assist_quick) when task routing is on; the model
+// name only applies to the /llm/generate bridge.
 const CONDENSE_MODEL = process.env.LLM_CONDENSE_MODEL || 'phi4:14b';
 
 function buildPrompt(userPrompt, notes) {
@@ -55,7 +57,7 @@ ${(note.content || '').trim()}`;
 
   try {
     const res = await llmService.generateText({
-      prompt: condensePrompt, model: CONDENSE_MODEL, tier: 'condense', userId: ctx.userId, db: ctx.db
+      prompt: condensePrompt, taskName: 'noted_ai_assist_quick', model: CONDENSE_MODEL, tier: 'condense', userId: ctx.userId, db: ctx.db
     });
     if (res && res.text) return { ...note, content: res.text.trim() };
   } catch {
