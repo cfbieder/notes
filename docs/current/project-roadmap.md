@@ -112,6 +112,11 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 ## Recently Completed
 
+### Released v0.26.0 (2026-10-12)
+
+- **[CR040](docs/cr/cr-040-per-note-checkbox-size.md) — per-note checkbox size.** A toolbar button on notes with checkboxes cycles their size S → M → L (default / 18px / 24px), saved per note. Migration `024_note_checkbox_size.sql` (additive, default `sm` = previous look).
+- **Fix (AI Assist):** the condense step routes through `/task` (`noted_ai_assist_quick`) instead of naming `phi4:14b`, so it keeps working once ocr-llm retires that model.
+
 ### Released v0.25.1 (2026-10-04)
 
 - **Fix ([CR039](docs/cr/cr-039-research-sources-highlights.md) A3 — Fetch details):** a link pasted into a new source's Title without `https://` (e.g. `www.site.com/2023/…`) now gets the "use it as the URL and fetch details" prompt; `https://` is added when it moves to URL.

@@ -275,6 +275,7 @@ async function noteRoutes(fastify) {
           note_type: { type: 'string', enum: ['note', 'idea'] },
           reminder_at: { type: ['string', 'null'], format: 'date-time', nullable: true },
           auto_update: { type: 'boolean' },
+          checkbox_size: { type: 'string', enum: ['sm', 'md', 'lg'] },
           tag_ids: { type: 'array', items: { type: 'string', format: 'uuid' } },
           format: { type: 'string', enum: ['markdown', 'html'] }
         }
@@ -318,6 +319,11 @@ async function noteRoutes(fastify) {
     if ('auto_update' in request.body) {
       setClauses.push(`auto_update = $${idx++}`);
       params.push(request.body.auto_update);
+    }
+
+    if ('checkbox_size' in request.body) {
+      setClauses.push(`checkbox_size = $${idx++}`);
+      params.push(request.body.checkbox_size);
     }
 
     if (format !== undefined) {

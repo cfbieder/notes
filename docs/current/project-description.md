@@ -180,6 +180,7 @@ The core editing experience is inspired by TypeDown:
 - **Wikilinks:** Typing `[[` triggers an autocomplete dropdown of existing note titles. Selecting creates a bidirectional link.
 - **Hashtags:** Typing `#` triggers tag autocomplete. Tags are stored relationally and render as styled pills in Normal Mode.
 - **Checkboxes:** `- [ ]` and `- [x]` render as interactive checkboxes. Checking one updates note content.
+- **Checkbox size (CR040):** a toolbar button, shown only on notes that contain checkboxes and are not checked out offline, cycles the note's checkbox size S → M → L (browser default / 18px / 24px). Stored per note in `notes.checkbox_size` (migration `024_note_checkbox_size.sql`); applies in the editor only, not to rendered HTML notes or PDF export.
 - **Tables:** Full Markdown table support with tab-navigation between cells. GFM inline formatting (`**bold**`, `*italic*`, `` `code` ``, `~~strike~~`, `[text](url)`) renders inside cells in Normal Mode via `markdown-it`'s `renderInline`.
 - **Code blocks:** Syntax highlighting via CodeMirror's language packages.
 - **Autosave:** Debounced autosave (500ms after last keystroke). Save indicator in toolbar.
@@ -513,7 +514,7 @@ CREATE TABLE stacks (
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Notes (migrations 001, 002 soft-delete, 006 offline client_id, 008 clipper source_url, 010 auto_update)
+-- Notes (migrations 001, 002 soft-delete, 006 offline client_id, 008 clipper source_url, 010 auto_update, 024 checkbox_size)
 CREATE TABLE notes (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -528,6 +529,7 @@ CREATE TABLE notes (
   client_id   UUID,                               -- Idempotency for offline outbox replay
   source_url  TEXT,                               -- Origin URL for web-clipper notes (migration 008)
   auto_update BOOLEAN NOT NULL DEFAULT FALSE,     -- Auto-update from Google Drive (migration 010)
+  checkbox_size TEXT NOT NULL DEFAULT 'sm',       -- 'sm' | 'md' | 'lg' — editor checkbox size (migration 024, CR040)
   deleted_at  TIMESTAMPTZ,                        -- Soft delete / trash (NULL = live)
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW(),
@@ -726,7 +728,7 @@ DELETE /api/v1/auth/token/:id       Revoke an API token
 GET    /api/v1/notes                Query: notebook_id, tag_id, search, in_inbox, note_type, limit, offset (excludes trashed). Rows carry a 300-char content PREVIEW, not the full body (v0.11.23 perf — list payload ~10x smaller); the editor loads full content via GET /:id.
 POST   /api/v1/notes                Body: { title, content, notebook_id, tag_ids, client_id? }
 GET    /api/v1/notes/:id
-PUT    /api/v1/notes/:id            Body: { title, content, notebook_id, tag_ids, pinned, auto_update }
+PUT    /api/v1/notes/:id            Body: { title, content, notebook_id, tag_ids, pinned, auto_update, checkbox_size }
 POST   /api/v1/notes/:id/checkin    CR027 — body: { base_version, title?, content?, notebook_id?, tag_ids? }. Optimistic concurrency: 200 on match, 409 (error: checkin_conflict, data.server: <full row>) on mismatch.
 DELETE /api/v1/notes/:id            Soft delete — sets deleted_at
 GET    /api/v1/notes/export/:title  Raw markdown by title (text/markdown, supports ?token= for scripts)

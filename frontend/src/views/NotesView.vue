@@ -91,6 +91,15 @@ async function toggleAutoUpdate() {
   await notesStore.updateNote(notesStore.currentNote.id, { auto_update: newVal });
 }
 
+// CR040 — per-note checkbox size, cycled S → M → L from the toolbar.
+const CHECKBOX_SIZES = ['sm', 'md', 'lg'];
+async function cycleCheckboxSize() {
+  if (!notesStore.currentNote) return;
+  const current = CHECKBOX_SIZES.indexOf(notesStore.currentNote.checkbox_size || 'sm');
+  const next = CHECKBOX_SIZES[(current + 1) % CHECKBOX_SIZES.length];
+  await notesStore.updateNote(notesStore.currentNote.id, { checkbox_size: next });
+}
+
 function handlePrint() {
   if (!notesStore.currentNote) return;
   printNote(noteTitle.value, editorContent.value, noteFormat.value);
@@ -801,6 +810,7 @@ async function handleRefreshOffline() {
           :reminderAt="notesStore.currentNote?.reminder_at"
           :driveImported="notesStore.currentNote?.drive_imported || false"
           :autoUpdate="notesStore.currentNote?.auto_update || false"
+          :checkboxSize="notesStore.currentNote?.checkbox_size || 'sm'"
           :checkedOut="checkoutState.checkedOut"
           :dirtyOffline="checkoutState.dirty"
           @update:noteTitle="onTitleChange"
@@ -815,12 +825,13 @@ async function handleRefreshOffline() {
           @print="handlePrint"
           @download="handleDownload"
           @toggle-auto-update="toggleAutoUpdate"
+          @cycle-checkbox-size="cycleCheckboxSize"
           @checkout="handleCheckout"
           @check-in="handleCheckIn"
           @refresh-offline="handleRefreshOffline"
           @discard-offline="handleDiscardOffline"
         />
-        <div class="editor-body">
+        <div class="editor-body" :class="`cb-size-${notesStore.currentNote.checkbox_size || 'sm'}`">
           <SourceReader
             v-if="isSourceNote"
             :key="notesStore.currentNote.id"
@@ -1110,6 +1121,10 @@ async function handleRefreshOffline() {
 </style>
 
 <style>
+/* CR040 — per-note checkbox size; the widget lives inside CodeMirror, so unscoped. */
+.cb-size-md .cm-checkbox { width: 18px; height: 18px; }
+.cb-size-lg .cm-checkbox { width: 24px; height: 24px; }
+
 /* Picker modals (Promote / Merge) — unscoped for Teleport */
 .modal-overlay {
   position: fixed;

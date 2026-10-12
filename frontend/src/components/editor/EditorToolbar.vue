@@ -15,17 +15,19 @@ const props = defineProps({
   reminderAt: { type: [String, null], default: null },
   driveImported: { type: Boolean, default: false },
   autoUpdate: { type: Boolean, default: false },
+  checkboxSize: { type: String, default: 'sm' },
   checkedOut: { type: Boolean, default: false },
   dirtyOffline: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'convert-to-task', 'translate', 'insert-table', 'set-reminder', 'print', 'toggle-auto-update', 'download', 'checkout', 'check-in', 'discard-offline', 'refresh-offline']);
+const emit = defineEmits(['update:noteTitle', 'trash', 'reset-checkboxes', 'promote', 'merge', 'convert-to-task', 'translate', 'insert-table', 'set-reminder', 'print', 'toggle-auto-update', 'cycle-checkbox-size', 'download', 'checkout', 'check-in', 'discard-offline', 'refresh-offline']);
 
 const isIdea = computed(() => props.noteType === 'idea');
 // CR039 — a source's body is read-only, so body-editing and filing actions are hidden.
 const isSource = computed(() => props.noteType === 'source');
 
 const hasCheckedBoxes = computed(() => /- \[x\]/i.test(props.noteContent));
+const hasCheckboxes = computed(() => /- \[[ x]\]/i.test(props.noteContent));
 
 function onTitleInput(e) {
   emit('update:noteTitle', e.target.value);
@@ -118,6 +120,16 @@ function onTitleInput(e) {
       >
         <RotateCcw :size="14" />
         <span>Reset</span>
+      </button>
+
+      <button
+        v-if="hasCheckboxes && !isSource && !checkedOut"
+        class="reset-btn"
+        @click="$emit('cycle-checkbox-size')"
+        title="Checkbox size for this note (S / M / L)"
+      >
+        <CheckSquare :size="14" />
+        <span class="checkbox-size-label">{{ checkboxSize.charAt(0).toUpperCase() }}</span>
       </button>
 
       <button
@@ -270,6 +282,11 @@ function onTitleInput(e) {
   .auto-update-btn span,
   .offline-btn span {
     display: none;
+  }
+  /* The S/M/L letter is the whole point of the button — keep it visible. */
+  .reset-btn .checkbox-size-label {
+    display: inline;
+    margin-left: 4px;
   }
   .mode-toggle,
   .idea-btn,
