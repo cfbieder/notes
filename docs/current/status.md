@@ -35,5 +35,5 @@ See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlin
 - **Deploy / ops runbooks:** [docs/guides/deployment.md](docs/guides/deployment.md)
 - **Docs conventions:** [docs/documentation-standard.md](docs/documentation-standard.md)
 - **Secret names + locations (never values):** [docs/current/secrets-inventory.md](docs/current/secrets-inventory.md)
-- **Agent layer** (rules, skills, reviewers, reference playbooks — gitignored, synced from the private starter pack v1.9.4): `.claude/` — see `.claude/rules/README.md`, `.claude/agents/README.md`, `.claude/reference/README.md`
+- **Agent layer** (rules, skills, reviewers, reference playbooks — gitignored, synced from the private starter pack v1.9.6): `.claude/` — see `.claude/rules/README.md`, `.claude/agents/README.md`, `.claude/reference/README.md`
 - **Integrated LLM/OCR service:** separate `ocr-llm/` repo — see CLAUDE.md
