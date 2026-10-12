@@ -112,6 +112,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 ## Recently Completed
 
+### Released v0.26.1 (2026-10-12)
+
+- **Fix (checkboxes, iPad):** ticking a checkbox no longer scrolls the page back to the text cursor. The toggle now moves the cursor to the tapped box, so iOS's scroll-to-caret has nowhere to go.
+
 ### Released v0.26.0 (2026-10-12)
 
 - **[CR040](docs/cr/cr-040-per-note-checkbox-size.md) — per-note checkbox size.** A toolbar button on notes with checkboxes cycles their size S → M → L (default / 18px / 24px), saved per note. Migration `024_note_checkbox_size.sql` (additive, default `sm` = previous look).

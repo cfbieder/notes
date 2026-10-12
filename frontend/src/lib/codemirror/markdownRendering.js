@@ -34,8 +34,11 @@ class CheckboxWidget extends WidgetType {
     cb.addEventListener('mousedown', (e) => {
       e.preventDefault();
       const newText = this.checked ? '[ ]' : '[x]';
+      // Move the cursor to the tapped box: iOS scrolls to the caret after an
+      // edit, so leaving it elsewhere made the page jump away from the list.
       this.view.dispatch({
-        changes: { from: this.pos, to: this.pos + 3, insert: newText }
+        changes: { from: this.pos, to: this.pos + 3, insert: newText },
+        selection: { anchor: this.pos + 3 }
       });
     });
 
