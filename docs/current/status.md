@@ -7,11 +7,12 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.26.1 · **Live:** `https://noted.example.com` (placeholder — public repo;
+**Current version:** v0.26.2 · **Live:** `https://noted.example.com` (placeholder — public repo;
 the real Tailscale host is `CORS_ORIGIN` in `backend/.env.prod`) · containers `noted-db`, `noted-api`, `noted-web`.
 
 ## Recently shipped
 See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlines:
+- v0.26.2 — fix: switching quickly between note tabs could overwrite one note with another's title and content; saves now go only to the note whose text is in the editor
 - v0.26.1 — fix: ticking a checkbox on iPad no longer jumps the page to the text cursor
 - v0.26.0 — [CR040](docs/cr/cr-040-per-note-checkbox-size.md): checkbox size per note — a toolbar button cycles S / M / L on any note with checkboxes. Plus: AI Assist condense now routes through `/task`
 - v0.25.1 — fix: a link pasted into a new source's Title without `https://` again offers "use it as the URL and fetch details"

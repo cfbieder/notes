@@ -85,6 +85,8 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 | [CR027](docs/cr/cr-027-offline-note-checkout.md) | Per-Note Offline Checkout (Read + Edit) — soft-sync IndexedDB cache + `/checkin` endpoint + conflict diff modal — **Completed (v1)** |
 | [CR028](docs/cr/cr-028-offline-create-notes-and-ideas.md) | Offline Create for Notes & Ideas (+ IdeasView icon parity) — route "+ New" buttons through the existing outbox, surface pending items in lists with a `CloudUpload` badge |
 
+- **Open (needs a UX decision):** `PUT /api/v1/notes/:id` has no version check, so the last write wins. Sending `updated_at` and getting back a 409 would catch any remaining wrong-note or cross-device overwrite. First decide what the user sees on a conflict. Since v0.26.2's client fix, it is no longer needed to stop the tab-switch overwrite.
+
 ### Stage 3 — Multi-User & Beyond
 
 | CR | Title | Notes |
@@ -111,6 +113,10 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ---
 
 ## Recently Completed
+
+### Released v0.26.2 (2026-10-15)
+
+- **Fix (editor tabs, data loss):** switching quickly between note tabs could save one note's title and content into another note. A save read the target id from `currentNote`, which flips to the next note before that note's text has loaded. Saves now go to the note whose text is in the editor. While a note is loading, saves are blocked, and a load that arrives after a newer click is ignored. Placeholder text ("Failed to load note…", "Not available offline…") can no longer be saved over a note. Desktop ([NotesView.vue](frontend/src/views/NotesView.vue)) and mobile ([MobileEditor.vue](frontend/src/components/mobile/MobileEditor.vue)). Two notes affected on prod on 2026-10-15 were restored from the 2026-10-12 backup.
 
 ### Released v0.26.1 (2026-10-12)
 
