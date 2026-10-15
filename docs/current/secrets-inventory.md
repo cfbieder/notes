@@ -2,7 +2,7 @@
 
 > **Names and locations ONLY — never values.** This file is in a public repo. Handling rules:
 > [.claude/rules/env-secrets.md](.claude/rules/env-secrets.md). Every secret below must also
-> appear in [backend/.env.prod.example](backend/.env.prod.example) with a `CHANGE_ME` value and
+> appear in [backend/.env.prod.example](backend/.env.prod.example) with a `CHANGE_ME` value (or empty, where empty means the feature is off) and
 > be mapped explicitly in the `environment:` block of
 > [docker-compose.prod.yml](docker-compose.prod.yml) — the api service has no `env_file:`, so a
 > value sitting in `.env.prod` alone never reaches the container.
@@ -12,7 +12,7 @@
 | `DB_PASSWORD` | `noted-db`, `noted-api` | `backend/.env.prod` on the prod host | host migration / 24 mo | also in `backend/.env.dev` for the dev stack |
 | `JWT_SECRET` | `noted-api` | `backend/.env.prod` | 12 mo / on exposure | rotating invalidates all access tokens |
 | `JWT_REFRESH_SECRET` | `noted-api` | `backend/.env.prod` | 12 mo / on exposure | rotating logs every device out |
-| `AI_KEYS_ENC_KEY` | `noted-api` | `backend/.env.prod` | on exposure only | encrypts per-user provider keys at rest (CR-038 — pluggable AI providers). **Rotating it makes every stored provider key undecryptable**, so a rotation needs a re-entry flow first. Mapped in `docker-compose.prod.yml` as `${AI_KEYS_ENC_KEY:-}` since 2026-10-02 (was missing, so saving a provider key failed on prod); `scripts/ci-guards.sh` guard 7 now fails CI if a secret here is left unmapped |
+| `AI_KEYS_ENC_KEY` | `noted-api` | `backend/.env.prod` | on exposure only | encrypts per-user provider keys at rest (CR-038 — pluggable AI providers). **Rotating it makes every stored provider key undecryptable**, so a rotation needs a re-entry flow first. Mapped in `docker-compose.prod.yml` as `${AI_KEYS_ENC_KEY:-}` (it was once missing, so saving a provider key failed on prod); `scripts/ci-guards.sh` guard 7 now fails CI if a secret here is left unmapped |
 | `OCR_LLM_CLIENT_KEY` | `noted-api` → `ocr-llm` gateway | `backend/.env.prod` **and** the repo-root `.env` (the handoff CLI does not read `backend/.env.dev`) | when the gateway reissues | empty default is deliberate: AI stays off until configured |
 | `GOOGLE_CLIENT_SECRET` | `noted-api` (Drive import) | `backend/.env.prod` | on exposure / Google console rotation | paired with the non-secret `GOOGLE_CLIENT_ID` |
 

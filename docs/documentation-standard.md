@@ -10,7 +10,7 @@ Documentation rots when there's no rule for *where a thing goes* and *what it's 
 Three load-bearing ideas:
 
 1. **One small entry point.** A single `status.md` is the mandatory read; everything else is read on demand. Keeps per-session context cost low.
-2. **One source of truth per fact.** Ship dates/versions live only in the CR index. Other docs *link*, never restate — so changelogs can't drift.
+2. **One source of truth per fact.** Ship dates/versions live only in the CR index. Other docs *link*, never restate — so changelogs can't drift. **Exception — fixes without a CR:** a small fix that gets no CR records its version and date in its `### Released vX.Y.Z (date)` entry under the roadmap's "Recently Completed", which serves as the changelog for non-CR work. `status.md` may echo the latest few as headlines.
 3. **Consistent names.** Lowercase kebab-case everywhere, with a tiny set of ALL-CAPS ecosystem exceptions. No "junk drawer" directory.
 
 ## Directory layout

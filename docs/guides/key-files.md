@@ -13,6 +13,9 @@ authoritative description of each subsystem lives in
 | `frontend/src/main.js` | Vue app entry point |
 | `frontend/src/router/index.js` | Route definitions |
 | `frontend/src/api/client.js` | API fetch wrapper with JWT handling |
+| `frontend/src/views/NotesView.vue` | Desktop notes shell + editor: load, autosave, tabs — saves go to `editorNoteId`, never `currentNote` |
+| `frontend/src/components/mobile/MobileEditor.vue` | Mobile single-note editor (same save-target rule as `NotesView.vue`) |
+| `frontend/src/stores/notes.js` | Notes store — `fetchNote` / `updateNote`; edits to a checked-out note go to IndexedDB, not the server |
 | `frontend/src/styles/theme.css` | Sapphire/Dark/Light theme palettes (CSS vars under `:root[data-theme="..."]`) |
 | `frontend/src/stores/ui.js` | UI store — `theme` + `setTheme()`, `applyTheme()` + `loadTheme()` helpers, dispatches `noted:theme-change` |
 | `frontend/src/lib/codemirror/sapphireTheme.js` | CodeMirror editor theme (uses CSS vars, adapts to active theme) |
@@ -26,6 +29,9 @@ authoritative description of each subsystem lives in
 | `scripts/backup-db.sh` | Local pg_dump backup |
 | `scripts/backup-to-remote.sh` | SSH remote backup |
 | `scripts/setup-cron.sh` | Cron job installer |
+| `scripts/update_version.sh` | Release bump — `VERSION` + both `package.json` + `frontend/.env`, commit and tag |
+| `scripts/ci-guards.sh` | Mechanical CI guards (secret defaults, migration immutability, unmapped secrets, citation-extractor parity, …) |
+| `scripts/setup-dev.sh` | Dev environment bootstrap |
 | `backend/src/services/driveImporter.js` | Google Drive file import logic |
 | `backend/src/services/drivePoller.js` | Google Drive polling scheduler |
 | `backend/src/routes/integrations.js` | Google Drive OAuth + config + scan API |

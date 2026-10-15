@@ -16,8 +16,18 @@ Operational runbook for Noted. Conventions and the dev quickstart live in
 # Provision/renew TLS certs
 sudo ./scripts/setup-certs.sh
 
-# Install cron jobs (backup, cert renewal, prune)
+# Install cron jobs: remote backup every 2nd day 02:00, cert renewal on the 1st 03:00,
+# docker system prune Sundays 03:00
 ./scripts/setup-cron.sh
+
+# Release bump (VERSION + both package.json + frontend/.env; commits and tags)
+./scripts/update_version.sh patch   # or minor / major / X.Y.Z
+
+# Mechanical guards CI runs — must pass before a release
+bash scripts/ci-guards.sh
+
+# Off-host backup over SSH (also run by cron)
+./scripts/backup-to-remote.sh
 
 # Logs
 docker compose -f docker-compose.prod.yml logs -f
