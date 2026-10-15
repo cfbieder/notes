@@ -137,7 +137,7 @@ async function confirmTranslate() {
       target_lang: targetLang
     });
     // Backend returns the updated note. Refresh local state.
-    if (res.data?.content !== undefined) {
+    if (res.data?.content !== undefined && editorNoteId === id) {
       editorContent.value = res.data.content;
       notesStore.currentNote.content = res.data.content;
       uiStore.setSaveStatus('saved');
@@ -205,6 +205,11 @@ function getMergePreview(content) {
 const editorContent = ref('');
 const noteTitle = ref('');
 let saveTimer = null;
+// The note whose text is in noteTitle/editorContent. Saves go here — never to
+// notesStore.currentNote, which flips to the next note before its text loads
+// (that gap wrote one note's text into another during rapid tab switching).
+let editorNoteId = null;
+let loadSeq = 0;
 
 const isSourceMode = computed(() => uiStore.editorMode === 'source');
 
@@ -382,6 +387,7 @@ watch(() => [route.name, route.params.id], async ([newName, newId]) => {
   if (isDetailView && newId) {
     await loadNote(newId);
   } else if (notesStore.currentNote) {
+    editorNoteId = null;
     notesStore.currentNote = null;
     noteTitle.value = '';
     editorContent.value = '';
@@ -422,11 +428,15 @@ const mobileListTitle = computed(() => {
 watch(() => route.fullPath, () => { mobileSidebarOpen.value = false; });
 
 async function loadNote(id) {
+  editorNoteId = null;
+  const seq = ++loadSeq;
   try {
     const note = await notesStore.fetchNote(id);
+    if (seq !== loadSeq) return;
     if (note && !note._unavailableOffline) {
       noteTitle.value = note.title || '';
       editorContent.value = note.content || '';
+      editorNoteId = id;
       htmlEditMode.value = false;
       uiStore.setSaveStatus('saved');
       openTabsStore.ensureOpen({ id, title: note.title || '', routeName: route.name });
@@ -438,9 +448,11 @@ async function loadNote(id) {
     }
     // Fall back to direct checkout read.
     const row = await getCheckout(id);
+    if (seq !== loadSeq) return;
     if (row) {
       noteTitle.value = row.localTitle || '';
       editorContent.value = row.localContent || '';
+      editorNoteId = id;
       htmlEditMode.value = false;
       uiStore.setSaveStatus('saved');
       openTabsStore.ensureOpen({ id, title: row.localTitle || '', routeName: route.name });
@@ -454,9 +466,11 @@ async function loadNote(id) {
     uiStore.setSaveStatus('saved');
   } catch (err) {
     const row = await getCheckout(id).catch(() => null);
+    if (seq !== loadSeq) return;
     if (row) {
       noteTitle.value = row.localTitle || '';
       editorContent.value = row.localContent || '';
+      editorNoteId = id;
       htmlEditMode.value = false;
       uiStore.setSaveStatus('saved');
       openTabsStore.ensureOpen({ id, title: row.localTitle || '', routeName: route.name });
@@ -489,14 +503,15 @@ function scheduleSave() {
 }
 
 async function saveNote() {
-  if (!notesStore.currentNote) return;
+  const id = editorNoteId;
+  if (!id) return;
   uiStore.setSaveStatus('saving');
   try {
-    await notesStore.updateNote(notesStore.currentNote.id, {
+    await notesStore.updateNote(id, {
       title: noteTitle.value,
       content: editorContent.value
     });
-    openTabsStore.updateTitle(notesStore.currentNote.id, noteTitle.value);
+    openTabsStore.updateTitle(id, noteTitle.value);
     uiStore.setSaveStatus('saved');
   } catch (err) {
     uiStore.setSaveStatus('unsaved');
@@ -702,9 +717,10 @@ function handleDiscardOffline() {
 async function doDiscardOffline() {
   discardOfflineConfirm.value.open = false;
   if (!notesStore.currentNote) return;
-  await notesStore.discardOfflineCopy(notesStore.currentNote.id);
+  const id = notesStore.currentNote.id;
+  await notesStore.discardOfflineCopy(id);
   // Re-sync the editor view from the (refreshed) currentNote.
-  if (notesStore.currentNote) {
+  if (notesStore.currentNote?.id === id && editorNoteId === id) {
     noteTitle.value = notesStore.currentNote.title;
     editorContent.value = notesStore.currentNote.content;
   }
@@ -715,9 +731,12 @@ async function doDiscardOffline() {
 async function handleRefreshOffline() {
   if (!notesStore.currentNote) return;
   try {
-    const fresh = await notesStore.refreshOfflineCopy(notesStore.currentNote.id);
-    noteTitle.value = fresh.title;
-    editorContent.value = fresh.content;
+    const id = notesStore.currentNote.id;
+    const fresh = await notesStore.refreshOfflineCopy(id);
+    if (editorNoteId === id) {
+      noteTitle.value = fresh.title;
+      editorContent.value = fresh.content;
+    }
     await refreshCheckoutState();
     toastsStore.addToast({ message: 'Offline copy refreshed from server', type: 'success' });
   } catch (err) {

@@ -57,8 +57,12 @@ const showDiscardOfflineConfirm = ref(false);
 const checkoutState = ref({ checkedOut: false, dirty: false });
 let saveTimer = null;
 let checkoutPoll = null;
+// The note whose text is in noteTitle/editorContent — see NotesView.vue.
+let editorNoteId = null;
+let loadSeq = 0;
 
 watch(() => props.noteId, async (id) => {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await saveNote(); }
   if (id) await loadNote(id);
   await refreshCheckoutState();
 }, { immediate: true });
@@ -113,9 +117,12 @@ async function handleCheckIn() {
 async function handleRefreshOffline() {
   if (!notesStore.currentNote) return;
   try {
-    const fresh = await notesStore.refreshOfflineCopy(notesStore.currentNote.id);
-    noteTitle.value = fresh.title;
-    editorContent.value = fresh.content;
+    const id = notesStore.currentNote.id;
+    const fresh = await notesStore.refreshOfflineCopy(id);
+    if (editorNoteId === id) {
+      noteTitle.value = fresh.title;
+      editorContent.value = fresh.content;
+    }
     await refreshCheckoutState();
     toastsStore.addToast({ message: 'Offline copy refreshed', type: 'success' });
   } catch (err) {
@@ -135,8 +142,9 @@ function handleDiscardOffline() {
 async function doDiscardOffline() {
   showDiscardOfflineConfirm.value = false;
   if (!notesStore.currentNote) return;
-  await notesStore.discardOfflineCopy(notesStore.currentNote.id);
-  if (notesStore.currentNote) {
+  const id = notesStore.currentNote.id;
+  await notesStore.discardOfflineCopy(id);
+  if (notesStore.currentNote?.id === id && editorNoteId === id) {
     noteTitle.value = notesStore.currentNote.title;
     editorContent.value = notesStore.currentNote.content;
   }
@@ -145,11 +153,15 @@ async function doDiscardOffline() {
 }
 
 async function loadNote(id) {
+  editorNoteId = null;
+  const seq = ++loadSeq;
   try {
     const note = await notesStore.fetchNote(id);
+    if (seq !== loadSeq) return;
     if (note && !note._unavailableOffline) {
       noteTitle.value = note.title || '';
       editorContent.value = note.content || '';
+      editorNoteId = id;
       uiStore.setSaveStatus('saved');
       return;
     }
@@ -157,9 +169,11 @@ async function loadNote(id) {
     // checkout read as a belt-and-braces fallback in case store-level
     // logic got confused (e.g. a stale currentNote or a Pinia race).
     const row = await getCheckout(id);
+    if (seq !== loadSeq) return;
     if (row) {
       noteTitle.value = row.localTitle || '';
       editorContent.value = row.localContent || '';
+      editorNoteId = id;
       uiStore.setSaveStatus('saved');
       return;
     }
@@ -170,9 +184,11 @@ async function loadNote(id) {
   } catch (err) {
     // Last-resort: try IDB directly. If that also fails, show a hint.
     const row = await getCheckout(id).catch(() => null);
+    if (seq !== loadSeq) return;
     if (row) {
       noteTitle.value = row.localTitle || '';
       editorContent.value = row.localContent || '';
+      editorNoteId = id;
       uiStore.setSaveStatus('saved');
     } else {
       noteTitle.value = '';
@@ -194,10 +210,11 @@ function scheduleSave() {
 }
 
 async function saveNote() {
-  if (!notesStore.currentNote) return;
+  const id = editorNoteId;
+  if (!id) return;
   uiStore.setSaveStatus('saving');
   try {
-    await notesStore.updateNote(notesStore.currentNote.id, {
+    await notesStore.updateNote(id, {
       title: noteTitle.value,
       content: editorContent.value
     });
