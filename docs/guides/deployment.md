@@ -23,7 +23,8 @@ sudo ./scripts/setup-certs.sh
 docker compose -f docker-compose.prod.yml logs -f
 
 # Manual backup
-./scripts/backup-db.sh --prune 10
+./scripts/backup-db.sh            # keeps the last 2 (default); --prune 0 disables pruning
+                                   # before a restore, use --prune 0 so the dump you restore from survives
 ```
 
 ## Docker build gotchas

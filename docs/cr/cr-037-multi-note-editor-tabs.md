@@ -29,6 +29,12 @@ navigates the route, this "save before switch" guarantee is inherited for free â
 tab actions must route through this same path, never bypass it. Matches today's
 behavior (cursor/scroll not preserved on switch), so no behavioral regression.
 
+> **Follow-up:** "no refactor of `currentNote`" left a gap. A save read its target id from
+> `currentNote`, which flips to the next note before that note's text loads. Rapid tab switching
+> wrote one note's text into another until saves were tied to the editor's own note id â€” see the
+> roadmap's [Recently Completed](docs/current/project-roadmap.md#recently-completed) entry for the
+> editor-tabs data-loss fix.
+
 Confirmed with the user: **desktop only** (mobile keeps its full-screen
 single-note flow), and **tabs persist across reloads** via `localStorage`, with
 stale tabs (deleted/trashed/404 notes) pruned.

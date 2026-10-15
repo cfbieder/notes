@@ -11,7 +11,7 @@ Last reorganised: 2026-04-25 (extracted from [docs/archive/noted-development-pla
 - One CR per outstanding piece of work, named `docs/cr/cr-NNN-short-name.md` (zero-padded to 3 digits).
 - Each CR file starts with a `Status:` header — keep it accurate as work progresses.
 - When a CR is completed, flip its status header to `Completed`, mark its row ✓ in [docs/cr/README.md](docs/cr/README.md), and reflect the shipped feature in [docs/current/project-description.md](docs/current/project-description.md). Do not delete the CR file.
-- New work: add a new CR with the next sequential number (`cr-036-…`, etc.), add a row to [docs/cr/README.md](docs/cr/README.md), and link it from the appropriate section below.
+- New work: add a new CR with the next sequential number (`cr-NNN-…`, zero-padded), add a row to [docs/cr/README.md](docs/cr/README.md), and link it from the appropriate section below.
 
 ---
 
