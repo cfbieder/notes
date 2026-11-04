@@ -3,10 +3,10 @@
 **Base URLs:**
 | Network | URL |
 |---------|-----|
-| LAN | `http://192.168.1.61:8080` |
-| Tailscale | `http://llm-gateway.example.com:8080` |
+| LAN (direct) | `http://<lan-host>:8080` |
+| Tailscale (clients) | `https://llm-gateway.example.com` |
 
-**System Monitor:** `http://192.168.1.61:8081` (GPU/CPU/Memory dashboard, separate service)
+**System Monitor:** `http://<monitor-host>:8081` (GPU/CPU/Memory dashboard, separate service)
 
 **OCR Model:** Gemini 2.5 Flash → Claude Sonnet vision (cloud fallback)
 **LLM Text Generation:** Ollama — phi4:14b, qwen3.5:9b (GPU 0), qwen3:32b (GPU 1)
@@ -36,8 +36,8 @@ A browser-based interface is available at the root URL:
 
 | Network | URL |
 |---------|-----|
-| LAN | `http://192.168.1.61:8080` |
-| Tailscale | `http://llm-gateway.example.com:8080` |
+| LAN (direct) | `http://<lan-host>:8080` |
+| Tailscale (clients) | `https://llm-gateway.example.com` |
 
 **Features:**
 - **Extract Text** — Upload a document, get raw OCR text
@@ -119,7 +119,7 @@ Content-Type: multipart/form-data
 
 **curl example:**
 ```bash
-curl -X POST http://192.168.1.61:8080/ocr \
+curl -X POST https://llm-gateway.example.com/ocr \
   -F "file=@invoice.pdf"
 ```
 
@@ -163,7 +163,7 @@ Content-Type: multipart/form-data
 #### Use Case 1: Invoice Extraction
 
 ```bash
-curl -X POST http://192.168.1.61:8080/ocr/json \
+curl -X POST https://llm-gateway.example.com/ocr/json \
   -F "file=@invoice.pdf" \
   -F "prompt=Extract the following data from this invoice document and return as valid JSON only, no other text: {
   vendor_name: string,
@@ -211,7 +211,7 @@ curl -X POST http://192.168.1.61:8080/ocr/json \
 #### Use Case 2: Fiscal Report Extraction
 
 ```bash
-curl -X POST http://192.168.1.61:8080/ocr/json \
+curl -X POST https://llm-gateway.example.com/ocr/json \
   -F "file=@fiscal_report.jpg" \
   -F "prompt=Extract the following data from this Polish fiscal register report and return as valid JSON only, no other text: {
   reportDate: string (DD.MM.YYYY),
@@ -228,7 +228,7 @@ curl -X POST http://192.168.1.61:8080/ocr/json \
 #### Use Case 3: Document Classification
 
 ```bash
-curl -X POST http://192.168.1.61:8080/ocr/json \
+curl -X POST https://llm-gateway.example.com/ocr/json \
   -F "file=@document.pdf" \
   -F "prompt=Classify this document and return as valid JSON only, no other text: {
   document_type: 'invoice' | 'fiscal_report' | 'receipt' | 'credit_note' | 'delivery_note' | 'other',
@@ -274,7 +274,7 @@ Content-Type: application/json
 
 **curl example:**
 ```bash
-curl -X POST http://192.168.1.61:8080/ocr/url \
+curl -X POST https://llm-gateway.example.com/ocr/url \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com/receipt.jpg"}'
 ```
@@ -317,17 +317,17 @@ Content-Type: application/json
 **curl examples:**
 ```bash
 # Polish to English
-curl -X POST http://192.168.1.61:8080/translate \
+curl -X POST https://llm-gateway.example.com/translate \
   -H "Content-Type: application/json" \
   -d '{"text": "Faktura VAT nr 1234/2026", "source_lang": "pl", "target_lang": "en"}'
 
 # English to German
-curl -X POST http://192.168.1.61:8080/translate \
+curl -X POST https://llm-gateway.example.com/translate \
   -H "Content-Type: application/json" \
   -d '{"text": "Hello world", "source_lang": "en", "target_lang": "de"}'
 
 # French to English
-curl -X POST http://192.168.1.61:8080/translate \
+curl -X POST https://llm-gateway.example.com/translate \
   -H "Content-Type: application/json" \
   -d '{"text": "Bonjour le monde", "source_lang": "fr", "target_lang": "en"}'
 ```
@@ -362,7 +362,7 @@ GET /translate/languages
 
 **curl example:**
 ```bash
-curl -s http://192.168.1.61:8080/translate/languages | jq .shorthand
+curl -s https://llm-gateway.example.com/translate/languages | jq .shorthand
 ```
 
 ---
@@ -407,17 +407,17 @@ Content-Type: multipart/form-data
 **curl examples:**
 ```bash
 # Polish invoice to English (defaults)
-curl -X POST http://192.168.1.61:8080/ocr/translate \
+curl -X POST https://llm-gateway.example.com/ocr/translate \
   -F "file=@invoice.pdf"
 
 # English document to Polish
-curl -X POST http://192.168.1.61:8080/ocr/translate \
+curl -X POST https://llm-gateway.example.com/ocr/translate \
   -F "file=@document.png" \
   -F "source_lang=en" \
   -F "target_lang=pl"
 
 # German document to French
-curl -X POST http://192.168.1.61:8080/ocr/translate \
+curl -X POST https://llm-gateway.example.com/ocr/translate \
   -F "file=@document.pdf" \
   -F "source_lang=de" \
   -F "target_lang=fr"
@@ -464,16 +464,16 @@ Content-Type: multipart/form-data
 **curl examples:**
 ```bash
 # Auto-detect language
-curl -X POST http://192.168.1.61:8080/transcribe \
+curl -X POST https://llm-gateway.example.com/transcribe \
   -F "file=@recording.ogg"
 
 # Specify Polish language
-curl -X POST http://192.168.1.61:8080/transcribe \
+curl -X POST https://llm-gateway.example.com/transcribe \
   -F "file=@recording.ogg" \
   -F "language=pl"
 
 # MP3 file
-curl -X POST http://192.168.1.61:8080/transcribe \
+curl -X POST https://llm-gateway.example.com/transcribe \
   -F "file=@meeting.mp3"
 ```
 
@@ -527,19 +527,19 @@ Cache-Control: public, max-age=31536000
 **curl examples:**
 ```bash
 # Minimal — default voice, default speed
-curl -X POST http://192.168.1.61:8080/tts \
+curl -X POST https://llm-gateway.example.com/tts \
   -H 'Content-Type: application/json' \
   -d '{"text":"Hola, ¿cómo estás?"}' \
   -o hello.mp3
 
 # Explicit voice and slower speed for listening practice
-curl -X POST http://192.168.1.61:8080/tts \
+curl -X POST https://llm-gateway.example.com/tts \
   -H 'Content-Type: application/json' \
   -d '{"text":"Necesito comprar leche en el supermercado.","voice":"es-ES-ElviraNeural","speed":0.8}' \
   -o sentence.mp3
 
 # Discover available voices
-curl -s http://192.168.1.61:8080/tts/voices
+curl -s https://llm-gateway.example.com/tts/voices
 ```
 
 **Latency:** measured ~0.4s for a short word ("hola" → 7920 bytes), ~1.1s for a full sentence ("Necesito comprar leche en el supermercado." → 20448 bytes). No GPU contention.
@@ -573,7 +573,7 @@ GET /tts/voices
 
 **curl example:**
 ```bash
-curl -s http://192.168.1.61:8080/tts/voices | jq .
+curl -s https://llm-gateway.example.com/tts/voices | jq .
 ```
 
 ---
@@ -596,7 +596,7 @@ GET /llm/models
 
 **curl example:**
 ```bash
-curl -s http://192.168.1.61:8080/llm/models | jq .
+curl -s https://llm-gateway.example.com/llm/models | jq .
 ```
 
 ---
@@ -656,7 +656,7 @@ Content-Type: application/json
 
 **curl example:**
 ```bash
-curl -X POST http://192.168.1.61:8080/llm/generate \
+curl -X POST https://llm-gateway.example.com/llm/generate \
   -H "Content-Type: application/json" \
   -d '{
     "model": "phi4:14b",
@@ -668,7 +668,7 @@ curl -X POST http://192.168.1.61:8080/llm/generate \
 
 **Streaming example:**
 ```bash
-curl -N -X POST http://192.168.1.61:8080/llm/generate \
+curl -N -X POST https://llm-gateway.example.com/llm/generate \
   -H "Content-Type: application/json" \
   -d '{"model": "phi4:14b", "prompt": "Count to 5.", "stream": true}'
 ```
@@ -681,7 +681,7 @@ Each line of the response is a JSON object like `{"response": "1", "done": false
 
 For the full routing decision flowchart and all fallback chains, see `ROUTING_RULES.md` (ocr-llm project).
 
-**Migration for existing apps:** Change your Ollama endpoint from `http://192.168.1.61:11434/api/generate` to `http://192.168.1.61:8080/llm/generate`. The request/response format is the same, with the addition of `gpu` and `mode` fields in the response. For new apps, prefer `POST /task` — it provides automatic model selection and fallbacks across all providers.
+**Migration for existing apps:** Change your Ollama endpoint from `http://llm-gateway.example.com:11434/api/generate` to `https://llm-gateway.example.com/llm/generate`. The request/response format is the same, with the addition of `gpu` and `mode` fields in the response. For new apps, prefer `POST /task` — it provides automatic model selection and fallbacks across all providers.
 
 **Note:** First request to a cold model takes ~10-50s (Ollama needs to load the model into GPU VRAM). Subsequent requests are fast (~2-10s).
 
@@ -748,7 +748,7 @@ Content-Type: application/json
 **curl examples:**
 ```bash
 # General task — summarize text
-curl -X POST http://192.168.1.61:8080/task \
+curl -X POST https://llm-gateway.example.com/task \
   -H "Content-Type: application/json" \
   -d '{
     "task": "scan_summary",
@@ -757,7 +757,7 @@ curl -X POST http://192.168.1.61:8080/task \
   }'
 
 # Spanish task — conversation practice
-curl -X POST http://192.168.1.61:8080/task \
+curl -X POST https://llm-gateway.example.com/task \
   -H "Content-Type: application/json" \
   -d '{
     "task": "spanish_conversation",
@@ -767,7 +767,7 @@ curl -X POST http://192.168.1.61:8080/task \
   }'
 
 # Spanish task with structured context
-curl -X POST http://192.168.1.61:8080/task \
+curl -X POST https://llm-gateway.example.com/task \
   -H "Content-Type: application/json" \
   -d '{
     "task": "spanish_conjugation_drill",
@@ -777,7 +777,7 @@ curl -X POST http://192.168.1.61:8080/task \
   }'
 
 # Medical task (returns disclaimer)
-curl -X POST http://192.168.1.61:8080/task \
+curl -X POST https://llm-gateway.example.com/task \
   -H "Content-Type: application/json" \
   -d '{
     "task": "medical_qa",
@@ -786,7 +786,7 @@ curl -X POST http://192.168.1.61:8080/task \
   }'
 
 # Trading task (accuracy-critical — Claude primary)
-curl -X POST http://192.168.1.61:8080/task \
+curl -X POST https://llm-gateway.example.com/task \
   -H "Content-Type: application/json" \
   -d '{
     "task": "trade_analysis",
@@ -795,7 +795,7 @@ curl -X POST http://192.168.1.61:8080/task \
   }'
 
 # Health task — blood test interpretation
-curl -X POST http://192.168.1.61:8080/task \
+curl -X POST https://llm-gateway.example.com/task \
   -H "Content-Type: application/json" \
   -d '{
     "task": "blood_test_interpret",
@@ -918,10 +918,10 @@ GET /task/routes
 **curl example:**
 ```bash
 # List all tasks
-curl -s http://192.168.1.61:8080/task/routes | python3 -m json.tool
+curl -s https://llm-gateway.example.com/task/routes | python3 -m json.tool
 
 # Get just the task names
-curl -s http://192.168.1.61:8080/task/routes | python3 -c "
+curl -s https://llm-gateway.example.com/task/routes | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 for name in sorted(d['tasks']): print(name)
@@ -977,7 +977,7 @@ GET /task/spanish_grammar_tag/catalog
 
 **curl example:**
 ```bash
-curl -s http://192.168.1.61:8080/task/spanish_grammar_tag/catalog | jq '.catalog_version, .concept_names'
+curl -s https://llm-gateway.example.com/task/spanish_grammar_tag/catalog | jq '.catalog_version, .concept_names'
 ```
 
 ---
@@ -1071,9 +1071,9 @@ Categories: `ocr` (gemini/claude), `llm` (gpu0/gpu1), `llm_models` (per model), 
 
 The RAG Admin service provides a web UI and API for managing retrieval data. **Admin-only** — same network access as the system monitor.
 
-**Base URL:** `http://192.168.1.61:8082`
+**Base URL:** `http://<monitor-host>:8082`
 
-**Web UI:** `http://192.168.1.61:8082/` — 3 tabs: Structured Data, Semantic Collections, Search Tester
+**Web UI:** `http://<monitor-host>:8082/` — 3 tabs: Structured Data, Semantic Collections, Search Tester
 
 ### Admin Endpoints
 
@@ -1095,27 +1095,27 @@ The RAG Admin service provides a web UI and API for managing retrieval data. **A
 **curl examples:**
 ```bash
 # Check admin status
-curl -s http://192.168.1.61:8082/admin/status | python3 -m json.tool
+curl -s http://<monitor-host>:8082/admin/status | python3 -m json.tool
 
 # List tables
-curl -s http://192.168.1.61:8082/tables | python3 -m json.tool
+curl -s http://<monitor-host>:8082/tables | python3 -m json.tool
 
 # Browse conjugation data for "tener"
-curl -s "http://192.168.1.61:8082/tables/conjugation_tables/rows?filter_col=infinitive&filter_val=tener" | python3 -m json.tool
+curl -s "http://<monitor-host>:8082/tables/conjugation_tables/rows?filter_col=infinitive&filter_val=tener" | python3 -m json.tool
 
 # Import a CSV file
-curl -X POST http://192.168.1.61:8082/tables/conjugation_tables/import -F "file=@corpora/spanish_conjugation/seed.csv"
+curl -X POST http://<monitor-host>:8082/tables/conjugation_tables/import -F "file=@corpora/spanish_conjugation/seed.csv"
 
 # List collections
-curl -s http://192.168.1.61:8082/collections | python3 -m json.tool
+curl -s http://<monitor-host>:8082/collections | python3 -m json.tool
 
 # Semantic search test
-curl -X POST http://192.168.1.61:8082/collections/spanish_grammar/search \
+curl -X POST http://<monitor-host>:8082/collections/spanish_grammar/search \
   -H "Content-Type: application/json" \
   -d '{"query": "when to use subjunctive", "n_results": 3}'
 
 # Ingest a text document
-curl -X POST http://192.168.1.61:8082/collections/medical_references/ingest -F "file=@corpora/medical_references/docs/sample_reference.txt"
+curl -X POST http://<monitor-host>:8082/collections/medical_references/ingest -F "file=@corpora/medical_references/docs/sample_reference.txt"
 ```
 
 ---
@@ -1148,7 +1148,7 @@ Models share 24 GB VRAM — Ollama automatically swaps them. First request to a 
 ```python
 import httpx
 
-OCR_API = "http://192.168.1.61:8080"
+OCR_API = "https://llm-gateway.example.com"
 
 INVOICE_PROMPT = """Extract the following data from this invoice document and return as valid JSON only, no other text: {
   vendor_name: string,
@@ -1177,7 +1177,7 @@ async def extract_invoice(file_path: str) -> dict:
 ```python
 import httpx
 
-OCR_API = "http://192.168.1.61:8080"
+OCR_API = "https://llm-gateway.example.com"
 
 async def translate_text(text: str, source: str = "pl", target: str = "en") -> str:
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -1205,7 +1205,7 @@ async def ocr_and_translate(file_path: str, target: str = "en") -> dict:
 ```python
 import httpx
 
-OCR_API = "http://192.168.1.61:8080"
+OCR_API = "https://llm-gateway.example.com"
 
 async def transcribe_audio(file_path: str, language: str = None) -> dict:
     async with httpx.AsyncClient(timeout=300.0) as client:
@@ -1449,5 +1449,5 @@ Error body:
 
 ```bash
 # Returns 200 with status "healthy" when operational
-curl -sf http://192.168.1.61:8080/health | jq .status
+curl -sf https://llm-gateway.example.com/health | jq .status
 ```

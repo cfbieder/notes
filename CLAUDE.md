@@ -60,12 +60,12 @@ Production deploy, backups, and Docker build gotchas: [docs/guides/deployment.md
 rename anything under it; cross-repo links stay spelled the way that repo names them.
 
 - **First-read primer:** `ocr-llm/Documentation/Guides/AI_IMPLEMENTATION_GUIDE.md`
-- **Pinned contract version:** v1 · **Base URL:** `http://llm-gateway.example.com:8080` (Tailscale)
+- **Pinned contract version:** v1 · **Base URL:** `https://llm-gateway.example.com` (Tailscale)
 
 Before non-trivial API work:
 1. `(cd ocr-llm && git pull --ff-only)`
 2. Read what the handoff hook printed (below) — not the tail of `HANDOFFS.md` by hand.
-3. Fetch the live spec: `curl -s http://llm-gateway.example.com:8080/contracts/v1/gateway`.
+3. Fetch the live spec: `curl -s https://llm-gateway.example.com/contracts/v1/gateway`.
 
 ### Handoffs
 
