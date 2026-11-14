@@ -1,6 +1,7 @@
 const { extractWikilinks, resolveWikilinks } = require('../services/wikilinkParser');
 const llmService = require('../services/llmService');
 const { sendSourceReadonly, sourceUpdateViolation } = require('../utils/sourceGuard');
+const { attachmentPathsFor, unlinkStoredFiles } = require('../utils/attachmentFiles');
 
 async function syncWikilinks(fastify, noteId, userId, content) {
   const extracted = extractWikilinks(content);
@@ -518,6 +519,8 @@ async function noteRoutes(fastify) {
   // DELETE /api/v1/notes/:id/permanent — permanently delete from trash
   fastify.delete('/:id/permanent', async (request, reply) => {
     const { id } = request.params;
+    const files = await attachmentPathsFor(fastify.db, request.user.id,
+      'n.id = $2 AND n.deleted_at IS NOT NULL', [id]);
     const result = await fastify.db.query(
       `DELETE FROM notes
        WHERE id = $1 AND user_id = $2 AND deleted_at IS NOT NULL
@@ -528,6 +531,7 @@ async function noteRoutes(fastify) {
     if (result.rows.length === 0) {
       return reply.code(404).send({ error: 'Not Found', message: 'Note not in trash', statusCode: 404 });
     }
+    await unlinkStoredFiles(files, fastify.log);
     return reply.code(204).send();
   });
 
@@ -773,12 +777,14 @@ async function noteRoutes(fastify) {
 
   // DELETE /api/v1/notes/trash/empty — empty entire trash
   fastify.delete('/trash/empty', async (request) => {
+    const files = await attachmentPathsFor(fastify.db, request.user.id, 'n.deleted_at IS NOT NULL');
     const result = await fastify.db.query(
       `DELETE FROM notes
        WHERE user_id = $1 AND deleted_at IS NOT NULL
        RETURNING id`,
       [request.user.id]
     );
+    await unlinkStoredFiles(files, fastify.log);
     return { data: { deleted: result.rowCount } };
   });
 }
