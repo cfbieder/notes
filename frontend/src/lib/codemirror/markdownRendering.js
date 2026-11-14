@@ -2,7 +2,6 @@ import { ViewPlugin, Decoration, WidgetType, EditorView } from '@codemirror/view
 import { syntaxTree } from '@codemirror/language';
 import { RangeSetBuilder, StateField } from '@codemirror/state';
 import MarkdownIt from 'markdown-it';
-import { getAccessToken } from '../../api/client.js';
 import {
   splitRowCells,
   isSeparatorCells,
@@ -72,15 +71,8 @@ class ImageWidget extends WidgetType {
     wrapper.style.cssText = 'margin: 8px 0; max-width: 100%; position: relative; display: inline-block;';
 
     const img = document.createElement('img');
-    // Append auth token for our API URLs
-    let imgSrc = this.src;
-    if (imgSrc.startsWith('/api/')) {
-      const token = getAccessToken();
-      if (token) {
-        imgSrc += (imgSrc.includes('?') ? '&' : '?') + 'token=' + token;
-      }
-    }
-    img.src = imgSrc;
+    // Attachment auth rides on the HttpOnly attachment cookie (CR009).
+    img.src = this.src;
     img.alt = this.alt;
     img.title = this.alt;
     img.loading = 'lazy';

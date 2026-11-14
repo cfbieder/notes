@@ -1,5 +1,4 @@
 import MarkdownIt from 'markdown-it';
-import { getAccessToken } from '../api/client.js';
 import { sanitizeNoteHtmlSplit } from './htmlSanitize.js';
 
 const md = new MarkdownIt({
@@ -32,8 +31,6 @@ md.renderer.rules.text = function (tokens, idx, options, env, self) {
  * so uploaded HTML notes preserve their formatting in the print window.
  */
 export function printNote(title, content, format = 'markdown') {
-  const token = getAccessToken();
-
   // Render to HTML — markdown via markdown-it, html notes via DOMPurify.
   // For HTML notes use the *split* sanitizer so the note's own <style> CSS is
   // preserved (sanitizeNoteHtml discards it) and re-injected into the print
@@ -49,16 +46,8 @@ export function printNote(title, content, format = 'markdown') {
     html = md.render(content || '');
   }
 
-  // Rewrite attachment image URLs to include auth token for the print window
-  if (token) {
-    html = html.replace(
-      /src="(\/api\/v1\/attachments\/[^"]+)"/g,
-      (match, url) => {
-        const sep = url.includes('?') ? '&' : '?';
-        return `src="${url}${sep}token=${encodeURIComponent(token)}"`;
-      }
-    );
-  }
+  // Attachment images authenticate with the HttpOnly attachment cookie (CR009);
+  // the print window is same-origin, so it's sent.
 
   const printWindow = window.open('', '_blank', 'width=800,height=600');
   if (!printWindow) return; // popup blocked

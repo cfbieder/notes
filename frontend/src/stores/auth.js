@@ -4,6 +4,14 @@ import { api, setAccessToken, OfflineError } from '../api/client.js';
 import { clearPendingShares } from '../lib/pendingShares.js';
 
 const SESSION_HINT_KEY = 'noted.hasSession';
+// Must match runtimeCaching's cacheName in vite.config.js.
+const ATTACHMENT_CACHE = 'attachment-cache-v2';
+
+// CR009: attachment URLs carry no token, so a cached file would be served to
+// whoever uses this browser next. Drop the cache whenever the session ends.
+function clearAttachmentCache() {
+  if (typeof caches !== 'undefined') caches.delete(ATTACHMENT_CACHE).catch(() => {});
+}
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null);
@@ -38,6 +46,7 @@ export const useAuthStore = defineStore('auth', () => {
     setAccessToken(null);
     setSessionHint(false);
     clearPendingShares().catch(() => {}); // CR041
+    clearAttachmentCache();
   }
 
   // Clear session state locally without calling the API — used when a refresh
@@ -46,6 +55,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null;
     setAccessToken(null);
     setSessionHint(false);
+    clearAttachmentCache();
     // Not clearing pending shares here (CR041): an expired session is exactly
     // when a fresh share must survive the trip through /login.
   }

@@ -1,6 +1,5 @@
 import { ViewPlugin, Decoration, WidgetType } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
-import { getAccessToken } from '../../api/client.js';
 
 class PdfEmbedWidget extends WidgetType {
   constructor(attachmentId, filename) {
@@ -13,14 +12,12 @@ class PdfEmbedWidget extends WidgetType {
     const wrap = document.createElement('div');
     wrap.className = 'cm-pdf-embed';
     const iframe = document.createElement('iframe');
-    // Browsers can't send Authorization headers on iframe loads — pass JWT via
-    // ?token= query, same shim the image renderer uses (see markdownRendering.js).
+    // Auth rides on the HttpOnly attachment cookie (CR009) — iframes can't send
+    // an Authorization header, and a token in the URL would leak it.
     // #toolbar/navpanes/scrollbar hash params are PDF Open Parameters honoured
     // by Chrome's built-in viewer (and most others) — they hide the embedded
     // viewer chrome so the page renders flush against the editor.
-    const token = getAccessToken();
-    const tokenSuffix = token ? `?token=${token}` : '';
-    iframe.src = `/api/v1/attachments/${this.attachmentId}${tokenSuffix}#toolbar=0&navpanes=0&scrollbar=0`;
+    iframe.src = `/api/v1/attachments/${this.attachmentId}#toolbar=0&navpanes=0&scrollbar=0`;
     iframe.title = this.filename;
     iframe.loading = 'lazy';
     wrap.appendChild(iframe);

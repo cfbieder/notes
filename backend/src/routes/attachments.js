@@ -135,26 +135,24 @@ async function attachmentRoutes(fastify) {
     return reply.code(201).send({ data: attachment });
   });
 
-  // GET /api/v1/attachments/:id — stream file (supports ?token= for inline rendering)
+  // GET /api/v1/attachments/:id — stream file. Bearer header (clipper, fetch
+  // callers) or the HttpOnly attachment cookie (<img>/<iframe>, CR009). A ?token=
+  // query is no longer accepted: it put the access token in URLs and logs.
   fastify.get('/attachments/:id', {
     onRequest: async (request, reply) => {
-      // Try Bearer header first, then query param token (for <img> tags)
       const authHeader = request.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         try {
           const decoded = fastify.auth.verifyAccessToken(authHeader.split(' ')[1]);
           request.user = decoded;
           return;
-        } catch { /* fall through to query param */ }
+        } catch { /* fall through to the cookie */ }
       }
 
-      const token = request.query.token;
-      if (token) {
-        try {
-          const decoded = fastify.auth.verifyAccessToken(token);
-          request.user = decoded;
-          return;
-        } catch { /* invalid token */ }
+      const fromCookie = fastify.auth.verifyAttachmentCookie(request);
+      if (fromCookie) {
+        request.user = fromCookie;
+        return;
       }
 
       return reply.code(401).send({ error: 'Unauthorized', message: 'Missing or invalid token', statusCode: 401 });
@@ -191,7 +189,10 @@ async function attachmentRoutes(fastify) {
     if (attachment.mime_type !== 'application/pdf') {
       reply.header('Content-Security-Policy', 'sandbox');
     }
-    reply.header('Cache-Control', 'private, max-age=31536000');
+    // no-cache (revalidate): the URL carries no credential (CR009), so a cached
+    // copy must not be served without the server checking the cookie again.
+    // The PWA's own attachment cache keeps offline viewing working.
+    reply.header('Cache-Control', 'private, no-cache');
     return reply.send(stream);
   });
 

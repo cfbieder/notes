@@ -10,6 +10,7 @@
 
 const BASE = 'http://localhost:3001/api/v1';
 let token = null;
+let cookie = null; // CR009: GET /attachments authenticates with the attachment cookie
 let passed = 0;
 let failed = 0;
 
@@ -42,6 +43,7 @@ async function run() {
     body: JSON.stringify({ username: 'dev', password: 'password123' })
   });
   token = (await login.json()).data?.accessToken;
+  cookie = login.headers.getSetCookie().find((c) => c.startsWith('attachmentToken='))?.split(';')[0];
   assert(login.status === 200 && token, 'Login succeeds');
 
   const noteRes = await fetch(`${BASE}/notes`, {
@@ -55,11 +57,11 @@ async function run() {
     '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
   const pdf = await upload(note.id, 'x.pdf', 'application/pdf', '%PDF-1.4\n%%EOF\n');
 
-  const svgRes = await fetch(`${BASE}/attachments/${svg.id}?token=${token}`);
+  const svgRes = await fetch(`${BASE}/attachments/${svg.id}`, { headers: { Cookie: cookie } });
   assert(svgRes.status === 200, 'SVG is served');
   assert(svgRes.headers.get('content-security-policy') === 'sandbox', 'SVG carries CSP sandbox');
 
-  const pdfRes = await fetch(`${BASE}/attachments/${pdf.id}?token=${token}`);
+  const pdfRes = await fetch(`${BASE}/attachments/${pdf.id}`, { headers: { Cookie: cookie } });
   assert(pdfRes.status === 200, 'PDF is served');
   assert(!pdfRes.headers.get('content-security-policy'), 'PDF is not sandboxed (inline embeds keep working)');
 

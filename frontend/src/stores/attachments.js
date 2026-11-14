@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { api, getAccessToken } from '../api/client.js';
+import { api } from '../api/client.js';
 
 export const useAttachmentsStore = defineStore('attachments', () => {
   const attachments = ref([]);
@@ -37,9 +37,9 @@ export const useAttachmentsStore = defineStore('attachments', () => {
     attachments.value = [];
   }
 
+  // Auth rides on the HttpOnly attachment cookie (CR009) — no token in the URL.
   function getUrl(id) {
-    const token = getAccessToken();
-    return `/api/v1/attachments/${id}${token ? '?token=' + token : ''}`;
+    return `/api/v1/attachments/${id}`;
   }
 
   return {

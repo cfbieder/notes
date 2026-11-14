@@ -48,6 +48,7 @@ async function authRoutes(fastify) {
       path: '/api/v1/auth/refresh',
       maxAge: 30 * 24 * 60 * 60 // 30 days
     });
+    fastify.auth.setAttachmentCookie(reply, user);
 
     return {
       data: {
@@ -69,6 +70,7 @@ async function authRoutes(fastify) {
     const token = request.cookies.refreshToken || request.body?.refreshToken;
 
     if (!token) {
+      fastify.auth.clearAttachmentCookie(reply);
       return reply.code(401).send({
         error: 'Unauthorized',
         message: 'No refresh token',
@@ -85,6 +87,7 @@ async function authRoutes(fastify) {
       );
 
       if (result.rows.length === 0) {
+        fastify.auth.clearAttachmentCookie(reply);
         return reply.code(401).send({
           error: 'Unauthorized',
           message: 'User not found',
@@ -103,6 +106,7 @@ async function authRoutes(fastify) {
         path: '/api/v1/auth/refresh',
         maxAge: 30 * 24 * 60 * 60
       });
+      fastify.auth.setAttachmentCookie(reply, user);
 
       return {
         accessToken,
@@ -112,6 +116,7 @@ async function authRoutes(fastify) {
         user: { id: user.id, username: user.username, email: user.email }
       };
     } catch {
+      fastify.auth.clearAttachmentCookie(reply);
       return reply.code(401).send({
         error: 'Unauthorized',
         message: 'Invalid refresh token',
@@ -231,6 +236,7 @@ async function authRoutes(fastify) {
     reply.clearCookie('refreshToken', {
       path: '/api/v1/auth/refresh'
     });
+    fastify.auth.clearAttachmentCookie(reply);
 
     return { data: { message: 'Logged out' } };
   });
