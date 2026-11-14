@@ -20,6 +20,19 @@ export default defineConfig({
         scope: '/',
         start_url: '/',
         prefer_related_applications: false,
+        // CR041 — appear in the OS Share sheet (installed PWA, Android/Chromium).
+        // Handled by public/share-target-sw.js.
+        share_target: {
+          action: '/share-target',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
+            files: [{ name: 'files', accept: ['image/*'] }]
+          }
+        },
         icons: [
           {
             src: '/icons/icon-192.png',
@@ -69,6 +82,7 @@ export default defineConfig({
         // make every install, phones included, download it up front.
         globIgnores: ['**/assets/pdf-*.js', '**/assets/pdf.worker*.js'],
         navigateFallbackDenylist: [/^\/api\//],
+        importScripts: ['share-target-sw.js'],
         runtimeCaching: [
           {
             urlPattern: /^\/api\/v1\/attachments\/.*/i,

@@ -116,6 +116,12 @@ const routes = [
     meta: { rail: 'research' }
   },
   {
+    // CR041 — landing page for the PWA share target (public/share-target-sw.js).
+    path: '/share',
+    name: 'Share',
+    component: () => import('../views/ShareView.vue')
+  },
+  {
     path: '/offline',
     name: 'Offline',
     component: () => import('../views/OfflineView.vue'),
@@ -140,6 +146,8 @@ router.beforeEach(async (to) => {
   }
 
   if (!authStore.isAuthenticated) {
+    // CR041: a share made while logged out returns to its confirm screen.
+    if (to.name === 'Share') return { name: 'Login', query: { redirect: to.fullPath } };
     return { name: 'Login' };
   }
 

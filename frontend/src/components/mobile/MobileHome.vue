@@ -8,6 +8,7 @@ import { useIdeasStore } from '../../stores/ideas.js';
 import { Plus, CheckSquare, Inbox, Search, ChevronDown, ChevronRight, Menu, Bell, Mic, KeyRound, CloudDownload } from 'lucide-vue-next';
 import RemindersPanel from '../ui/RemindersPanel.vue';
 import { checkoutCount, dirtyCount } from '../../lib/checkouts.js';
+import { listPendingShares } from '../../lib/pendingShares.js';
 
 const emit = defineEmits(['open-sidebar', 'open-capture', 'open-voice-capture']);
 const router = useRouter();
@@ -70,8 +71,10 @@ function formatDate(dateStr) {
 
 const openTaskCount = ref(0);
 const inboxCount = ref(0);
+const pendingShares = ref([]); // CR041 — shares saved on-device while offline
 
 onMounted(async () => {
+  listPendingShares().then((s) => { pendingShares.value = s; }).catch(() => {});
   try {
     const tasksRes = await tasksStore.fetchTasks({ is_done: 'false' });
     openTaskCount.value = tasksStore.tasks.filter(t => !t.is_done).length;
@@ -99,6 +102,14 @@ onMounted(async () => {
         <Menu :size="22" />
       </button>
     </header>
+
+    <button
+      v-if="pendingShares.length"
+      class="pending-share-banner"
+      @click="router.push(`/share?id=${pendingShares[0].key}`)"
+    >
+      {{ pendingShares.length }} pending share{{ pendingShares.length > 1 ? 's' : '' }} — tap to save
+    </button>
 
     <div class="action-cards">
       <!-- Hero: Quick Note -->
@@ -210,6 +221,21 @@ onMounted(async () => {
   cursor: pointer;
   display: flex;
   align-items: center;
+}
+
+.pending-share-banner {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--accent-warn);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
 }
 
 .action-cards {

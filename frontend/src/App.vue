@@ -183,7 +183,9 @@ function onSessionExpired() {
   if (router.currentRoute.value.name === 'Login' || !authStore.hasSessionHint) return;
   authStore.expireSession();
   toastsStore.addToast({ message: 'Your session expired — please log in again.', type: 'info' });
-  router.push('/login');
+  // CR041: keep a pending share's confirm screen as the post-login target.
+  const current = router.currentRoute.value;
+  router.push(current.name === 'Share' ? { name: 'Login', query: { redirect: current.fullPath } } : '/login');
 }
 
 // On app load, check whether the Google Drive integration needs re-auth and,
@@ -233,7 +235,7 @@ onBeforeUnmount(() => {
   <RouterView />
   <SearchPalette v-if="showSearch" @close="showSearch = false" />
   <QuickCapture v-if="showCapture" :initial-type="captureInitialType" @close="showCapture = false" />
-  <MobileFAB v-if="authStore.isAuthenticated" @click="onFABClick" />
+  <MobileFAB v-if="authStore.isAuthenticated && $route.name !== 'Share'" @click="onFABClick" />
   <InstallBanner />
   <OfflineStatus v-if="authStore.isAuthenticated" />
   <HelpModal v-if="uiStore.showHelp" @close="uiStore.showHelp = false" />

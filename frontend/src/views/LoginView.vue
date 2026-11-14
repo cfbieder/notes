@@ -1,8 +1,9 @@
 <script setup>
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.js';
 
+const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 
@@ -16,7 +17,10 @@ async function handleLogin() {
   loading.value = true;
   try {
     await authStore.login(username.value, password.value);
-    router.push('/notes');
+    // Only the CR041 share screen is a redirect target (no open redirects).
+    const redirect = route.query.redirect;
+    if (typeof redirect === 'string' && redirect.startsWith('/share?')) router.replace(redirect);
+    else router.push('/notes');
   } catch (err) {
     error.value = err.body?.message || 'Login failed';
   } finally {

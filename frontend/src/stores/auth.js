@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { api, setAccessToken, OfflineError } from '../api/client.js';
+import { clearPendingShares } from '../lib/pendingShares.js';
 
 const SESSION_HINT_KEY = 'noted.hasSession';
 
@@ -36,6 +37,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null;
     setAccessToken(null);
     setSessionHint(false);
+    clearPendingShares().catch(() => {}); // CR041
   }
 
   // Clear session state locally without calling the API — used when a refresh
@@ -44,6 +46,8 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null;
     setAccessToken(null);
     setSessionHint(false);
+    // Not clearing pending shares here (CR041): an expired session is exactly
+    // when a fresh share must survive the trip through /login.
   }
 
   async function refreshSession() {
