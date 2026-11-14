@@ -330,6 +330,7 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **Storage:** Files stored on VM filesystem in a structured directory (`/attachments/{year}/{month}/{note_id}/`).
 - **Metadata:** File size, type, and original filename stored in `attachments` table.
 - **Upload:** Drag-and-drop into note body, via toolbar button, or paste from clipboard (Win+Shift+S / screenshot tools). Pasted images are uploaded as attachments and the markdown reference is inserted at the current cursor position in the editor.
+- **Share to Noted (CR041):** the installed PWA (Android/Chromium) is a Web Share Target. Share a screenshot, text or link from another app and a confirm screen (`/share`, [ShareView.vue](frontend/src/views/ShareView.vue)) shows a preview, a caption box (pre-filled from shared text/URL) and a Note / Idea toggle. **Save** creates the item, uploads each image as an attachment and writes inline `![…](…)` references into the body. The service worker ([share-target-sw.js](frontend/public/share-target-sw.js), via `workbox.importScripts`) only parks the share in Cache Storage (`share-target`); the page uploads with the user's session. It accepts raster images only (png/jpeg/gif/webp), because any site can POST to the target. Offline, the share stays on the device and Mobile Home shows a pending-share banner. A partial Save is rolled back, and if that can't reach the server it's recorded and cleaned up on the next Save. Logout clears pending shares. Not available on iOS (no Web Share Target).
 
 ### 5.8 Bidirectional Links & Backlinks (Stage 2)
 
@@ -373,7 +374,7 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **Soft delete:** `DELETE /api/v1/notes/:id` sets `deleted_at` rather than removing the row (see `backend/migrations/002_soft_delete.sql`).
 - **Trash view:** `/trash` route lists soft-deleted notes with restore and permanent-delete actions.
 - **Exclusion from app surfaces:** Notes list, graph, backlinks, link resolution, and search all filter on `deleted_at IS NULL`. Trashed notes appear as broken links in wikilink resolution.
-- **Restore:** Clears `deleted_at`. Permanent delete hard-removes the row and its attachments on disk.
+- **Restore:** Clears `deleted_at`. Permanent delete hard-removes the row; attachment rows cascade, but their files stay on disk (known issue — see roadmap v0.27.0).
 
 ### 5.13 Google Drive Import (implemented)
 
@@ -734,7 +735,7 @@ DELETE /api/v1/notes/:id            Soft delete — sets deleted_at
 GET    /api/v1/notes/export/:title  Raw markdown by title (text/markdown, supports ?token= for scripts)
 GET    /api/v1/notes/trash          Lists soft-deleted notes for the user
 POST   /api/v1/notes/:id/restore    Clears deleted_at
-DELETE /api/v1/notes/:id?hard=true  Permanent delete (removes row + attachments on disk)
+DELETE /api/v1/notes/:id/permanent  Permanent delete of a trashed note (row + attachment rows; files stay on disk)
 GET    /api/v1/notes/:id/backlinks  Returns notes linking to this note
 GET    /api/v1/notes/:id/graph      Returns local graph data (nodes + edges, 1 degree)
 POST   /api/v1/notes/voice          Multipart audio upload → transcribe via Whisper → create idea + attachment

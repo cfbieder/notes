@@ -1,6 +1,6 @@
 # CR041 — Share Screenshots to Noted (PWA Share Target)
 
-**Status:** Open — design decided, ready to build
+**Status:** Shipped (v0.27.0, 2026-11-14) — on-device acceptance on the installed Android PWA pending
 **Severity:** Feature (small–medium)
 **Origin:** User request, 2026-11-13
 
@@ -31,7 +31,8 @@ creates a new Inbox note with the image attached and shown inline.
    - `POST /api/v1/notes/:id/attachments` for each file (existing endpoint; OCR runs as for any upload);
    - updates the body with `![filename](/api/v1/attachments/<id>)` for each image;
    - deletes the cache entry, then opens the new note.
-4. **Cancel** deletes the cache entry and goes to the Inbox.
+4. **Discard** deletes the cache entry and goes to the Inbox; **Keep for later** goes to Home and leaves it pending.
+5. If Save fails part-way, the half-made note and its uploaded files are deleted (`DELETE /attachments/:id` per file, which unlinks it, then soft + permanent note delete). If that undo can't reach the server, `{ noteId, attachmentIds }` is stored on the pending share and cleaned up at the start of the next Save, so no duplicate is created. A 401 on Save goes to `/login?redirect=/share?id=…`.
 
 ### Why the page uploads, not the service worker
 
@@ -59,6 +60,19 @@ refresh-on-401 path and the same `OfflineError` handling as every other call.
 - `frontend/src/views/ShareView.vue` + route `/share` (auth-guarded; a logged-out user goes to login and
   returns to it, and the pending files wait in the cache).
 - No backend or schema change. Uses the existing notes and attachments endpoints and the 25 MB `MAX_FILE_SIZE` cap.
+
+## Security
+
+- **Any site can POST to `/share-target`**, not just the OS share sheet (a cross-site form is
+  a navigation inside the service worker's scope). So the service worker and `pendingShares.js`
+  both keep **raster images only** (`png`/`jpeg`/`gif`/`webp`). An SVG would be served inline
+  from Noted's origin. Text is shown escaped, and nothing is saved without the user tapping Save.
+- **Pending shares have no owner**, so an explicit logout clears the `share-target` cache, and
+  the next account on the device never sees them. Session *expiry* does not clear it, so a
+  share made with a stale session survives the trip through `/login`.
+- Login's `?redirect=` is honoured only for `/share?…` (no open redirect).
+- Pre-existing, **not** fixed here: the attachments route still accepts and serves SVG inline
+  (`backend/src/routes/attachments.js`). That's for its own fix.
 
 ## Platform limits
 
@@ -99,7 +113,7 @@ refresh-on-401 path and the same `OfflineError` handling as every other call.
 2. Sharing one screenshot creates an Inbox note whose body shows the image inline; the attachment
    is OCR'd and its text is findable in search.
 3. Sharing several images at once attaches all of them, in order.
-4. Cancel leaves no note and no orphaned attachment; the pending cache entry is removed either way.
+4. Discard leaves no note and no orphaned attachment, and removes the pending entry. Keep for later leaves it pending.
 5. Sharing while logged out ends at login, then back on the share screen with the image still there.
 6. A share larger than 25 MB shows a clear error and creates no empty note.
 7. The Note / Idea toggle creates the chosen type; Idea lands in Ideas, not the Inbox.

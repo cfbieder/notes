@@ -55,6 +55,7 @@ authoritative description of each subsystem lives in
 | `frontend/src/components/research/SourceReader.vue` | Reader view for a source: citation card, text or PDF view, highlight sidebar (CR039) |
 | `frontend/src/components/research/PdfViewer.vue` | PDF.js viewer with page-anchored highlights — shared with CR025 (CR039 D) |
 | `frontend/src/components/research/HighlightedBody.vue`, `HighlightPopover.vue`, `HighlightSidebar.vue` | Text highlights, the shared new-highlight popover, the sidebar (CR039) |
+| `frontend/public/share-target-sw.js`, `frontend/src/lib/pendingShares.js`, `frontend/src/views/ShareView.vue` | PWA share target: SW parks shared files in Cache Storage; `/share` confirm screen uploads them (CR041) |
 | `frontend/src/lib/anchoring.js`, `frontend/src/lib/highlightDom.js` | Browser-side quote anchoring (exact → fuzzy → orphaned) and DOM marking (CR039) |
 | `frontend/src/components/research/SearchHighlights.vue` | Highlight results section on the search page (CR039) |
 | `frontend/src/stores/toasts.js` | Global toast notification store |

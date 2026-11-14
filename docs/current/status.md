@@ -7,11 +7,12 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.26.2 · **Live:** `https://noted.example.com` (placeholder — public repo;
+**Current version:** v0.27.0 · **Live:** `https://noted.example.com` (placeholder — public repo;
 the real Tailscale host is `CORS_ORIGIN` in `backend/.env.prod`) · containers `noted-db`, `noted-api`, `noted-web`.
 
 ## Recently shipped
 See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlines:
+- v0.27.0 — [CR041](docs/cr/cr-041-pwa-share-target-images.md): share a screenshot (or text/link) from another app to Noted on the installed Android PWA → confirm screen → note with the image inline. Offline shares wait on the phone. Needs on-device acceptance
 - v0.26.2 — fix: switching quickly between note tabs could overwrite one note with another's title and content; saves now go only to the note whose text is in the editor
 - v0.26.1 — fix: ticking a checkbox on iPad no longer jumps the page to the text cursor
 - v0.26.0 — [CR040](docs/cr/cr-040-per-note-checkbox-size.md): checkbox size per note — a toolbar button cycles S / M / L on any note with checkboxes. Plus: AI Assist condense now routes through `/task`
@@ -19,7 +20,6 @@ See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlin
 - v0.25.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **Phase D**: PDF sources open in a page viewer where you highlight text; highlights hold at any zoom and carry the printed page number into Passages and the export. Plus: a failed highlight save keeps your comment
 - v0.24.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **Phase C complete**: a chapter's **Passages** tab and a Key Passages section in the export; search finds highlights and filters by `is:source` / `ch:3`; clipper **v0.6.0** highlights text on a live page (reload the extension). Plus a search-snippet escaping fix and a Refresh button on the Research page
 - v0.23.0 — [CR039](docs/cr/cr-039-research-sources-highlights.md) **highlights**: select text in a source to highlight it with a meaning, chapter and comment; highlights re-anchor after text changes (fuzzy, or kept as unanchored). Plus **Fetch text**, which captures a source's article from its URL
-- v0.22.2 — upload limit set to 25 MB everywhere (`MAX_FILE_SIZE` mapped in prod; Drive imports 10 → 25 MB)
 - Older releases: see the [CR index](docs/cr/README.md) and the roadmap's "Recently Completed".
 
 ## In progress / next
