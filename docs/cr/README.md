@@ -18,7 +18,7 @@ the next sequential number and starts from [cr-000-template.md](docs/cr/cr-000-t
 | [006](docs/cr/cr-006-note-summarization.md) | Note Summarization | — | Open |
 | [007](docs/cr/cr-007-task-extraction.md) | Task Extraction from Notes | — | Open |
 | [008](docs/cr/cr-008-natural-language-query.md) | Natural Language Note Query ("Ask My Notes") | — | Open |
-| [009](docs/cr/cr-009-signed-attachment-urls.md) | Replace Attachment Query-String JWT with Signed URLs | — | Open |
+| [009](docs/cr/cr-009-signed-attachment-urls.md) | Replace Attachment Query-String JWT with Signed URLs (→ attachment cookie) | v0.28.0 | In progress (awaiting on-device check) |
 | [010](docs/cr/cr-010-user-settings-email-display.md) | User Settings: Email & Display Preferences | — | Open |
 | [011](docs/cr/cr-011-multi-user-workspaces.md) | Multi-User Workspaces (Shared Notebooks) | — | Open |
 | [012](docs/cr/cr-012-role-based-access-control.md) | Role-Based Access Control | — | Open |

@@ -7,11 +7,12 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.27.1 · **Live:** `https://noted.example.com` (placeholder — public repo;
+**Current version:** v0.28.0 · **Live:** `https://noted.example.com` (placeholder — public repo;
 the real Tailscale host is `CORS_ORIGIN` in `backend/.env.prod`) · containers `noted-db`, `noted-api`, `noted-web`.
 
 ## Recently shipped
 See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlines:
+- v0.28.0 — [CR009](docs/cr/cr-009-signed-attachment-urls.md): attachments load via an HttpOnly cookie, so the login token no longer appears in image/PDF URLs; logout clears cached attachments
 - v0.27.1 — fix: SVG attachments can no longer run script (CSP sandbox); deleting a note permanently now frees its files on disk (plus a one-off sweep for old leftovers); Dependabot in-range updates (dompurify, markdown-it, vite, fastify, qs)
 - v0.27.0 — [CR041](docs/cr/cr-041-pwa-share-target-images.md): share a screenshot (or text/link) from another app to Noted on the installed Android PWA → confirm screen → note with the image inline. Offline shares wait on the phone. Reinstall the PWA once to see Noted in the Share sheet
 - v0.26.2 — fix: switching quickly between note tabs could overwrite one note with another's title and content; saves now go only to the note whose text is in the editor
@@ -26,6 +27,7 @@ See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlin
 ## In progress / next
 - [CR038](docs/cr/cr-038-pluggable-ai-providers.md) — Pluggable AI providers (**in progress**): still open: `translateText` and `/system/stats` are gateway-only, `generateTextStream` is not cancellable, and no path has been verified against a real cloud key. Phases 2 (OCR) and 3 (transcription) not started
 - [CR039](docs/cr/cr-039-research-sources-highlights.md) — Research sources (**in progress**): A1, B, A2 and A3 shipped. **Phases C (web highlights) and D (PDF highlights) shipped.** Next is E (after [CR001](docs/cr/cr-001-pgvector-embeddings.md) — pgvector embeddings). Small follow-ups (page labels in highlight search, `is:source`/`ch:` in the Help modal, `scope=highlighted`, scanned-PDF highlighting) are on the roadmap's "Deferred from CR039" list. The ocr-llm handoff `noted-source-metadata-task` is closed (task live, routed via `/task`)
+- [CR009](docs/cr/cr-009-signed-attachment-urls.md) — Attachment auth without a token in the URL (**shipped v0.28.0, awaiting on-device check**): check images, PDF embeds and print on prod, then mark completed
 - [CR026](docs/cr/cr-026-activity-rail-navigation.md) — Activity rail + contextual panel navigation (**in progress**)
 - [CR025](docs/cr/cr-025-pdf-document-management.md) — PDF document management (open)
 - **Phase 8 — LLM intelligence:** foundation [CR001](docs/cr/cr-001-pgvector-embeddings.md)

@@ -38,7 +38,9 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 | CR | Title |
 |----|-------|
-| [CR009](docs/cr/cr-009-signed-attachment-urls.md) | Replace Attachment Query-String JWT with Signed URLs |
+| [CR009](docs/cr/cr-009-signed-attachment-urls.md) | Replace Attachment Query-String JWT with Signed URLs — **Shipped as an HttpOnly attachment cookie (owner decision 2026-11-14) — awaiting on-device check.** Unblocks CR025 |
+| — | `GET /notes/export/:title` still accepts `?token=` (incl. long-lived `noted_` API tokens) — the last credential-in-URL route; lands in nginx access logs. Make it Bearer-only and update [api-export-guide.md](docs/guides/api-export-guide.md). **Known gap, no CR yet** (CR009 review) |
+| — | `JWT_SECRET` / `JWT_REFRESH_SECRET` are not fail-loud: unset in prod, they fall back to the public dev default (and the CR009 attachment key derives from `JWT_SECRET`). Use `${JWT_SECRET:?}` in prod compose or throw at startup in production. **Known gap, no CR yet** (CR009 review) |
 | — | Unmapped prod setting `MAX_FILE_SIZE` — **Fixed (owner decision 2026-10-03: 25 MB everywhere).** It is mapped in prod compose (default 26214400), `.env.prod` and both templates say 25 MB, and it is off CI guard 7's allowlist. Uploads are unchanged; Drive imports rise from 10 MB to 25 MB. Shipped in v0.22.2 |
 | — | `tag_ids` ownership on `POST`/`PUT /notes` — **Fixed v0.22.1.** Foreign tag ids are now ignored (create, update and offline check-in), and the reads join only the owner's tags. Covered by cross-user tests in `cr039-research.test.js` |
 | [CR020](docs/cr/cr-020-encrypted-password-vault.md) | Encrypted Password & Key Vault (client-side, zero-knowledge) — **Completed** |
@@ -114,6 +116,11 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 ---
 
 ## Recently Completed
+
+### Released v0.28.0 (2026-11-14)
+
+- **[CR009](docs/cr/cr-009-signed-attachment-urls.md) — no login token in attachment URLs.** Images, PDF embeds, the attachment grid and print now load from plain `/api/v1/attachments/<id>` links, authenticated by an HttpOnly, attachment-only cookie set at login and refresh. `?token=` on attachments is no longer accepted (a script using it must send a Bearer header). Logout and session expiry also empty the PWA's attachment cache, and attachments are served `Cache-Control: private, no-cache`, so a shared browser can't show the last user's files. Logged-in devices pick up the cookie at their next session refresh — nothing to do.
+- **Found by the CR009 security review (not fixed here):** `/notes/export/:title` still accepts `?token=`; `JWT_SECRET` isn't fail-loud in prod — both on the roadmap's Security list.
 
 ### Released v0.27.1 (2026-11-14)
 
