@@ -184,6 +184,13 @@ async function attachmentRoutes(fastify) {
     const stream = fs.createReadStream(filePath);
     reply.header('Content-Type', attachment.mime_type);
     reply.header('Content-Disposition', `inline; filename="${attachment.filename}"`);
+    // An attachment opened directly is a same-origin document: script in an SVG
+    // (or anything a browser might render) would run as the user. Sandbox it.
+    // PDFs are exempt — Chrome won't render a PDF in a sandboxed frame, which
+    // would break the CR031 inline embeds; a PDF can't run page script anyway.
+    if (attachment.mime_type !== 'application/pdf') {
+      reply.header('Content-Security-Policy', 'sandbox');
+    }
     reply.header('Cache-Control', 'private, max-age=31536000');
     return reply.send(stream);
   });

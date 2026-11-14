@@ -89,7 +89,8 @@ export default defineConfig({
             handler: 'CacheFirst',
             method: 'GET',
             options: {
-              cacheName: 'attachment-cache',
+              // v2: responses cached before the CSP-sandbox header (v0.27.1) must not be reused.
+              cacheName: 'attachment-cache-v2',
               expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 }
             }
           }
