@@ -7,11 +7,12 @@
 **Project:** Noted — self-hosted, Markdown-first personal knowledge & task app
 (Vue 3 + Fastify + PostgreSQL). Full description: [project-description.md](docs/current/project-description.md).
 
-**Current version:** v0.27.0 · **Live:** `https://noted.example.com` (placeholder — public repo;
+**Current version:** v0.27.1 · **Live:** `https://noted.example.com` (placeholder — public repo;
 the real Tailscale host is `CORS_ORIGIN` in `backend/.env.prod`) · containers `noted-db`, `noted-api`, `noted-web`.
 
 ## Recently shipped
 See the [CR index](docs/cr/README.md) for the authoritative list. Latest headlines:
+- v0.27.1 — fix: SVG attachments can no longer run script (CSP sandbox); deleting a note permanently now frees its files on disk (plus a one-off sweep for old leftovers); Dependabot in-range updates (dompurify, markdown-it, vite, fastify, qs)
 - v0.27.0 — [CR041](docs/cr/cr-041-pwa-share-target-images.md): share a screenshot (or text/link) from another app to Noted on the installed Android PWA → confirm screen → note with the image inline. Offline shares wait on the phone. Reinstall the PWA once to see Noted in the Share sheet
 - v0.26.2 — fix: switching quickly between note tabs could overwrite one note with another's title and content; saves now go only to the note whose text is in the editor
 - v0.26.1 — fix: ticking a checkbox on iPad no longer jumps the page to the text cursor

@@ -9,6 +9,8 @@ authoritative description of each subsystem lives in
 | `backend/src/app.js` | Fastify server entry point |
 | `backend/src/plugins/db.js` | PostgreSQL connection pool |
 | `backend/src/utils/migrate.js` | Migration runner |
+| `backend/src/utils/attachmentFiles.js` | Collect attachment storage paths before a note delete; best-effort unlink after |
+| `backend/src/utils/sweepOrphanAttachments.js` | One-off sweep of attachment files with no DB row (dry run unless `--delete`) |
 | `backend/migrations/` | SQL migration files |
 | `frontend/src/main.js` | Vue app entry point |
 | `frontend/src/router/index.js` | Route definitions |

@@ -29,6 +29,9 @@ bash scripts/ci-guards.sh
 # Off-host backup over SSH (also run by cron)
 ./scripts/backup-to-remote.sh
 
+# Orphaned attachment files (no DB row) — dry run lists them; --delete removes
+docker exec noted-api node src/utils/sweepOrphanAttachments.js [--delete]
+
 # Logs
 docker compose -f docker-compose.prod.yml logs -f
 

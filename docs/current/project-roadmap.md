@@ -115,12 +115,19 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 ## Recently Completed
 
+### Released v0.27.1 (2026-11-14)
+
+- **Fix (security — SVG script):** attachments other than PDFs are now served with `Content-Security-Policy: sandbox`, so script inside an uploaded SVG opened directly can no longer run on the app origin. PDFs are exempt: Chrome won't render a sandboxed PDF, which would break the [CR031](docs/cr/cr-031-inline-pdf-attachment-embeds.md) inline embeds (a PDF can't run page script anyway). The PWA's attachment cache is renamed `attachment-cache-v2` so copies cached without the header aren't reused. Regression test: `backend/tests/attachment-csp-sandbox.test.js` (in `test:ci`).
+- **Fix (disk space):** permanently deleting a note, or emptying the Trash, now removes its attachment files from disk as well as the rows (`backend/src/utils/attachmentFiles.js`). Files orphaned before this fix are removed by a one-off sweep, `backend/src/utils/sweepOrphanAttachments.js` — dry run by default, `--delete` to remove; it only touches files shaped like attachment storage and skips anything under an hour old. See [deployment.md](docs/guides/deployment.md).
+- **Deps (Dependabot, in-range):** dompurify 3.4.17, markdown-it 14.3.3, vite 6.4.6, fastify 5.12.8, qs 6.17.1, plus fast-uri, minimatch and serialize-javascript. `npm audit --omit=dev` is clean in both frontend and backend.
+- **Still open (dev/test dependencies only):** vitest / @vitest/mocker (npm 10.9.9 crashes with `Cannot read properties of null (reading 'edgesOut')` when updating them — retry after an npm upgrade), happy-dom (fix needs major v21), deepmerge (no fix released), nested glob/minimatch under dev tooling.
+
 ### Released v0.27.0 (2026-11-14)
 
 - **[CR041](docs/cr/cr-041-pwa-share-target-images.md) — share screenshots to Noted.** On the installed Android PWA, Noted is in the Share sheet. Share a screenshot (or text / a link) and a confirm screen offers a caption and Note / Idea, and Save creates it with the image inline and OCR'd. Shared while offline, it stays on the phone with a pending-share banner on Home. Raster images only (png/jpeg/gif/webp). Not available on iOS. The installed app must pick up the update (a **reinstall** was needed on Android) before Noted appears in the Share sheet.
 - **Deps:** vue 3.5.44, source-map-js 1.2.2.
-- **Known issues found (not fixed in this release):**
-  - The attachments route accepts SVG and serves it inline from the app origin with no CSP, so script in an uploaded SVG runs same-origin. Pre-existing; needs its own fix.
+- **Known issues found (both fixed in v0.27.1):**
+  - The attachments route accepts SVG and serves it inline from the app origin with no CSP, so script in an uploaded SVG runs same-origin.
   - Permanent note delete removes the attachment *rows* (cascade) but not the files on disk.
 
 ### Released v0.26.2 (2026-10-15)

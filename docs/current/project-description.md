@@ -324,6 +324,7 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **Supported types:** Images (PNG, JPG, GIF, WebP, SVG), PDFs, and common document types (DOCX, XLSX, TXT).
 - **Inline images:** Images render inline in Normal Mode when a markdown `![](...)` reference exists in the note body. The `AttachmentZone` component also shows an always-on thumbnail grid for every image attachment (rendered above the collapsible file list) regardless of whether the body references them — so uploads, clipper screenshots, and Drive imports all display a preview even when no markdown reference exists.
 - **SVG on dark themes:** SVGs authored for light backgrounds often use dark ink and disappear on the dark editor. Both the editor's `ImageWidget` and the `AttachmentZone` preview grid give a white backing (with padding) to image references whose alt/filename ends in `.svg` or whose `mime_type` is `image/svg+xml`. Other image types keep the transparent theme background.
+- **Serving:** `GET /attachments/:id` sends `Content-Security-Policy: sandbox` on every type except PDF, so an SVG (or other renderable file) opened directly can't run script on the app origin. PDFs are exempt so CR031 inline embeds still render.
 - **PDF preview:** PDFs show a thumbnail; clicking opens in a panel or browser tab.
 - **Inline PDF embed (CR031):** Obsidian-style `![[filename.pdf]]` syntax renders a PDF attachment as an inline `<iframe>` (browser-native PDF viewer, ~640 px tall, full editor width) in Normal Mode. Filename match is case-insensitive against the current note's attachments. Source Mode shows the raw syntax. Unknown filenames render as a red dashed "broken embed" indicator. The wikilink regex uses a negative lookbehind `(?<!!)` so `![[…]]` is processed exclusively by `pdfEmbedRenderPlugin` and never mis-classified as a note link. Iframe auth uses the existing `?token=<jwt>` shim (same as inline images), and the iframe `src` appends `#toolbar=0&navpanes=0&scrollbar=0` (PDF Open Parameters) so the embedded viewer's filename bar, page-nav, and zoom controls are hidden and the page sits flush against the editor. Works on the mobile editor too (both `NotesView` and `MobileEditor` thread `attachmentMap` into `CodeMirrorEditor`); however, Android Chrome has no built-in inline PDF viewer, so the iframe may render blank or trigger a download on Android — desktop Chrome renders fully inline. Requires `X-Frame-Options: SAMEORIGIN` (not `DENY`) in `nginx/noted.conf` so the iframe can frame the same-origin attachment endpoint.
 - **Insert into document (CR031):** Each attachment row in `AttachmentZone` has a corner-down-left **Insert** button (between the size and the trash icon) that drops type-appropriate markdown at the cursor — `![filename](url)` for images, `![[filename]]` for PDFs, `[filename](url)` for everything else.
@@ -374,7 +375,7 @@ All shortcuts are Alt-based (except `Ctrl+K` for search, matching palette conven
 - **Soft delete:** `DELETE /api/v1/notes/:id` sets `deleted_at` rather than removing the row (see `backend/migrations/002_soft_delete.sql`).
 - **Trash view:** `/trash` route lists soft-deleted notes with restore and permanent-delete actions.
 - **Exclusion from app surfaces:** Notes list, graph, backlinks, link resolution, and search all filter on `deleted_at IS NULL`. Trashed notes appear as broken links in wikilink resolution.
-- **Restore:** Clears `deleted_at`. Permanent delete hard-removes the row; attachment rows cascade, but their files stay on disk (known issue — see roadmap v0.27.0).
+- **Restore:** Clears `deleted_at`. Permanent delete (and Empty Trash) hard-removes the row; attachment rows cascade, and their files are removed from disk (since v0.27.1).
 
 ### 5.13 Google Drive Import (implemented)
 
@@ -735,7 +736,7 @@ DELETE /api/v1/notes/:id            Soft delete — sets deleted_at
 GET    /api/v1/notes/export/:title  Raw markdown by title (text/markdown, supports ?token= for scripts)
 GET    /api/v1/notes/trash          Lists soft-deleted notes for the user
 POST   /api/v1/notes/:id/restore    Clears deleted_at
-DELETE /api/v1/notes/:id/permanent  Permanent delete of a trashed note (row + attachment rows; files stay on disk)
+DELETE /api/v1/notes/:id/permanent  Permanent delete of a trashed note (row, attachment rows and files)
 GET    /api/v1/notes/:id/backlinks  Returns notes linking to this note
 GET    /api/v1/notes/:id/graph      Returns local graph data (nodes + edges, 1 degree)
 POST   /api/v1/notes/voice          Multipart audio upload → transcribe via Whisper → create idea + attachment
