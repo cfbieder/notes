@@ -84,7 +84,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 |----|-------|
 | [CR027](docs/cr/cr-027-offline-note-checkout.md) | Per-Note Offline Checkout (Read + Edit) — soft-sync IndexedDB cache + `/checkin` endpoint + conflict diff modal — **Completed (v1)** |
 | [CR028](docs/cr/cr-028-offline-create-notes-and-ideas.md) | Offline Create for Notes & Ideas (+ IdeasView icon parity) — route "+ New" buttons through the existing outbox, surface pending items in lists with a `CloudUpload` badge |
-| [CR041](docs/cr/cr-041-pwa-share-target-images.md) | Share Screenshots to Noted (PWA Share Target) — **Shipped v0.27.0**, on-device acceptance pending |
+| [CR041](docs/cr/cr-041-pwa-share-target-images.md) | Share Screenshots to Noted (PWA Share Target) — **Completed** (v0.27.0) |
 
 - **Open (needs a UX decision):** `PUT /api/v1/notes/:id` has no version check, so the last write wins. Sending `updated_at` and getting back a 409 would catch any remaining wrong-note or cross-device overwrite. First decide what the user sees on a conflict. Since v0.26.2's client fix, it is no longer needed to stop the tab-switch overwrite.
 
@@ -117,7 +117,7 @@ The LLM service layer (`backend/src/services/llmService.js`), translation (8.11)
 
 ### Released v0.27.0 (2026-11-14)
 
-- **[CR041](docs/cr/cr-041-pwa-share-target-images.md) — share screenshots to Noted.** On the installed Android PWA, Noted is in the Share sheet. Share a screenshot (or text / a link) and a confirm screen offers a caption and Note / Idea, and Save creates it with the image inline and OCR'd. Shared while offline, it stays on the phone with a pending-share banner on Home. Raster images only (png/jpeg/gif/webp). Not available on iOS. The installed app must pick up the update (possibly a reinstall) before Noted appears in the Share sheet.
+- **[CR041](docs/cr/cr-041-pwa-share-target-images.md) — share screenshots to Noted.** On the installed Android PWA, Noted is in the Share sheet. Share a screenshot (or text / a link) and a confirm screen offers a caption and Note / Idea, and Save creates it with the image inline and OCR'd. Shared while offline, it stays on the phone with a pending-share banner on Home. Raster images only (png/jpeg/gif/webp). Not available on iOS. The installed app must pick up the update (a **reinstall** was needed on Android) before Noted appears in the Share sheet.
 - **Deps:** vue 3.5.44, source-map-js 1.2.2.
 - **Known issues found (not fixed in this release):**
   - The attachments route accepts SVG and serves it inline from the app origin with no CSP, so script in an uploaded SVG runs same-origin. Pre-existing; needs its own fix.

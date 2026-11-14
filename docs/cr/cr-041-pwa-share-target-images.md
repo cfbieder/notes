@@ -1,6 +1,6 @@
 # CR041 — Share Screenshots to Noted (PWA Share Target)
 
-**Status:** Shipped (v0.27.0, 2026-11-14) — on-device acceptance on the installed Android PWA pending
+**Status:** Completed (v0.27.0, 2026-11-14) — accepted by the owner on the installed Android PWA
 **Severity:** Feature (small–medium)
 **Origin:** User request, 2026-11-13
 
@@ -84,6 +84,8 @@ refresh-on-401 path and the same `OfflineError` handling as every other call.
 - **Desktop:** Chrome on Windows/ChromeOS supports it; not a target use case.
 - The manifest change only takes effect after the PWA **picks up the update** (sometimes a
   reinstall). Note this in the release notes.
+  *Verified 2026-11-14:* an in-app update was not enough. Noted appeared in the Share sheet
+  only after **removing and reinstalling** the PWA (Android registers share targets at install).
 
 ## Decisions (owner, 2026-11-13)
 
